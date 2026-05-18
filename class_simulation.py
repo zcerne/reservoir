@@ -256,6 +256,9 @@ class Simulation:
             )
         for sensor in self.sensors:
             sensor.save(self.simulation, sim_path)
+        for obj in self.objects:
+            if isinstance(obj, LCReservoir):
+                obj.save_fields()
 
     def run_simulation(self) -> None:
         self._set_everything()

@@ -14,7 +14,7 @@ class XaLCS:
     bpad = None
     bpad_ixs = None
     periodic_b = False
-    phi_only: bool = False  # True → optimize phi only, theta fixed at pi/2
+    phi_only = False
 
     def __init__(self, cell_size, resolution, elastic_constants,
                  boundary_conditions=("free", "free", "free"),
