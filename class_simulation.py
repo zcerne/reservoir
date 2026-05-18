@@ -183,7 +183,7 @@ class Simulation:
         ]
         for obj in self.objects:
             if isinstance(obj, LCReservoir):
-                obj.get_geometry_blocks()
+                obj.build_material_function()
                 self._lc_material_func = obj.material_function
                 break
 

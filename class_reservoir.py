@@ -109,10 +109,10 @@ class Reservoir:
             raise RuntimeError("Run run_minimization() first.")
         return self._sim.get_results()
 
-    def get_geometry_blocks(self):
+    def build_material_function(self):
         """
         Builds a spatially-varying LC material function for MEEP and stores it on
-        self.material_function. Returns an empty list (no hard geometry objects).
+        self.material_function.
 
         Coordinate mapping:
             MEEP x -> LC x: lc_x = meep_x - self._meep_center_x
@@ -149,7 +149,6 @@ class Reservoir:
             return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
 
         self.material_function = _mat
-        return []
 
     def get_results_2d(self, z_slice=None):
         """Returns (phi, theta, nx, ny, nz) for a single z-slice (default: middle)."""
