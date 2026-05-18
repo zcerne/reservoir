@@ -149,11 +149,15 @@ class Reservoir:
         return phi[:, :, iz], theta[:, :, iz], nx[:, :, iz], ny[:, :, iz], nz[:, :, iz]
 
     def save_fields(self):
-        """Save director field arrays to lc_fields.npz in the simulation folder."""
+        """Save director field arrays + grid coordinates to lc_fields.npz."""
         phi, theta, *_ = self.get_results()
+        cell = self._cell_size()
+        sx, sy = float(cell[0]), float(cell[1])
+        x = np.linspace(-sx / 2, sx / 2, phi.shape[0])
+        y = np.linspace(-sy / 2, sy / 2, phi.shape[1])
         out = self.folder / "simulation"
         out.mkdir(exist_ok=True)
-        np.savez(out / "lc_fields.npz", phi=phi, theta=theta)
+        np.savez(out / "lc_fields.npz", phi=phi, theta=theta, x=x, y=y)
 
 
 if __name__ == "__main__":
