@@ -35,7 +35,6 @@ class Reservoir:
         self.n_background = float(data.get("background_index", 1.0))
         self._sim = None
         self._meep_center_x: float = 0.0
-        self.material_function = None
 
     def _cell_size(self):
         if len(self.dimensions) == 2:
@@ -109,15 +108,7 @@ class Reservoir:
             raise RuntimeError("Run run_minimization() first.")
         return self._sim.get_results()
 
-    def build_material_function(self):
-        """
-        Builds a spatially-varying LC material function for MEEP and stores it on
-        self.material_function.
-
-        Coordinate mapping:
-            MEEP x -> LC x: lc_x = meep_x - self._meep_center_x
-            MEEP y -> LC y (both centered at 0)
-        """
+    def get_geometry_blocks(self):
         from scipy.interpolate import RectBivariateSpline
         import meep as mp
 
@@ -129,7 +120,6 @@ class Reservoir:
         x_lc = np.linspace(-sx / 2, sx / 2, nx_pts)
         y_lc = np.linspace(-sy / 2, sy / 2, ny_pts)
 
-        # phi[i, j] = value at (x_lc[i], y_lc[j]) — matches RectBivariateSpline convention
         phi_interp   = RectBivariateSpline(x_lc, y_lc, phi)
         theta_interp = RectBivariateSpline(x_lc, y_lc, theta)
 
@@ -137,18 +127,19 @@ class Reservoir:
         n_e_sq = self.n_e ** 2
         S  = self.S
         cx = self._meep_center_x
-        bg = mp.Medium(index=self.n_background)
 
         def _mat(v):
-            lc_x = v.x - cx
-            if abs(lc_x) > sx / 2 or abs(v.y) > sy / 2:
-                return bg
+            lc_x = float(v.x) - cx
             phi_v   = float(np.asarray(phi_interp(lc_x, float(v.y))).flat[0])
             theta_v = float(np.asarray(theta_interp(lc_x, float(v.y))).flat[0])
             d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi_v, theta_v, S)
             return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
 
-        self.material_function = _mat
+        return [mp.Block(
+            center=mp.Vector3(cx, 0, 0),
+            size=mp.Vector3(sx, sy, mp.inf),
+            material=lambda v: _mat(v),
+        )]
 
     def get_results_2d(self, z_slice=None):
         """Returns (phi, theta, nx, ny, nz) for a single z-slice (default: middle)."""

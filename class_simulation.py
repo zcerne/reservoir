@@ -23,7 +23,6 @@ class Simulation:
         self._cell_y = 0.0
         self.resolution: int = 40
         self.snapshots: dict[str, list] = {"x": [], "y": [], "z": []}
-        self._lc_material_func = None
 
     def _set_data(self):
         simulation_data_path = os.path.join(self.folder_path, "simulation_data.json")
@@ -178,14 +177,8 @@ class Simulation:
         self.geometry = [
             block
             for obj in self.objects
-            if isinstance(obj, Guide)
             for block in obj.get_geometry_blocks()
         ]
-        for obj in self.objects:
-            if isinstance(obj, LCReservoir):
-                obj.build_material_function()
-                self._lc_material_func = obj.material_function
-                break
 
     def _set_pmls(self):
         self.pmls = [mp.PML(self.args["pml_size"], mp.X)] if self.args["periodic"] else [mp.PML(self.args["pml_size"])]
@@ -199,8 +192,8 @@ class Simulation:
     def _set_simulation(self):
         bg_index = self.args.get("background_index", 1.0)
         default_material = mp.Medium(index=bg_index) if bg_index != 1.0 else mp.air
-        sim_kwargs: dict = dict(
-            cell_size=self.cell,
+        self.simulation = mp.Simulation(
+            cell_size=self.cell,  # pyright: ignore
             boundary_layers=self.pmls,
             geometry=self.geometry,  # pyright: ignore
             sources=self.sources,
@@ -208,9 +201,6 @@ class Simulation:
             default_material=default_material,
             k_point=mp.Vector3(0, 0, 0) if self.args["periodic"] else False,
         )
-        if self._lc_material_func is not None:
-            sim_kwargs["material_function"] = self._lc_material_func
-        self.simulation = mp.Simulation(**sim_kwargs)
 
     def _setup_sensors(self):
         for sensor in self.sensors:
