@@ -37,12 +37,12 @@ class Reservoir:
         self._sim = None
         self._meep_center_x: float = 0.0
 
-    def _cell_size(self):
+    def _cell_size(self) -> tuple[float, float, float]:
         if len(self.dimensions) == 2:
             sx, sy = self.dimensions
-            sz = 4.0 / self.resolution  # 5 z-points for quasi-2D
-            return (sx, sy, sz)
-        return tuple(self.dimensions)
+            return (float(sx), float(sy), 4.0 / self.resolution)
+        sx, sy, sz = self.dimensions
+        return (float(sx), float(sy), float(sz))
 
     def run_minimization(self):
         cell = self._cell_size()
@@ -151,11 +151,11 @@ class Reservoir:
     def save_fields(self):
         """Save director field arrays + grid coordinates to lc_fields.npz."""
         phi, theta, *_ = self.get_results()
-        cell = self._cell_size()
-        sx, sy, sz = float(cell[0]), float(cell[1]), float(cell[2])
-        x = np.linspace(-sx / 2, sx / 2, phi.shape[0])
-        y = np.linspace(-sy / 2, sy / 2, phi.shape[1])
-        z = np.linspace(-sz / 2, sz / 2, phi.shape[2])
+        sx, sy, sz = self._cell_size()
+        nx, ny, nz = phi.shape[0], phi.shape[1], phi.shape[2]  # type: ignore[misc]
+        x = np.linspace(-sx / 2, sx / 2, nx)
+        y = np.linspace(-sy / 2, sy / 2, ny)
+        z = np.linspace(-sz / 2, sz / 2, nz)
         out = self.folder / "simulation"
         out.mkdir(exist_ok=True)
         np.savez(out / "lc_fields.npz", phi=phi, theta=theta, x=x, y=y, z=z)
