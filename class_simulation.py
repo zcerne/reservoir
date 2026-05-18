@@ -29,22 +29,12 @@ class Simulation:
         with open(simulation_data_path, "r") as f:
             self.args.update(json.load(f))
 
-        amp = self._source_amplitude()
-        amp_label = f"amp_{int(amp)}" if amp == int(amp) else f"amp_{amp}"
-        amp_dir = self.args.pop("_amp_dir_override", None) or os.path.join(self.folder_path, amp_label)
         self.paths = {
-            "simulation": os.path.join(amp_dir, "simulation"),
-            "snapshots":  os.path.join(amp_dir, "simulation", "snapshots"),
-            "figures":    os.path.join(amp_dir, "figures"),
+            "simulation": os.path.join(self.folder_path, "simulation"),
+            "snapshots":  os.path.join(self.folder_path, "simulation", "snapshots"),
+            "figures":    os.path.join(self.folder_path, "figures"),
         }
         os.makedirs(self.paths["simulation"], exist_ok=True)
-
-    def _source_amplitude(self) -> float:
-        for key in self.args.get("object_order", []):
-            obj = self.args.get(key, {})
-            if obj.get("class") == "source":
-                return float(obj.get("amplitude", 1.0))
-        return 1.0
 
     def _set_simulation_parameters(self):
         self.resolution = self.args["resolution"]
