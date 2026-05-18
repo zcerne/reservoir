@@ -2,6 +2,7 @@ import json
 import numpy as np
 from pathlib import Path
 from alcs_class import XaLCS
+from lc_geometry import get_dielectric_3d
 
 
 class Reservoir:
@@ -17,7 +18,8 @@ class Reservoir:
     def __init__(self, folder: str | Path):
         folder = Path(folder)
         with open(folder / "simulation_data.json") as f:
-            cfg = json.load(f)["lc"]
+            data = json.load(f)
+        cfg = data["lc"]
 
         ec = cfg["elastic_constants"]
         self.dimensions = tuple(cfg["dimensions"])
@@ -27,7 +29,13 @@ class Reservoir:
         self.face_phi = tuple(x if x is not None else None for x in cfg["face_phi"])
         self.maxeval = cfg.get("maxeval", 2000)
         self.f_tolerance = cfg.get("f_tolerance", 1e-6)
+        self.n_o = float(cfg.get("n_o", 1.52))
+        self.n_e = float(cfg.get("n_e", 1.71))
+        self.S   = float(cfg.get("S", 1.0))
+        self.n_background = float(data.get("background_index", 1.0))
         self._sim = None
+        self._meep_center_x: float = 0.0
+        self.material_function = None
 
     def _cell_size(self):
         if len(self.dimensions) == 2:
@@ -100,6 +108,48 @@ class Reservoir:
         if self._sim is None:
             raise RuntimeError("Run run_minimization() first.")
         return self._sim.get_results()
+
+    def get_geometry_blocks(self):
+        """
+        Builds a spatially-varying LC material function for MEEP and stores it on
+        self.material_function. Returns an empty list (no hard geometry objects).
+
+        Coordinate mapping:
+            MEEP x -> LC x: lc_x = meep_x - self._meep_center_x
+            MEEP y -> LC y (both centered at 0)
+        """
+        from scipy.interpolate import RectBivariateSpline
+        import meep as mp
+
+        phi, theta, *_ = self.get_results_2d()  # shape (nx, ny)
+
+        cell = self._cell_size()
+        sx, sy = float(cell[0]), float(cell[1])
+        nx_pts, ny_pts = phi.shape
+        x_lc = np.linspace(-sx / 2, sx / 2, nx_pts)
+        y_lc = np.linspace(-sy / 2, sy / 2, ny_pts)
+
+        # phi[i, j] = value at (x_lc[i], y_lc[j]) — matches RectBivariateSpline convention
+        phi_interp   = RectBivariateSpline(x_lc, y_lc, phi)
+        theta_interp = RectBivariateSpline(x_lc, y_lc, theta)
+
+        n_o_sq = self.n_o ** 2
+        n_e_sq = self.n_e ** 2
+        S  = self.S
+        cx = self._meep_center_x
+        bg = mp.Medium(index=self.n_background)
+
+        def _mat(v):
+            lc_x = v.x - cx
+            if abs(lc_x) > sx / 2 or abs(v.y) > sy / 2:
+                return bg
+            phi_v   = float(np.asarray(phi_interp(lc_x, float(v.y))).flat[0])
+            theta_v = float(np.asarray(theta_interp(lc_x, float(v.y))).flat[0])
+            d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi_v, theta_v, S)
+            return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
+
+        self.material_function = _mat
+        return []
 
     def get_results_2d(self, z_slice=None):
         """Returns (phi, theta, nx, ny, nz) for a single z-slice (default: middle)."""
