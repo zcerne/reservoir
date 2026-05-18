@@ -152,12 +152,13 @@ class Reservoir:
         """Save director field arrays + grid coordinates to lc_fields.npz."""
         phi, theta, *_ = self.get_results()
         cell = self._cell_size()
-        sx, sy = float(cell[0]), float(cell[1])
+        sx, sy, sz = float(cell[0]), float(cell[1]), float(cell[2])
         x = np.linspace(-sx / 2, sx / 2, phi.shape[0])
         y = np.linspace(-sy / 2, sy / 2, phi.shape[1])
+        z = np.linspace(-sz / 2, sz / 2, phi.shape[2])
         out = self.folder / "simulation"
         out.mkdir(exist_ok=True)
-        np.savez(out / "lc_fields.npz", phi=phi, theta=theta, x=x, y=y)
+        np.savez(out / "lc_fields.npz", phi=phi, theta=theta, x=x, y=y, z=z)
 
 
 if __name__ == "__main__":
