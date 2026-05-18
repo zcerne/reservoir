@@ -40,7 +40,8 @@ class Reservoir:
         cell = self._cell_size()
         sim = XaLCS(cell_size=cell, resolution=self.resolution,
                     elastic_constants=self.elastic_constants,
-                    boundary_conditions=self.boundary_conditions)
+                    boundary_conditions=self.boundary_conditions,
+                    phi_only=len(self.dimensions) == 2)
         sim.maxeval = self.maxeval
         sim.f_tolerance = self.f_tolerance
 

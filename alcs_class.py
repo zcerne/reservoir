@@ -14,19 +14,23 @@ class XaLCS:
     bpad = None
     bpad_ixs = None
     periodic_b = False
+    phi_only: bool = False  # True → optimize phi only, theta fixed at pi/2
 
     def __init__(self, cell_size, resolution, elastic_constants,
-                 boundary_conditions=("free", "free", "free")):
+                 boundary_conditions=("free", "free", "free"),
+                 phi_only: bool = False):
         """
         cell_size: (sx, sy, sz) in micrometers
         resolution: points per micrometer
         elastic_constants: (k1, k2, k3, q0)
         boundary_conditions: tuple of 'free' or 'periodic' per axis
+        phi_only: if True, only phi is optimized; theta is fixed at pi/2 (2D case)
         """
         self.cell_size = cell_size
         self.unit_resolution = resolution
         self.constants = elastic_constants
         self.boundary_conditions = boundary_conditions
+        self.phi_only = phi_only
 
         self.initial_state_phi: NDArray[np.float64] | None = None
         self.initial_state_theta: NDArray[np.float64] | None = None
@@ -91,6 +95,7 @@ class XaLCS:
 
         self._sim_ran = False
         XaLCS.iter_counter = 0
+        XaLCS.phi_only = self.phi_only
 
         cs = np.asarray(self.cell_size)
         res = (cs * self.unit_resolution + 1).astype(int)
@@ -109,9 +114,17 @@ class XaLCS:
         XaLCS.ek = self.constants
         XaLCS.dp = self.spacings
 
-        self._initial_state = np.concatenate((self.initial_state_phi, self.initial_state_theta))
-        self._lower_bounds = np.concatenate((self.lower_bounds_phi, self.lower_bounds_theta))
-        self._upper_bounds = np.concatenate((self.upper_bounds_phi, self.upper_bounds_theta))
+        if self.phi_only:
+            self._initial_state = self.initial_state_phi
+            self._lower_bounds = self.lower_bounds_phi
+            self._upper_bounds = self.upper_bounds_phi
+            # store fixed theta for use in _fe_wrap
+            XaLCS.fixed_theta = self.initial_state_theta
+        else:
+            self._initial_state = np.concatenate((self.initial_state_phi, self.initial_state_theta))
+            self._lower_bounds = np.concatenate((self.lower_bounds_phi, self.lower_bounds_theta))
+            self._upper_bounds = np.concatenate((self.upper_bounds_phi, self.upper_bounds_theta))
+
         self._n_parameters = self._initial_state.size
 
         self._boundary_pad, self._boundary_ixs = self._compute_boundary_pad(self.boundary_conditions)
@@ -123,9 +136,12 @@ class XaLCS:
 
     @staticmethod
     def _fe_wrap(v):
-        n = v.shape[0] // 2
         assert XaLCS.pos is not None
-        nv = n_sph(v[:n], v[n:]).reshape(XaLCS.pos.shape)
+        if XaLCS.phi_only:
+            nv = n_sph(v, XaLCS.fixed_theta).reshape(XaLCS.pos.shape)
+        else:
+            n = v.shape[0] // 2
+            nv = n_sph(v[:n], v[n:]).reshape(XaLCS.pos.shape)
         if XaLCS.periodic_b:
             out = fe_core_director_periodic(nv, XaLCS.ek, XaLCS.dp, XaLCS.bpad, XaLCS.bpad_ixs)
         else:
@@ -159,10 +175,14 @@ class XaLCS:
         assert self._sim_ran
         assert self._result is not None
         assert self._n_parameters is not None
-        n = self._n_parameters // 2
-        phi = self._result[:n].reshape(self._resolution)
-        theta = self._result[n:].reshape(self._resolution)
-        dirs = n_sph(self._result[:n], self._result[n:])
+        if self.phi_only:
+            phi = self._result.reshape(self._resolution)
+            theta = self.initial_state_theta.reshape(self._resolution)  # type: ignore[union-attr]
+        else:
+            n = self._n_parameters // 2
+            phi = self._result[:n].reshape(self._resolution)
+            theta = self._result[n:].reshape(self._resolution)
+        dirs = n_sph(phi.ravel(), theta.ravel())
         nx = np.asarray(dirs[0]).reshape(self._resolution)
         ny = np.asarray(dirs[1]).reshape(self._resolution)
         nz = np.asarray(dirs[2]).reshape(self._resolution)
