@@ -150,9 +150,6 @@ class Reservoir:
 
     def save_fields(self):
         """Save director field arrays to lc_fields.npz in the simulation folder."""
-        phi, theta, nx, ny, nz = self.get_results()
-        np.savez(
-            self.folder / "lc_fields.npz",
-            phi=phi, theta=theta, nx=nx, ny=ny, nz=nz,
-        )
+        phi, theta, *_ = self.get_results()
+        np.savez(self.folder / "lc_fields.npz", phi=phi, theta=theta)
 
