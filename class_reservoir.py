@@ -153,3 +153,14 @@ class Reservoir:
         phi, theta, *_ = self.get_results()
         np.savez(self.folder / "lc_fields.npz", phi=phi, theta=theta)
 
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--path", type=str, default="data/test")
+    args = parser.parse_args()
+    r = Reservoir(args.path)
+    r.run_minimization()
+    r.save_fields()
+    print(f"Done. Fields saved to {r.folder / 'lc_fields.npz'}")
+
