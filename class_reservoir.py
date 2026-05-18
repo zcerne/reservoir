@@ -1,40 +1,38 @@
+import json
 import numpy as np
+from pathlib import Path
 from alcs_class import XaLCS
 
 
 class Reservoir:
     """
-    Liquid crystal rectangle/cube that relaxes to minimal Frank free energy
-    under planar boundary conditions (theta=pi/2) on all anchored faces.
+    LC rectangle/cube that relaxes to minimal Frank free energy under planar
+    boundary conditions. Reads parameters from simulation_data.json in the
+    given folder (lc key).
 
-    dimensions: (sx, sy) for 2D or (sx, sy, sz) for 3D, in micrometers.
-    resolution: grid points per micrometer.
-    boundary_conditions: ('free'|'periodic', ...) per x, y, z axis.
-    elastic_constants: (k1, k2, k3, q0) in pN.
-    face_phi: 6-tuple of phi angles (radians) for faces
-              (x_min, x_max, y_min, y_max, z_min, z_max).
-              None for a face = free (no anchoring).
-              Default: all faces planar at phi=0.
+    face_phi: 6-tuple (x_min, x_max, y_min, y_max, z_min, z_max) in radians.
+              None = free (no anchoring). Default: all faces planar at phi=0.
     """
 
-    def __init__(self, dimensions=(10, 10), resolution=5,
-                 boundary_conditions=("free", "free", "free"),
-                 elastic_constants=(11.1, 6.5, 17.1, 0),
-                 face_phi=(0, 0, 0, 0, 0, 0)):
-        self.dimensions = dimensions
-        self.resolution = resolution
-        self.boundary_conditions = boundary_conditions
-        self.elastic_constants = elastic_constants
-        self.face_phi = face_phi
-        self.maxeval = 2000
-        self.f_tolerance = 1e-6
+    def __init__(self, folder: str | Path):
+        folder = Path(folder)
+        with open(folder / "simulation_data.json") as f:
+            cfg = json.load(f)["lc"]
+
+        ec = cfg["elastic_constants"]
+        self.dimensions = tuple(cfg["dimensions"])
+        self.resolution = cfg["resolution"]
+        self.boundary_conditions = tuple(cfg["boundary_conditions"])
+        self.elastic_constants = (ec["K1"], ec["K2"], ec["K3"], ec["q0"])
+        self.face_phi = tuple(x if x is not None else None for x in cfg["face_phi"])
+        self.maxeval = cfg.get("maxeval", 2000)
+        self.f_tolerance = cfg.get("f_tolerance", 1e-6)
         self._sim = None
 
     def _cell_size(self):
         if len(self.dimensions) == 2:
             sx, sy = self.dimensions
-            # 4 grid intervals in z (5 points) for quasi-2D
-            sz = 4.0 / self.resolution
+            sz = 4.0 / self.resolution  # 5 z-points for quasi-2D
             return (sx, sy, sz)
         return tuple(self.dimensions)
 
