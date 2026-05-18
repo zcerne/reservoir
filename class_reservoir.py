@@ -17,6 +17,7 @@ class Reservoir:
 
     def __init__(self, folder: str | Path):
         folder = Path(folder)
+        self.folder = folder
         with open(folder / "simulation_data.json") as f:
             data = json.load(f)
         cfg = data["lc"]
@@ -146,3 +147,12 @@ class Reservoir:
         phi, theta, nx, ny, nz = self.get_results()
         iz = phi.shape[2] // 2 if z_slice is None else z_slice  # type: ignore[misc]
         return phi[:, :, iz], theta[:, :, iz], nx[:, :, iz], ny[:, :, iz], nz[:, :, iz]
+
+    def save_fields(self):
+        """Save director field arrays to lc_fields.npz in the simulation folder."""
+        phi, theta, nx, ny, nz = self.get_results()
+        np.savez(
+            self.folder / "lc_fields.npz",
+            phi=phi, theta=theta, nx=nx, ny=ny, nz=nz,
+        )
+
