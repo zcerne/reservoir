@@ -34,7 +34,8 @@ class Simulation:
             "snapshots":  os.path.join(self.folder_path, "simulation", "snapshots"),
             "figures":    os.path.join(self.folder_path, "figures"),
         }
-        os.makedirs(self.paths["simulation"], exist_ok=True)
+        for p in self.paths.values():
+            os.makedirs(p, exist_ok=True)
 
     def _set_simulation_parameters(self):
         self.resolution = self.args["resolution"]
@@ -213,7 +214,6 @@ class Simulation:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         assert self.cell is not None
-        os.makedirs(self.paths["figures"], exist_ok=True)
         fig, ax = plt.subplots(figsize=(12, 5))
         self.simulation.plot2D(ax=ax, plot_sources_flag=True, plot_monitors_flag=True, plot_boundaries_flag=True)
         ax.set_title("Simulation setup")
@@ -236,7 +236,6 @@ class Simulation:
 
     def _save_all(self) -> None:
         sim_path = self.paths["simulation"]
-        os.makedirs(sim_path, exist_ok=True)
         if self.snapshots["x"]:
             np.savez(
                 os.path.join(sim_path, "snapshots.npz"),
