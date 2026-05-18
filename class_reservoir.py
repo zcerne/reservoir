@@ -151,7 +151,9 @@ class Reservoir:
     def save_fields(self):
         """Save director field arrays to lc_fields.npz in the simulation folder."""
         phi, theta, *_ = self.get_results()
-        np.savez(self.folder / "lc_fields.npz", phi=phi, theta=theta)
+        out = self.folder / "simulation"
+        out.mkdir(exist_ok=True)
+        np.savez(out / "lc_fields.npz", phi=phi, theta=theta)
 
 
 if __name__ == "__main__":
@@ -162,5 +164,5 @@ if __name__ == "__main__":
     r = Reservoir(args.path)
     r.run_minimization()
     r.save_fields()
-    print(f"Done. Fields saved to {r.folder / 'lc_fields.npz'}")
+    print(f"Done. Fields saved to {r.folder / 'simulation' / 'lc_fields.npz'}")
 
