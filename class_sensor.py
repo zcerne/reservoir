@@ -4,83 +4,78 @@ import os
 
 
 class Sensor:
-    """MEEP monitor/sensor — computes own geometry from JSON args.
+    """MEEP monitor/sensor.
 
-    Required args (injected by _update_all_args before construction):
-        "on_object_edge_x"  — left edge x of the referenced object (MEEP coords)
-        "on_object_size_x"  — x-width of the referenced object
-        "cell_x", "cell_y"  — full cell dimensions
+    Types
+    -----
+    flux                         power (Poynting) through the sensor plane
+    0Ddft / 0Dsnap               point
+    1Ddft / 1Dsnap               line  in y
+    2Ddft / 2Dsnap               plane in yz
+    3Ddft / 3Dsnap               volume xyz
 
-    Optional args:
-        "type"      — "flux" | "2Ddft" | "1Ddft" | "2Dsnap" | "point"
-        "position"  — "left" | "center" | "right" (vertical) or
-                      dict with {"orientation": "horizontal"|"vertical",
-                                 "position": "up"|"down"|"center"|"left"|"right",
-                                 "size": 0}
-        "lam_range" — [lam_min, lam_max] for flux/dft monitors
-        "n_lam"     — number of frequency samples
-        "dt"        — snapshot/point recording interval
-        "name"      — filename stem for saved output
+    Position
+    --------
+    'left' | 'center' | 'right'  x-placement on on_object (or full cell if omitted)
+    position.size                y-extent in µm; defaults to cell_y
+
+    z-extent always spans the full cell_z (set by class_simulation).
     """
 
     def __init__(self, args: dict) -> None:
         self.args = args
-        self.sensor_type: str = args.get("type", "flux")
+        self.sensor_type: str = args.get("type", "2Ddft")
         self._name: str = args.get("name", args.get("_key", self.sensor_type))
         self._monitor_handle = None
-        self._dft_freqs: list = []
-        self._snapshot_data: list = []
-        self._point_data: list = []
-        self._point_times: list = []
+        self._dft_freqs: list[float] = []
+        self._snap_data: list[tuple[float, np.ndarray]] = []
 
         self.center: mp.Vector3 = self._compute_center()
-        self.size: mp.Vector3 = self._compute_size()
+        self.size: mp.Vector3   = self._compute_size()
 
     # ------------------------------------------------------------------
-    # Geometry — all position/size logic lives here
+    # Geometry
     # ------------------------------------------------------------------
 
-    def _parse_position(self) -> tuple[str, str, float]:
-        """Return (orientation, position_label, requested_size)."""
+    def _parse_position(self) -> tuple[str, float]:
         pos = self.args.get("position", {})
         if isinstance(pos, dict):
-            orientation = pos.get("orientation", "vertical")
-            label = pos.get("position", "center")
+            label    = pos.get("position", "center")
             req_size = float(pos.get("size", 0))
         else:
-            orientation = "vertical"
-            label = str(pos) if pos else "center"
+            label    = str(pos) if pos else "center"
             req_size = 0.0
-        return orientation, label, req_size
+        return label, req_size
 
     def _compute_center(self) -> mp.Vector3:
-        orientation, label, _ = self._parse_position()
-        edge_x   = float(self.args.get("on_object_edge_x", 0.0))
-        size_x   = float(self.args.get("on_object_size_x", 0.0))
-        cell_y   = float(self.args.get("cell_y", 0.0))
-
-        if orientation == "vertical":
-            x = {"left": edge_x, "right": edge_x + size_x}.get(label, edge_x + size_x / 2)
-            return mp.Vector3(x, 0, 0)
-        else:  # horizontal
-            x = edge_x + size_x / 2
-            y = {"up": cell_y / 2, "down": -cell_y / 2}.get(label, 0.0)
-            return mp.Vector3(x, y, 0)
+        label, _ = self._parse_position()
+        edge_x = float(self.args.get("on_object_edge_x", 0.0))
+        size_x = float(self.args.get("on_object_size_x", 0.0))
+        x = {"left": edge_x, "right": edge_x + size_x}.get(label, edge_x + size_x / 2)
+        return mp.Vector3(x, 0, 0)
 
     def _compute_size(self) -> mp.Vector3:
-        orientation, _, req_size = self._parse_position()
-        cell_x   = float(self.args.get("cell_x", 0.0))
-        cell_y   = float(self.args.get("cell_y", 0.0))
-        size_x   = float(self.args.get("on_object_size_x", 0.0))
-        on_object = self.args.get("on_object", -1)
+        _, req_size = self._parse_position()
+        cell_x = float(self.args.get("cell_x", 0.0))
+        cell_y = float(self.args.get("cell_y", 0.0))
+        cell_z = float(self.args.get("cell_z", 0.0))
+        obj_sx = float(self.args.get("on_object_size_x", 0.0))
+        sy = req_size if req_size > 0 else cell_y
+        t  = self.sensor_type
 
-        if self.sensor_type in ("2Ddft", "2Dsnap") and on_object == -1:
-            return mp.Vector3(cell_x, cell_y, 0)
-
-        if orientation == "vertical":
-            return mp.Vector3(0, req_size if req_size > 0 else cell_y, 0)
-        else:
-            return mp.Vector3(req_size if req_size > 0 else size_x, 0, 0)
+        if t == "flux":
+            return mp.Vector3(0, sy, cell_z)
+        dim = t[0] if t and t[0].isdigit() else "2"
+        if dim == "0":
+            return mp.Vector3(0, 0, 0)
+        if dim == "1":
+            return mp.Vector3(0, sy, 0)
+        if dim == "2":
+            sx_span = cell_x if cell_z == 0 else 0.0  # full XY for 2D sim; YZ slice for 3D
+            return mp.Vector3(sx_span, sy, cell_z)
+        # "3" — volume
+        sx = obj_sx if obj_sx > 0 else cell_x
+        return mp.Vector3(sx, sy, cell_z)
 
     # ------------------------------------------------------------------
     # MEEP registration
@@ -90,47 +85,44 @@ class Sensor:
         if self.sensor_type == "flux":
             lam_range = self.args.get("lam_range", [0.4, 0.7])
             n_lam     = self.args.get("n_lam", 100)
-            f_min = 1.0 / lam_range[1]
-            f_max = 1.0 / lam_range[0]
-            fcen  = (f_min + f_max) / 2
+            f_min  = 1.0 / lam_range[1]
+            f_max  = 1.0 / lam_range[0]
+            fcen   = (f_min + f_max) / 2
             fwidth = f_max - f_min
             self._monitor_handle = sim.add_flux(
                 fcen, fwidth, n_lam,
                 mp.FluxRegion(center=self.center, size=self.size)
             )
-
-        elif self.sensor_type in ("2Ddft", "1Ddft"):
+        elif self.sensor_type.endswith("dft"):
             lam_range = self.args.get("lam_range", [0.4, 0.7])
-            n_lam     = self.args.get("n_lam", 20)
-            self._dft_freqs = list(np.linspace(1.0 / lam_range[1], 1.0 / lam_range[0], n_lam))
+            n_lam     = self.args.get("n_lam", 1)
+            self._dft_freqs = list(
+                np.linspace(1.0 / lam_range[1], 1.0 / lam_range[0], n_lam)
+            )
             self._monitor_handle = sim.add_dft_fields(
-                [mp.Ez], self._dft_freqs, center=self.center, size=self.size
+                [mp.Ex, mp.Ey, mp.Ez], self._dft_freqs, center=self.center, size=self.size
             )
 
-        # "2Dsnap" and "point" collect data via step functions — nothing to register here.
-
     def get_step_func(self) -> tuple[float, object] | None:
-        """Return (interval, step_func) for mp.at_every, or None."""
-        if self.sensor_type == "2Dsnap":
+        if self.sensor_type.endswith("snap"):
             dt = float(self.args.get("dt", 10.0))
-            return dt, self._record_snapshot
-        if self.sensor_type == "point":
-            dt = float(self.args.get("dt", 0.1))
-            return dt, self._record_point
+            return dt, self._record_snap
         return None
 
     # ------------------------------------------------------------------
-    # Step functions (called by MEEP runner)
+    # Step functions
     # ------------------------------------------------------------------
 
-    def _record_snapshot(self, sim: mp.Simulation) -> None:
-        data = sim.get_array(center=self.center, size=self.size, component=mp.Ez)
-        self._snapshot_data.append((sim.meep_time(), data.copy()))
-
-    def _record_point(self, sim: mp.Simulation) -> None:
-        val = sim.get_field_point(mp.Ez, self.center)
-        self._point_data.append(float(np.real(val)))
-        self._point_times.append(sim.meep_time())
+    def _record_snap(self, sim: mp.Simulation) -> None:
+        if self.sensor_type == "0Dsnap":
+            val = np.array([float(np.real(sim.get_field_point(mp.Ez, self.center)))])
+            self._snap_data.append((sim.meep_time(), val, val, val))
+        else:
+            kw = dict(center=self.center, size=self.size)
+            ex = sim.get_array(component=mp.Ex, **kw).copy()
+            ey = sim.get_array(component=mp.Ey, **kw).copy()
+            ez = sim.get_array(component=mp.Ez, **kw).copy()
+            self._snap_data.append((sim.meep_time(), ex, ey, ez))
 
     # ------------------------------------------------------------------
     # Save
@@ -145,19 +137,15 @@ class Sensor:
                      freqs=np.array(mp.get_flux_freqs(self._monitor_handle)),
                      fluxes=np.array(mp.get_fluxes(self._monitor_handle)))
 
-        elif self.sensor_type in ("2Ddft", "1Ddft") and self._monitor_handle is not None:
-            Ez = np.array([
-                sim.get_dft_array(self._monitor_handle, mp.Ez, i)
-                for i in range(len(self._dft_freqs))
-            ])
-            np.savez(out, Ez=Ez, freqs=np.array(self._dft_freqs))
+        elif self.sensor_type.endswith("dft") and self._monitor_handle is not None:
+            Ex = np.array([sim.get_dft_array(self._monitor_handle, mp.Ex, i) for i in range(len(self._dft_freqs))])
+            Ey = np.array([sim.get_dft_array(self._monitor_handle, mp.Ey, i) for i in range(len(self._dft_freqs))])
+            Ez = np.array([sim.get_dft_array(self._monitor_handle, mp.Ez, i) for i in range(len(self._dft_freqs))])
+            np.savez(out, Ex=Ex, Ey=Ey, Ez=Ez, freqs=np.array(self._dft_freqs))
 
-        elif self.sensor_type == "2Dsnap" and self._snapshot_data:
+        elif self.sensor_type.endswith("snap") and self._snap_data:
             np.savez(out,
-                     t=np.array([t for t, _ in self._snapshot_data]),
-                     Ez=np.array([d for _, d in self._snapshot_data]))
-
-        elif self.sensor_type == "point" and self._point_data:
-            np.savez(out,
-                     t=np.array(self._point_times),
-                     Ez=np.array(self._point_data))
+                     t=np.array([e[0] for e in self._snap_data]),
+                     Ex=np.array([e[1] for e in self._snap_data]),
+                     Ey=np.array([e[2] for e in self._snap_data]),
+                     Ez=np.array([e[3] for e in self._snap_data]))

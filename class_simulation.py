@@ -21,17 +21,20 @@ class Simulation:
         self.size_yz = [0.0, 0.0]
         self._cell_x = 0.0
         self._cell_y = 0.0
+        self._cell_z = 0.0
         self.resolution: int = 40
-        self.snapshots: dict[str, list] = {"x": [], "y": [], "z": []}
+        self.snapshots: dict[str, list] = {"x": [], "y": [], "z": [], "t": []}
+        self._empty: bool = False
 
     def _set_data(self):
         simulation_data_path = os.path.join(self.folder_path, "simulation_data.json")
         with open(simulation_data_path, "r") as f:
             self.args.update(json.load(f))
 
+        sim_dir = "simulation_empty" if self._empty else "simulation"
         self.paths = {
-            "simulation": os.path.join(self.folder_path, "simulation"),
-            "snapshots":  os.path.join(self.folder_path, "simulation", "snapshots"),
+            "simulation": os.path.join(self.folder_path, sim_dir),
+            "snapshots":  os.path.join(self.folder_path, sim_dir, "snapshots"),
             "figures":    os.path.join(self.folder_path, "figures"),
         }
         for p in self.paths.values():
@@ -41,36 +44,35 @@ class Simulation:
         self.resolution = self.args["resolution"]
 
     @staticmethod
-    def _pos_to_center_size(pos, on_edge_x, on_size_x, cell_x, cell_y):
+    def _pos_to_center_size(pos, on_edge_x, on_size_x, cell_x, cell_y, cell_z=0.0):
         if isinstance(pos, dict):
-            orientation = pos.get("orientation", "vertical")
-            label       = pos.get("position", "center")
-            req_size    = float(pos.get("size", 0.0))
+            label = pos.get("position", "center")
+            raw   = pos.get("size", [0.0, 0.0])
         else:
-            orientation = "vertical"
-            label       = str(pos) if pos else "center"
-            req_size    = 0.0
-
-        if orientation == "vertical":
-            x = {"left": on_edge_x, "right": on_edge_x + on_size_x}.get(
-                label, on_edge_x + on_size_x / 2)
-            return mp.Vector3(x, 0, 0), mp.Vector3(0, req_size or cell_y, 0)
-        else:
-            x = on_edge_x + on_size_x / 2
-            y = {"up": cell_y / 2, "down": -cell_y / 2}.get(label, 0.0)
-            return mp.Vector3(x, y, 0), mp.Vector3(req_size or on_size_x, 0, 0)
+            label = str(pos) if pos else "center"
+            raw   = [0.0, 0.0]
+        if isinstance(raw, (int, float)):
+            raw = [float(raw), 0.0]
+        sy = float(raw[0]) if raw[0] else cell_y
+        sz = float(raw[1]) if len(raw) > 1 else 0.0
+        x = {"left": on_edge_x, "right": on_edge_x + on_size_x}.get(
+            label, on_edge_x + on_size_x / 2)
+        return mp.Vector3(x, 0, 0), mp.Vector3(0, sy, sz)
 
     def _update_all_args(self):
         object_keys = self.args["object_order"]
         pml    = float(self.args.get("pml_size", 2.0))
         dim    = self.args.get("dimention", 1)
         cell_y = float(self.args.get("cell_size_y", 0.0)) if dim > 1 else 4.0 / float(self.args["resolution"])
+        cell_z = float(self.args.get("cell_size_z", 0.0)) if dim > 2 else 0.0
 
         current_x = 0.0
         for obj_key in object_keys:
             obj_args = self.args[obj_key]
             obj_args["_key"] = obj_key
             obj_args["edge_x_local"] = current_x
+            if isinstance(obj_args.get("sizes"), list):
+                obj_args["size_x"] = float(obj_args["sizes"][0])
             self.objects_args.append(obj_args)
             current_x += float(obj_args.get("size_x", 0.0))
 
@@ -78,6 +80,7 @@ class Simulation:
         x0     = -cell_x / 2 + pml
         self._cell_x = cell_x
         self._cell_y = cell_y
+        self._cell_z = cell_z
 
         for obj_args in self.objects_args:
             edge_x = obj_args["edge_x_local"] + x0
@@ -86,7 +89,8 @@ class Simulation:
 
             if cls == "guide":
                 obj_args["center"] = mp.Vector3(edge_x + size_x / 2, 0, 0)
-                guide_y = float(obj_args.get("size_y", 0.0))
+                sizes_raw = obj_args.get("sizes")
+                guide_y = float(sizes_raw[1]) if isinstance(sizes_raw, list) and len(sizes_raw) > 1 else float(obj_args.get("size_y", 0.0))
                 obj_args["sizes"] = mp.Vector3(size_x, guide_y if guide_y > 0 else mp.inf, mp.inf)
 
             elif cls == "reservoir":
@@ -110,10 +114,11 @@ class Simulation:
                 obj_args["on_object_size_x"] = on_size
                 obj_args["cell_x"]           = cell_x
                 obj_args["cell_y"]           = cell_y
+                obj_args["cell_z"]           = cell_z
 
                 if cls == "source":
                     pos = obj_args.get("position", {})
-                    center, size = self._pos_to_center_size(pos, on_edge, on_size, cell_x, cell_y)
+                    center, size = self._pos_to_center_size(pos, on_edge, on_size, cell_x, cell_y, cell_z)
                     obj_args["center"] = center
                     obj_args["size"]   = size
 
@@ -121,26 +126,33 @@ class Simulation:
         cls = args["class"]
         if cls == "guide":
             return Guide(args)
+        if cls == "source":
+            return Source(args)
         if cls == "monitor":
             return Sensor(args)
         if cls == "reservoir":
+            if self._empty:
+                return None  # reservoir region stays as air background
             return LCReservoir(self.folder_path)
         return None
 
     def _set_object_list(self):
         self._update_all_args()
         for obj_args in self.objects_args:
-            cls = obj_args["class"]
-            if cls == "source":
-                self.sources.append(Source(obj_args).return_source_object())
-                continue
             obj = self.get_object(obj_args)
             if obj is None:
                 continue
-            if cls == "monitor":
+            cls = obj_args["class"]
+            if cls == "source":
+                self.sources.extend(obj.return_source_object())  # type: ignore[union-attr]
+            elif cls == "monitor":
                 self.sensors.append(obj)  # type: ignore[arg-type]
             elif cls == "reservoir":
-                obj.run_minimization()  # type: ignore[union-attr]
+                fields_file = os.path.join(self.folder_path, "simulation", "lc_fields.npz")
+                if os.path.exists(fields_file):
+                    obj.load_fields()  # type: ignore[union-attr]
+                else:
+                    obj.run_minimization()  # type: ignore[union-attr]
                 obj._meep_center_x = float(obj_args["center"].x)  # type: ignore[union-attr]
                 self.objects.append(obj)
             else:
@@ -159,7 +171,7 @@ class Simulation:
             self.size_yz[0] = y - 2 * pml
         else:
             y = self._cell_y
-            z = self._cell_y
+            z = self._cell_z if self._cell_z > 0 else self._cell_y
             self.size_yz[0] = y - 2 * pml
             self.size_yz[1] = z - 2 * pml if z > 2 * pml else 0.0
         self.cell = mp.Vector3(self._cell_x, y, z)
@@ -176,9 +188,25 @@ class Simulation:
 
     def _add_snapshot(self, sim):
         assert self.cell is not None
-        self.snapshots["x"].append(sim.get_array(center=mp.Vector3(0, 0), size=mp.Vector3(self.cell.x, self.cell.y), component=mp.Ex))
-        self.snapshots["y"].append(sim.get_array(center=mp.Vector3(0, 0), size=mp.Vector3(self.cell.x, self.cell.y), component=mp.Ey))
-        self.snapshots["z"].append(sim.get_array(center=mp.Vector3(0, 0), size=mp.Vector3(self.cell.x, self.cell.y), component=mp.Ez))
+        region = mp.Vector3(self.cell.x, self.cell.y, self.cell.z)
+        self.snapshots["x"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ex))
+        self.snapshots["y"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ey))
+        self.snapshots["z"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ez))
+        self.snapshots["t"].append(sim.meep_time())
+
+    def _make_snap_func(self):
+        if "snapshot_t1" in self.args:
+            t1 = float(self.args["snapshot_t1"])
+            t2 = float(self.args["snapshot_t2"])
+            dt = float(self.args["snapshot_dt"])
+            next_t = [t1]
+            def windowed(sim):
+                t = sim.meep_time()
+                while next_t[0] <= t2 + 1e-9 and t >= next_t[0] - 1e-9:
+                    self._add_snapshot(sim)
+                    next_t[0] += dt
+            return windowed
+        return mp.at_every(self.args["snapshot_time"], self._add_snapshot)
 
     def _set_simulation(self):
         bg_index = self.args.get("background_index", 1.0)
@@ -214,25 +242,38 @@ class Simulation:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
         assert self.cell is not None
+        is_3d = self._cell_z > 0
         fig, ax = plt.subplots(figsize=(12, 5))
-        self.simulation.plot2D(ax=ax, plot_sources_flag=True, plot_monitors_flag=True, plot_boundaries_flag=True)
-        ax.set_title("Simulation setup")
+        kw = dict(ax=ax, plot_sources_flag=True, plot_monitors_flag=True, plot_boundaries_flag=True)
+        if is_3d:
+            kw["output_plane"] = mp.Volume(center=mp.Vector3(), size=mp.Vector3(self._cell_x, self._cell_y, 0))
+        self.simulation.plot2D(**kw)
+        ax.set_title("Simulation setup" + (" (XY slice)" if is_3d else ""))
         fig.tight_layout()
-        fig.savefig(os.path.join(self.paths["figures"], "setup.png"), dpi=150)
+        suffix = "_empty" if self._empty else ""
+        fig.savefig(os.path.join(self.paths["figures"], f"setup{suffix}.png"), dpi=150)
         plt.close(fig)
 
     def _run_meep_once(self) -> None:
-        self.snapshots = {"x": [], "y": [], "z": []}
+        self.snapshots = {"x": [], "y": [], "z": [], "t": []}
         run_until = self.args.get("run_until", 200)
-        step_funcs = [mp.at_every(self.args["snapshot_time"], self._add_snapshot)]
+        if self._empty:
+            # empty (air) run: DFT/flux monitors accumulate in C++ automatically
+            self.simulation.run(until=run_until)
+            self.simulation.change_sources([])
+            self.simulation.run(until=50)
+            return
+        snap_func = self._make_snap_func()
+        sensor_funcs = []
         for sensor in self.sensors:
             sf = sensor.get_step_func()
             if sf is not None:
                 interval, func = sf
-                step_funcs.append(mp.at_every(interval, func))
-        self.simulation.run(*step_funcs, until=run_until)
+                sensor_funcs.append(mp.at_every(interval, func))
+        self.simulation.run(snap_func, *sensor_funcs, until=run_until)
         self.simulation.change_sources([])
-        self.simulation.run(*step_funcs, until=50)
+        # source-off decay: sensors only, no snapshots (avoid RAM spike)
+        self.simulation.run(*sensor_funcs, until=50)
 
     def _save_all(self) -> None:
         sim_path = self.paths["simulation"]
@@ -242,6 +283,7 @@ class Simulation:
                 Ex=np.array(self.snapshots["x"]),
                 Ey=np.array(self.snapshots["y"]),
                 Ez=np.array(self.snapshots["z"]),
+                t=np.array(self.snapshots["t"]),
             )
         for sensor in self.sensors:
             sensor.save(self.simulation, sim_path)
@@ -256,11 +298,36 @@ class Simulation:
         self._run_meep_once()
         self._save_all()
 
+    def run_empty(self) -> None:
+        self._empty = True
+        self.objects_args = []
+        self.objects      = []
+        self.sources      = []
+        self.sensors      = []
+        self.args         = {}
+        self.snapshots    = {"x": [], "y": [], "z": [], "t": []}
+        self.simulation   = None  # free MEEP sim before allocating new one
+        import gc; gc.collect()
+        self._set_everything()
+        assert self.cell is not None
+        self.plot_setup()
+        self._run_meep_once()
+        self._save_all()
+        self._empty = False
+
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", type=str, default="data/test")
+    parser.add_argument("--path", type=str, default="data/test2D")
+    parser.add_argument("--empty-only", action="store_true")
+    parser.add_argument("--lc-only", action="store_true")
     args = parser.parse_args()
     simulation = Simulation(args.path)
-    simulation.run_simulation()
+    if args.empty_only:
+        simulation.run_empty()
+    elif args.lc_only:
+        simulation.run_simulation()
+    else:
+        simulation.run_simulation()
+        simulation.run_empty()

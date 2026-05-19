@@ -16,15 +16,20 @@ class Source:
         self.source_amp_func = None
         self.amplitude = 1.0
 
+        _comp_map = {"Ex": mp.Ex, "Ey": mp.Ey, "Ez": mp.Ez,
+                     "Hx": mp.Hx, "Hy": mp.Hy, "Hz": mp.Hz}
+        self.component = _comp_map.get(args.get("component", "Ez"), mp.Ez)
         self._set_source()
         self._set_beam_profile_function()
 
-    def return_source_object(self):
+    def return_source_object(self) -> list[mp.Source]:
+        if isinstance(self.args.get("amplitude"), list):
+            return self.return_quadrosource()
         if self.amplitude is None:
-            return mp.Source(self.source, mp.Ez, center=self.center, size=self.size,
-                             amp_func=self.source_amp_func)
-        return mp.Source(self.source, mp.Ez, center=self.center, size=self.size,
-                         amplitude=self.amplitude)
+            return [mp.Source(self.source, self.component, center=self.center, size=self.size,
+                              amp_func=self.source_amp_func)]
+        return [mp.Source(self.source, self.component, center=self.center, size=self.size,
+                          amplitude=self.amplitude)]
 
     def _set_source(self):
         if self.source_type == "gaussian":
@@ -55,6 +60,20 @@ class Source:
         else:
             self.source_amp_func = None
             self.amplitude = amp
+
+    def return_quadrosource(self) -> list[mp.Source]:
+        amps = self.args["amplitude"]  # list of N amplitudes → N equal y-strips
+        n = len(amps)
+        sy = float(self.size.y)
+        strip_sy = sy / n
+        sources = []
+        for i, amp in enumerate(amps):
+            cy = float(self.center.y) - sy / 2 + (i + 0.5) * strip_sy
+            center = mp.Vector3(float(self.center.x), cy, float(self.center.z))
+            size   = mp.Vector3(float(self.size.x), strip_sy, float(self.size.z))
+            sources.append(mp.Source(self.source, self.component, center=center, size=size,
+                                     amplitude=float(amp)))
+        return sources
 
 
 def _gaussian_amp(r, _w0, _amp):
