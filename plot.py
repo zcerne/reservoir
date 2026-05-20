@@ -7,6 +7,19 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
+def _compute_cell_x(sim_args):
+    """Total cell x-extent in µm from pml + guides + reservoir."""
+    pml = 2.0 * float(sim_args.get("pml_size", 2.0))
+    obj_sx = sum(
+        float(sim_args[k]["sizes"][0])
+        for k in sim_args.get("object_order", [])
+        if isinstance(sim_args.get(k), dict)
+        and sim_args[k].get("class") in ("guide", "reservoir")
+        and "sizes" in sim_args[k]
+    )
+    return pml + obj_sx
+
+
 def _monitor_size_y(mon_args, sim_args):
     pos = mon_args.get("position", {})
     if isinstance(pos, dict):
@@ -68,13 +81,15 @@ def _compute_T(sim_args, sim_dir):
 
 
 def _load_dft_curves(sim_args, sim_dir):
-    """Return list of (key, y, I[0], lam_nm) for all DFT monitors found."""
+    """Return list of (key, y, I[0], lam_nm) for guide-face DFT monitors (have on_object)."""
     curves = []
     for key in sim_args.get("object_order", []):
         mon = sim_args.get(key)
         if mon is None or mon.get("class") != "monitor":
             continue
         if mon.get("type") not in ("1Ddft", "2Ddft"):
+            continue
+        if "on_object" not in mon:
             continue
         npz_path = os.path.join(sim_dir, f"{key}.npz")
         if not os.path.exists(npz_path):
@@ -84,21 +99,24 @@ def _load_dft_curves(sim_args, sim_dir):
         I      = (np.abs(data["Ex"]) ** 2
                   + np.abs(data["Ey"]) ** 2
                   + np.abs(data["Ez"]) ** 2)
+        I_plot = I[0].sum(axis=-1) if I[0].ndim == 2 else I[0]
         size_y = _monitor_size_y(mon, sim_args)
-        y      = np.linspace(-size_y / 2, size_y / 2, I.shape[-1])
+        y      = np.linspace(-size_y / 2, size_y / 2, I_plot.shape[0])
         lam_nm = 1.0 / freqs[0] * 1000
-        curves.append((key, y, I[0], lam_nm))
+        curves.append((key, y, I_plot, lam_nm))
     return curves
 
 
 def _load_dft_components(sim_args, sim_dir):
-    """Return list of (key, y, Ex2, Ey2, Ez2, lam_nm) for all DFT monitors."""
+    """Return list of (key, y, Ex2, Ey2, Ez2, lam_nm) for guide-face DFT monitors (have on_object)."""
     out = []
     for key in sim_args.get("object_order", []):
         mon = sim_args.get(key)
         if mon is None or mon.get("class") != "monitor":
             continue
         if mon.get("type") not in ("1Ddft", "2Ddft"):
+            continue
+        if "on_object" not in mon:
             continue
         npz_path = os.path.join(sim_dir, f"{key}.npz")
         if not os.path.exists(npz_path):
@@ -108,8 +126,12 @@ def _load_dft_components(sim_args, sim_dir):
         Ex2    = np.abs(data["Ex"][0]) ** 2
         Ey2    = np.abs(data["Ey"][0]) ** 2
         Ez2    = np.abs(data["Ez"][0]) ** 2
+        if Ex2.ndim == 2:
+            Ex2 = Ex2.sum(axis=-1)
+            Ey2 = Ey2.sum(axis=-1)
+            Ez2 = Ez2.sum(axis=-1)
         size_y = _monitor_size_y(mon, sim_args)
-        y      = np.linspace(-size_y / 2, size_y / 2, Ex2.shape[-1])
+        y      = np.linspace(-size_y / 2, size_y / 2, Ex2.shape[0])
         lam_nm = 1.0 / freqs[0] * 1000
         out.append((key, y, Ex2, Ey2, Ez2, lam_nm))
     return out
@@ -220,6 +242,9 @@ def plot_2dsnap_grid(sim_args, sim_dir, fig_dir, n, suffix=""):
 
         is_1d = Ex.ndim == 2
         vmax  = float(np.percentile(I, 99)) if I.max() > 0 else 1.0
+        size_y = _monitor_size_y(mon, sim_args)
+        cell_z = float(sim_args.get("cell_size_z", 0.0))
+        snap_extent = [-size_y / 2, size_y / 2, -cell_z / 2, cell_z / 2] if cell_z > 0 else None
 
         fig, axes = plt.subplots(nrows, ncols, figsize=(2.5 * ncols, 2.5 * nrows))
         axes = np.array(axes).reshape(nrows, ncols)
@@ -235,8 +260,13 @@ def plot_2dsnap_grid(sim_args, sim_dir, fig_dir, n, suffix=""):
                     ax.set_ylim(0, vmax)
                 else:
                     ax.imshow(I[snap_idx].T, origin="lower", cmap="inferno",
-                              vmin=0, vmax=vmax, aspect="auto")
-                    ax.axis("off")
+                              vmin=0, vmax=vmax, aspect="auto", extent=snap_extent)
+                    if snap_extent is not None:
+                        ax.set_xlabel("y (µm)", fontsize=5)
+                        ax.set_ylabel("z (µm)", fontsize=5)
+                        ax.tick_params(labelsize=5)
+                    else:
+                        ax.axis("off")
                 ax.set_title(f"t={t[snap_idx]:.0f}", fontsize=6)
             else:
                 ax.axis("off")
@@ -352,7 +382,7 @@ def plot_lc_field_slices(sim_dir, fig_dir, n=3, stride=2):
     print(f"Saved {out}")
 
 
-def plot_snapshots(sim_dir, fig_dir):
+def plot_snapshots(sim_dir, fig_dir, sim_args=None):
     npz_path = os.path.join(sim_dir, "snapshots.npz")
     if not os.path.exists(npz_path):
         return
@@ -365,10 +395,18 @@ def plot_snapshots(sim_dir, fig_dir):
 
     is_3d = I.ndim == 4
     if is_3d:
-        iz = I.shape[3] // 2  # central z slice for display
+        iz = I.shape[3] // 2
         I_plot = I[:, :, :, iz]
     else:
         I_plot = I
+
+    # physical extents in µm (x=right, y=up)
+    if sim_args is not None:
+        cell_x = _compute_cell_x(sim_args)
+        cell_y = float(sim_args.get("cell_size_y", 0.0))
+        extent = [-cell_x / 2, cell_x / 2, -cell_y / 2, cell_y / 2]
+    else:
+        extent = None
 
     n_snap = I_plot.shape[0]
     ncols  = min(5, n_snap)
@@ -384,19 +422,71 @@ def plot_snapshots(sim_dir, fig_dir):
         ax = axes[r, c]
         if idx < n_snap:
             ax.imshow(I_plot[idx].T, origin="lower", cmap="inferno",
-                      vmin=0, vmax=vmax, aspect="auto")
+                      vmin=0, vmax=vmax, aspect="auto", extent=extent)
             ax.set_title(f"t={t[idx]:.2f}", fontsize=7)
-            ax.axis("off")
+            if extent is not None:
+                ax.set_xlabel("x (µm)", fontsize=5)
+                ax.set_ylabel("y (µm)", fontsize=5)
+                ax.tick_params(labelsize=5)
+            else:
+                ax.axis("off")
         else:
             ax.axis("off")
 
-    title = f"Snapshots  —  I = |Ex|² + |Ey|² + |Ez|²"
+    title = "Snapshots  —  I = |Ex|² + |Ey|² + |Ez|²"
     if subtitle:
         title += f"  ({subtitle})"
     fig.suptitle(title, y=1.01)
     fig.tight_layout()
     out = os.path.join(fig_dir, "snapshots_evolution.png")
     fig.savefig(out, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {out}")
+
+
+def plot_dft_imshow(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
+    """2D imshow grid: n_monitors rows × 3 cols (|Ex|², |Ey|², |Ez|²) with T in title."""
+    dft_keys = [k for k in sim_args.get("object_order", [])
+                if sim_args.get(k, {}).get("class") == "monitor"
+                and sim_args.get(k, {}).get("type") == "2Ddft"
+                and os.path.exists(os.path.join(sim_dir, f"{k}.npz"))]
+    if not dft_keys:
+        return
+
+    cell_z = float(sim_args.get("cell_size_z", 0.0))
+    T_lc   = _compute_T(sim_args, sim_dir)
+    T_air  = _compute_T(sim_args, sim_dir_empty) if sim_dir_empty else None
+    n_mon  = len(dft_keys)
+    fig, axes = plt.subplots(n_mon, 3, figsize=(12, 4 * n_mon), squeeze=False)
+    comp_labels = ["|Ex|²", "|Ey|²", "|Ez|²"]
+
+    for row, key in enumerate(dft_keys):
+        mon    = sim_args[key]
+        data   = np.load(os.path.join(sim_dir, f"{key}.npz"))
+        size_y = _monitor_size_y(mon, sim_args)
+        extent = [-size_y / 2, size_y / 2, -cell_z / 2, cell_z / 2]
+        comps  = [np.abs(data["Ex"][0]) ** 2,
+                  np.abs(data["Ey"][0]) ** 2,
+                  np.abs(data["Ez"][0]) ** 2]
+        vmax = max(float(c.max()) for c in comps) or 1.0
+        for col, (comp, label) in enumerate(zip(comps, comp_labels)):
+            ax = axes[row][col]
+            im = ax.imshow(comp.T, origin="lower", cmap="inferno",
+                           vmin=0, vmax=vmax, aspect="auto", extent=extent)
+            ax.set_title(f"{key}  {label}", fontsize=9)
+            ax.set_xlabel("y (µm)")
+            ax.set_ylabel("z (µm)")
+            plt.colorbar(im, ax=ax, shrink=0.8)
+
+    freqs  = np.load(os.path.join(sim_dir, f"{dft_keys[0]}.npz"))["freqs"]
+    lam_nm = 1.0 / freqs[0] * 1000
+    title_parts = [f"DFT field components (2D)  —  λ = {lam_nm:.1f} nm"]
+    if T_lc  is not None: title_parts.append(f"T_LC = {T_lc:.1f}%")
+    if T_air is not None: title_parts.append(f"T_air = {T_air:.1f}%")
+    fig.suptitle("  |  ".join(title_parts), y=1.01)
+    fig.tight_layout()
+    out = os.path.join(fig_dir, "monitors_2d.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved {out}")
 
@@ -412,12 +502,17 @@ def main(folder, n):
         sim_args = json.load(f)
 
     empty_exists = os.path.isdir(sim_dir_empty)
-    plot_dft_monitors(sim_args, sim_dir, fig_dir,
-                      sim_dir_empty=sim_dir_empty if empty_exists else None)
-    plot_dft_components(sim_args, sim_dir, fig_dir)
+    empty_dir    = sim_dir_empty if empty_exists else None
+    is_3d = int(sim_args.get("dimention", 1)) == 3
+    if is_3d:
+        plot_dft_imshow(sim_args, sim_dir, fig_dir, sim_dir_empty=empty_dir)
+    else:
+        plot_dft_monitors(sim_args, sim_dir, fig_dir, sim_dir_empty=empty_dir)
+        plot_dft_components(sim_args, sim_dir, fig_dir)
+        plot_dft_imshow(sim_args, sim_dir, fig_dir, sim_dir_empty=empty_dir)
     plot_2dsnap_grid(sim_args, sim_dir, fig_dir, n)
     plot_lc_field_slices(sim_dir, fig_dir)
-    plot_snapshots(sim_dir, fig_dir)
+    plot_snapshots(sim_dir, fig_dir, sim_args=sim_args)
 
 
 if __name__ == "__main__":

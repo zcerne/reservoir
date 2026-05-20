@@ -35,8 +35,14 @@ class Reservoir:
             # backward compat: pin theta=π/2 wherever phi is pinned
             self.face_theta = tuple(np.pi / 2 if p is not None else None for p in self.face_phi)
         self.optimize_phi_theta = tuple(cfg.get("optimize_phi_theta", [True, True]))
-        self.boundary_function = cfg.get("boundary_function", None)
-        self.boundary_seed     = cfg.get("boundary_seed", None)
+        self.boundary_function    = cfg.get("boundary_function", None)
+        self.boundary_seed        = cfg.get("boundary_seed", None)
+        self.boundary_scale       = float(cfg.get("boundary_scale", 2.0))
+        self.boundary_n_periods   = int(cfg.get("boundary_n_periods", 1))
+        self.boundary_phase_shift = float(cfg.get("boundary_phase_shift", 0.0))
+        self.boundary_noise_level    = float(cfg.get("boundary_noise_level", 0.5))
+        self.boundary_same_opposite  = cfg.get("boundary_same_opposite", None)
+        self.ignore_faces            = cfg.get("ignore_faces", None)
         self.maxeval = cfg.get("maxeval", 2000)
         self.f_tolerance = cfg.get("f_tolerance", 1e-6)
         self.n_o = float(cfg.get("n_o", 1.52))
@@ -69,29 +75,47 @@ class Reservoir:
         nz_pts = int(res[2])
 
         if self.boundary_function is not None:
-            from functions_boundaries import random_2d_boundaries, random_3d_boundaries
-            _fn_map = {"random": random_2d_boundaries, "random_3d": random_3d_boundaries}
+            from functions_boundaries import (random_2d_boundaries, random_3d_boundaries,
+                                              perlin_3d_boundaries, sinus_3d_boundaries,
+                                              sinus_2d_boundaries, sinus_random_2d_boundaries,
+                                              competing_3d_boundaries)
+            _fn_map = {"random": random_2d_boundaries, "random_3d": random_3d_boundaries,
+                       "perlin_3d": perlin_3d_boundaries, "sinus_3d": sinus_3d_boundaries,
+                       "sinus_2d": sinus_2d_boundaries,
+                       "sinus_random_2d": sinus_random_2d_boundaries,
+                       "competing_3d": competing_3d_boundaries}
             fn = _fn_map[self.boundary_function]
-            dims = self.dimensions if self.boundary_function == "random_3d" else self.dimensions[:2]
-            fp_arr, ft_arr = fn(self.resolution, dims, seed=self.boundary_seed)
+            dims = self.dimensions if self.boundary_function in (
+                "random_3d", "perlin_3d", "sinus_3d", "competing_3d") else self.dimensions[:2]
+            extra_kw = {}
+            if self.boundary_function in ("perlin_3d", "competing_3d"):
+                extra_kw["scale"] = self.boundary_scale
+            if self.boundary_function == "perlin_3d" and self.boundary_same_opposite is not None:
+                extra_kw["same_opposite_faces"] = self.boundary_same_opposite
+            if self.boundary_function in ("sinus_2d", "sinus_3d", "sinus_random_2d"):
+                extra_kw["n_periods"] = self.boundary_n_periods
+            if self.boundary_function in ("sinus_2d", "sinus_random_2d"):
+                extra_kw["phase_shift"] = self.boundary_phase_shift
+            if self.boundary_function == "sinus_random_2d":
+                extra_kw["noise_level"] = self.boundary_noise_level
+                extra_kw["scale"] = self.boundary_scale
+            fp_arr, ft_arr = fn(self.resolution, dims, seed=self.boundary_seed,
+                                ignore_faces=self.ignore_faces, **extra_kw)
             if "z_min" in fp_arr:
                 # 3D function: all 6 faces have per-pixel arrays sized to match face_mask counts
                 active_face_phi = [fp_arr[k] for k in ("x_min", "x_max", "y_min", "y_max", "z_min", "z_max")]
                 active_face_theta = [ft_arr[k] for k in ("x_min", "x_max", "y_min", "y_max", "z_min", "z_max")]
             else:
                 # 2D function: repeat each 1D edge array across the z dimension
+                def _rep(v): return np.repeat(v, nz_pts) if v is not None else None
                 active_face_phi = [
-                    np.repeat(fp_arr["x_min"], nz_pts),
-                    np.repeat(fp_arr["x_max"], nz_pts),
-                    np.repeat(fp_arr["y_min"], nz_pts),
-                    np.repeat(fp_arr["y_max"], nz_pts),
+                    _rep(fp_arr["x_min"]), _rep(fp_arr["x_max"]),
+                    _rep(fp_arr["y_min"]), _rep(fp_arr["y_max"]),
                     None, None,
                 ]
                 active_face_theta = [
-                    np.repeat(ft_arr["x_min"], nz_pts),
-                    np.repeat(ft_arr["x_max"], nz_pts),
-                    np.repeat(ft_arr["y_min"], nz_pts),
-                    np.repeat(ft_arr["y_max"], nz_pts),
+                    _rep(ft_arr["x_min"]), _rep(ft_arr["x_max"]),
+                    _rep(ft_arr["y_min"]), _rep(ft_arr["y_max"]),
                     None, None,
                 ]
         else:
@@ -230,6 +254,12 @@ class Reservoir:
 
     def save_fields(self):
         """Save director field arrays + grid coordinates to lc_fields.npz."""
+        try:
+            import meep as mp
+            if not mp.am_master():
+                return
+        except ImportError:
+            pass
         phi, theta, *_ = self.get_results()
         sx, sy, sz = self._cell_size()
         nx, ny, nz = phi.shape[0], phi.shape[1], phi.shape[2]  # type: ignore[misc]
@@ -239,12 +269,90 @@ class Reservoir:
         out = self.folder / "simulation"
         out.mkdir(exist_ok=True)
         np.savez(out / "lc_fields.npz", phi=phi, theta=theta, x=x, y=y, z=z)
+        self.plot_boundaries()
+
+    def plot_boundaries(self):
+        """Plot boundary face values from saved lc_fields.npz as 6×2 grid (face per row)."""
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        npz = self.folder / "simulation" / "lc_fields.npz"
+        if not npz.exists():
+            print("plot_boundaries: lc_fields.npz not found, skipping")
+            return
+        d     = np.load(npz)
+        phi   = d["phi"]    # (nx, ny, nz)
+        theta = d["theta"]
+        x, y, z = d["x"], d["y"], d["z"]
+
+        # (phi_slice, theta_slice, h_label, v_label, h_arr, v_arr)
+        face_info = {
+            "x_min": (phi[0,  :, :], theta[0,  :, :], "y (µm)", "z (µm)", y, z),
+            "x_max": (phi[-1, :, :], theta[-1, :, :], "y (µm)", "z (µm)", y, z),
+            "y_min": (phi[:,  0, :], theta[:,  0, :], "x (µm)", "z (µm)", x, z),
+            "y_max": (phi[:, -1, :], theta[:, -1, :], "x (µm)", "z (µm)", x, z),
+            "z_min": (phi[:, :,  0], theta[:, :,  0], "x (µm)", "y (µm)", x, y),
+            "z_max": (phi[:, :, -1], theta[:, :, -1], "x (µm)", "y (µm)", x, y),
+        }
+        keys = list(face_info.keys())
+
+        # row heights proportional to face vertical extents; col widths to horizontal
+        wy = float(abs(y[-1] - y[0]))
+        wx = float(abs(x[-1] - x[0]))
+        wz = float(abs(z[-1] - z[0]))
+        # vertical extents per face row (z for x/y faces, y for z faces)
+        row_h = [wz, wz, wz, wz, wy, wy]
+        # horizontal extents per face (same for both phi/theta columns)
+        col_face_w = [wy, wy, wx, wx, wx, wx]
+        max_col_w  = max(col_face_w)
+        scale = 0.5
+        fig_w = max_col_w * 2 * scale + 3.5
+        fig_h = sum(row_h)  * scale + 4.0
+
+        fig = plt.figure(figsize=(fig_w, fig_h))
+        gs  = fig.add_gridspec(6, 2, height_ratios=row_h,
+                               hspace=0.6, wspace=0.35)
+        axes = [[fig.add_subplot(gs[r, c]) for c in range(2)] for r in range(6)]
+
+        col_meta = [(0, "phi  (0→π)",    "hsv",    np.pi),
+                    (1, "theta  (0→π/2)", "plasma", np.pi / 2)]
+
+        for ci, col_label, cmap, vmax in col_meta:
+            last_im = None
+            for row, key in enumerate(keys):
+                ax = axes[row][ci]
+                fp_sl, ft_sl, h_lbl, v_lbl, h_arr, v_arr = face_info[key]
+                img    = fp_sl if ci == 0 else ft_sl
+                extent = [h_arr[0], h_arr[-1], v_arr[0], v_arr[-1]]
+                last_im = ax.imshow(img.T, origin="lower", cmap=cmap,
+                                    vmin=0, vmax=vmax, aspect="equal",
+                                    extent=extent)
+                ax.set_xlabel(h_lbl, fontsize=7)
+                ax.set_ylabel(v_lbl, fontsize=7)
+                ax.tick_params(labelsize=6)
+                if ci == 0:
+                    ax.set_ylabel(f"{key}\n{v_lbl}", fontsize=7)
+            axes[0][ci].set_title(col_label, fontsize=9)
+            fig.colorbar(last_im, ax=[axes[r][ci] for r in range(6)],
+                         label=col_label, shrink=0.6, pad=0.02)
+
+        fig.suptitle(
+            f"Boundaries — {self.boundary_function or 'fixed'}, seed={self.boundary_seed}",
+            fontsize=10)
+        fig.tight_layout()
+        fig_dir = self.folder / "figures"
+        fig_dir.mkdir(exist_ok=True)
+        out = fig_dir / "boundary_conditions.png"
+        fig.savefig(str(out), dpi=130, bbox_inches="tight")
+        plt.close(fig)
+        print(f"Saved {out}")
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path", type=str, default="data/test")
+    parser.add_argument("--path", type=str, default="data/test3D")
     args = parser.parse_args()
     r = Reservoir(args.path)
     r.run_minimization()

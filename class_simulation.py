@@ -6,6 +6,8 @@ from class_guide import Guide
 from class_source import Source
 from class_sensor import Sensor
 from class_reservoir import Reservoir as LCReservoir
+from class_slm import SLM
+from class_mirror import Mirror
 
 
 class Simulation:
@@ -73,6 +75,18 @@ class Simulation:
             obj_args["edge_x_local"] = current_x
             if isinstance(obj_args.get("sizes"), list):
                 obj_args["size_x"] = float(obj_args["sizes"][0])
+            cls = obj_args.get("class", "")
+            if cls == "slm" and "size_x" not in obj_args:
+                n_o, n_e = float(obj_args["no_ne"][0]), float(obj_args["no_ne"][1])
+                obj_args["size_x"] = float(obj_args["lam"]) / (2 * (n_e - n_o))
+            elif cls == "mirror" and "size_x" not in obj_args:
+                lam     = float(obj_args["lam"])
+                indices = obj_args.get("n_indexes", obj_args.get("indexes", [1.0, 1.0]))
+                if "n_layers" in obj_args:
+                    n_lays = int(obj_args["n_layers"])
+                else:
+                    n_lays = Mirror._n_layers_for_transmission(float(obj_args["transmission"]), indices)
+                obj_args["size_x"] = sum(lam / 4.0 / float(indices[i % 2]) for i in range(n_lays))
             self.objects_args.append(obj_args)
             current_x += float(obj_args.get("size_x", 0.0))
 
@@ -95,6 +109,20 @@ class Simulation:
 
             elif cls == "reservoir":
                 obj_args["center"] = mp.Vector3(edge_x + size_x / 2, 0, 0)
+
+            elif cls == "slm":
+                obj_args["center"] = mp.Vector3(edge_x + size_x / 2, 0, 0)
+                if "size_y" not in obj_args:
+                    obj_args["size_y"] = cell_y
+                if "size_z" not in obj_args:
+                    obj_args["size_z"] = cell_z
+
+            elif cls == "mirror":
+                obj_args["x_start"]    = edge_x
+                obj_args["resolution"] = self.resolution
+                obj_args["cell_y"]     = cell_y
+                if "size_y" not in obj_args:
+                    obj_args["size_y"] = cell_y
 
             elif cls in ("monitor", "source"):
                 on_object = obj_args.get("on_object", -1)
@@ -134,6 +162,10 @@ class Simulation:
             if self._empty:
                 return None  # reservoir region stays as air background
             return LCReservoir(self.folder_path)
+        if cls == "slm":
+            return SLM(args)
+        if cls == "mirror":
+            return Mirror(args)
         return None
 
     def _set_object_list(self):
@@ -188,7 +220,11 @@ class Simulation:
 
     def _add_snapshot(self, sim):
         assert self.cell is not None
-        region = mp.Vector3(self.cell.x, self.cell.y, self.cell.z)
+        # 3D: take center z-slice (z=0) to avoid ~600 MB per snapshot
+        if self._cell_z > 0:
+            region = mp.Vector3(self.cell.x, self.cell.y, 0)
+        else:
+            region = mp.Vector3(self.cell.x, self.cell.y, self.cell.z)
         self.snapshots["x"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ex))
         self.snapshots["y"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ey))
         self.snapshots["z"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ez))
@@ -211,6 +247,7 @@ class Simulation:
     def _set_simulation(self):
         bg_index = self.args.get("background_index", 1.0)
         default_material = mp.Medium(index=bg_index) if bg_index != 1.0 else mp.air
+        use_cw = bool(self.args.get("use_cw", False))
         self.simulation = mp.Simulation(
             cell_size=self.cell,  # pyright: ignore
             boundary_layers=self.pmls,
@@ -219,6 +256,7 @@ class Simulation:
             resolution=self.resolution,
             default_material=default_material,
             k_point=mp.Vector3(0, 0, 0) if self.args["periodic"] else False,
+            force_complex_fields=use_cw,
         )
 
     def _setup_sensors(self):
@@ -256,6 +294,20 @@ class Simulation:
 
     def _run_meep_once(self) -> None:
         self.snapshots = {"x": [], "y": [], "z": [], "t": []}
+        use_cw = bool(self.args.get("use_cw", False))
+
+        if use_cw:
+            # Frequency-domain stationary-state solver.
+            # Requires a short initialization run so fields are non-zero, then iterates to convergence.
+            # DFT/flux monitors are reset and filled with the converged field automatically.
+            cw_init  = float(self.args.get("cw_init_time", 200))
+            tol      = float(self.args.get("cw_tol",       1e-6))
+            maxiters = int(self.args.get("cw_maxiters",    10000))
+            L        = int(self.args.get("cw_L",           10))
+            self.simulation.run(until=cw_init)
+            self.simulation.solve_cw(tol, maxiters, L)
+            return
+
         run_until = self.args.get("run_until", 200)
         if self._empty:
             # empty (air) run: DFT/flux monitors accumulate in C++ automatically
