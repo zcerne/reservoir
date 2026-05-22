@@ -220,11 +220,7 @@ class Simulation:
 
     def _add_snapshot(self, sim):
         assert self.cell is not None
-        # 3D: take center z-slice (z=0) to avoid ~600 MB per snapshot
-        if self._cell_z > 0:
-            region = mp.Vector3(self.cell.x, self.cell.y, 0)
-        else:
-            region = mp.Vector3(self.cell.x, self.cell.y, self.cell.z)
+        region = mp.Vector3(self.cell.x, self.cell.y, self.cell.z)
         self.snapshots["x"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ex))
         self.snapshots["y"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ey))
         self.snapshots["z"].append(sim.get_array(center=mp.Vector3(), size=region, component=mp.Ez))

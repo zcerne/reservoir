@@ -82,6 +82,107 @@ class SimulationT(Simulation):
         return Ey, Ex, Ez
 
     # ------------------------------------------------------------------
+    # Single basis run (for Slurm job arrays)
+    # ------------------------------------------------------------------
+
+    def run_basis_idx(self, basis_idx: int) -> None:
+        """Run one basis vector and save to simulation_T/basis_{basis_idx}.npz.
+
+        Used by Slurm job arrays: each array task calls this with its task ID.
+        Strips heavy monitors (3Ddft, time snapshots) not needed for T-matrix.
+        """
+        self._reset_state()
+        self._set_data()
+
+        src_key = self._source_key(self.args)
+        amplitude = self.args[src_key].get("amplitude", [1.0])
+        n_strips = len(amplitude) if isinstance(amplitude, list) else 1
+
+        basis = [0.0] * n_strips
+        basis[basis_idx] = 1.0
+        self.args[src_key]["amplitude"] = basis
+
+        # Remove 3Ddft monitors (very large memory, not needed for T-matrix)
+        order = self.args.get("object_order", [])
+        for key in list(order):
+            obj = self.args.get(key, {})
+            if isinstance(obj, dict) and obj.get("type") == "3Ddft":
+                self.args["object_order"] = [k for k in order if k != key]
+                self.args.pop(key, None)
+                order = self.args["object_order"]
+
+        # Disable time-domain snapshots
+        for k in ("snapshot_t1", "snapshot_t2", "snapshot_dt"):
+            self.args.pop(k, None)
+        # Set snapshot_time beyond run_until so mp.at_every never fires
+        self.args["snapshot_time"] = float(self.args.get("run_until", 300)) + 1.0
+
+        self._set_simulation_parameters()
+        self._set_object_list()
+        self._set_pmls()
+        self._set_cell()
+        self._set_geometry()
+        self._set_simulation()
+        self._setup_sensors()
+        self._run_meep_once()
+
+        m2 = self._find_sensor("monitor_2")
+        h  = m2._monitor_handle
+        Ey = np.array(self.simulation.get_dft_array(h, mp.Ey, 0)).ravel()
+        Ex = np.array(self.simulation.get_dft_array(h, mp.Ex, 0)).ravel()
+        Ez = np.array(self.simulation.get_dft_array(h, mp.Ez, 0)).ravel()
+
+        out_path = os.path.join(self.T_dir, f"basis_{basis_idx}.npz")
+        if mp.am_master():
+            np.savez(out_path, Ey=Ey, Ex=Ex, Ez=Ez,
+                     basis_idx=basis_idx, n_total=n_strips)
+            print(f"[SimulationT] saved {out_path}  ({basis_idx+1}/{n_strips})")
+
+    # ------------------------------------------------------------------
+    # Assemble T matrix from individual basis files
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def assemble_T_matrix(folder_path: str) -> None:
+        """Assemble T_matrix.npz from basis_N.npz files written by run_basis_idx().
+
+        Run this after all Slurm array tasks complete.
+        """
+        import glob
+        T_dir = os.path.join(folder_path, "simulation_T")
+        basis_files = sorted(
+            glob.glob(os.path.join(T_dir, "basis_*.npz")),
+            key=lambda p: int(os.path.basename(p)[6:-4])
+        )
+        if not basis_files:
+            raise FileNotFoundError(f"No basis_*.npz files in {T_dir}")
+
+        d0 = np.load(basis_files[0])
+        n_total = int(d0["n_total"])
+        print(f"Assembling T matrix: {len(basis_files)}/{n_total} basis files found")
+
+        cols_Ey, cols_Ex, cols_Ez = [], [], []
+        for bf in basis_files:
+            d = np.load(bf)
+            cols_Ey.append(d["Ey"])
+            cols_Ex.append(d["Ex"])
+            cols_Ez.append(d["Ez"])
+
+        T_Ey = np.column_stack(cols_Ey)
+        T_Ex = np.column_stack(cols_Ex)
+        T_Ez = np.column_stack(cols_Ez)
+
+        with open(os.path.join(folder_path, "simulation_data.json")) as f:
+            cfg = json.load(f)
+
+        t_path = os.path.join(T_dir, "T_matrix.npz")
+        np.savez(t_path, T_Ey=T_Ey, T_Ex=T_Ex, T_Ez=T_Ez,
+                 n_complete=len(basis_files), n_total=n_total,
+                 use_cw=bool(cfg.get("use_cw", False)),
+                 run_until=float(cfg.get("run_until", 0.0)))
+        print(f"Saved T_matrix.npz  shape={T_Ey.shape}  ({len(basis_files)}/{n_total} complete)")
+
+    # ------------------------------------------------------------------
     # Build T matrix
     # ------------------------------------------------------------------
 
@@ -121,7 +222,9 @@ class SimulationT(Simulation):
                 T_partial_Ex = np.column_stack(cols_Ex) if len(cols_Ex) > 1 else cols_Ex[0].reshape(-1, 1)
                 T_partial_Ez = np.column_stack(cols_Ez) if len(cols_Ez) > 1 else cols_Ez[0].reshape(-1, 1)
                 np.savez(t_path, T_Ey=T_partial_Ey, T_Ex=T_partial_Ex, T_Ez=T_partial_Ez,
-                         n_complete=i + 1, n_total=n_strips)
+                         n_complete=i + 1, n_total=n_strips,
+                         use_cw=bool(self.args.get("use_cw", False)),
+                         run_until=float(self.args.get("run_until", 0.0)))
                 print(f"[SimulationT] saved T_matrix.npz after basis {i+1}/{n_strips}")
 
         T_Ey = np.column_stack(cols_Ey)   # (N_y, N_strips), complex
@@ -131,7 +234,9 @@ class SimulationT(Simulation):
         # Overwrite with final complete matrix (n_complete == n_total)
         if mp.am_master():
             np.savez(t_path, T_Ey=T_Ey, T_Ex=T_Ex, T_Ez=T_Ez,
-                     n_complete=n_strips, n_total=n_strips)
+                     n_complete=n_strips, n_total=n_strips,
+                     use_cw=bool(self.args.get("use_cw", False)),
+                     run_until=float(self.args.get("run_until", 0.0)))
 
         # Training data: basis inputs as rows, corresponding outputs as rows
         inputs = np.eye(n_strips, dtype=float)
@@ -202,14 +307,25 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", default="data/test2D")
-    parser.add_argument("--build-T", action="store_true", help="Measure T matrix (N basis MEEP runs)")
-    parser.add_argument("--apply", action="store_true", help="Apply existing T to current amplitude")
+    parser.add_argument("--build-T", action="store_true",
+                        help="Measure T matrix sequentially (N basis MEEP runs)")
+    parser.add_argument("--basis-idx", type=int, default=None,
+                        help="Run single basis vector N and save basis_N.npz (for Slurm arrays)")
+    parser.add_argument("--assemble", action="store_true",
+                        help="Assemble T_matrix.npz from all basis_N.npz files (no MEEP)")
+    parser.add_argument("--apply", action="store_true",
+                        help="Apply existing T to current amplitude")
     args = parser.parse_args()
 
-    sim = SimulationT(args.path)
-    if args.build_T:
-        sim.build_T_matrix()
-    elif args.apply:
-        sim.run_simulation()
+    if args.assemble:
+        SimulationT.assemble_T_matrix(args.path)
     else:
-        print("Use --build-T to measure T matrix, or --apply to apply it.")
+        sim = SimulationT(args.path)
+        if args.build_T:
+            sim.build_T_matrix()
+        elif args.basis_idx is not None:
+            sim.run_basis_idx(args.basis_idx)
+        elif args.apply:
+            sim.run_simulation()
+        else:
+            print("Use --build-T, --basis-idx N, --assemble, or --apply.")

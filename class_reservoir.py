@@ -42,6 +42,7 @@ class Reservoir:
         self.boundary_phase_shift = float(cfg.get("boundary_phase_shift", 0.0))
         self.boundary_noise_level    = float(cfg.get("boundary_noise_level", 0.5))
         self.boundary_same_opposite  = cfg.get("boundary_same_opposite", None)
+        self.boundary_mirror         = bool(cfg.get("boundary_mirror", False))
         self.ignore_faces            = cfg.get("ignore_faces", None)
         self.maxeval = cfg.get("maxeval", 2000)
         self.f_tolerance = cfg.get("f_tolerance", 1e-6)
@@ -99,8 +100,14 @@ class Reservoir:
             if self.boundary_function == "sinus_random_2d":
                 extra_kw["noise_level"] = self.boundary_noise_level
                 extra_kw["scale"] = self.boundary_scale
-            fp_arr, ft_arr = fn(self.resolution, dims, seed=self.boundary_seed,
+            gen_dims = (dims[0] / 2,) + tuple(dims[1:]) if self.boundary_mirror else dims
+            fp_arr, ft_arr = fn(self.resolution, gen_dims, seed=self.boundary_seed,
                                 ignore_faces=self.ignore_faces, **extra_kw)
+            if self.boundary_mirror:
+                def _mirror_arr(v):
+                    return np.concatenate([v, v[-2::-1]]) if v is not None else None
+                fp_arr = {k: _mirror_arr(v) for k, v in fp_arr.items()}
+                ft_arr = {k: _mirror_arr(v) for k, v in ft_arr.items()}
             if "z_min" in fp_arr:
                 # 3D function: all 6 faces have per-pixel arrays sized to match face_mask counts
                 active_face_phi = [fp_arr[k] for k in ("x_min", "x_max", "y_min", "y_max", "z_min", "z_max")]

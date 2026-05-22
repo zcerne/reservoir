@@ -5,10 +5,12 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
+# ── helpers ───────────────────────────────────────────────────────────────────
 
 def _compute_cell_x(sim_args):
-    """Total cell x-extent in µm from pml + guides + reservoir."""
     pml = 2.0 * float(sim_args.get("pml_size", 2.0))
     obj_sx = sum(
         float(sim_args[k]["sizes"][0])
@@ -22,53 +24,13 @@ def _compute_cell_x(sim_args):
 
 def _monitor_size_y(mon_args, sim_args):
     pos = mon_args.get("position", {})
-    if isinstance(pos, dict):
-        req = float(pos.get("size", 0))
-    else:
-        req = 0.0
+    req = float(pos.get("size", 0)) if isinstance(pos, dict) else 0.0
     return req if req > 0 else float(sim_args.get("cell_size_y", 10.0))
 
 
-def plot_flux_monitors(sim_args, sim_dir, fig_dir):
-    monitors = {}
-    for key in sim_args.get("object_order", []):
-        mon = sim_args.get(key)
-        if mon is None or mon.get("class") != "monitor":
-            continue
-        if mon.get("type") != "flux":
-            continue
-        npz_path = os.path.join(sim_dir, f"{key}.npz")
-        if not os.path.exists(npz_path):
-            print(f"No data for {key}, skipping")
-            continue
-        monitors[key] = np.load(npz_path)
-
-    if len(monitors) < 2:
-        return
-
-    keys = list(monitors.keys())
-    d0   = monitors[keys[0]]
-    d1   = monitors[keys[1]]
-    lams  = 1.0 / np.array(d0["freqs"]) * 1000
-    f0    = np.abs(np.array(d0["fluxes"]))
-    f1    = np.abs(np.array(d1["fluxes"]))
-    ratio = np.where(f0 > 0, f1 / f0 * 100.0, np.nan)
-
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.plot(lams, ratio, color="royalblue")
-    ax.axhline(100.0, color="gray", linestyle="--", linewidth=0.8)
-    ax.set_xlabel("λ (nm)")
-    ax.set_ylabel(f"T = {keys[1]} / {keys[0]}  (%)")
-    ax.set_title("Transmission")
-    ax.grid(True, alpha=0.3)
-    fig.tight_layout()
-    out = os.path.join(fig_dir, "monitors_flux.png")
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
-    print(f"Saved {out}")
-
-
 def _compute_T(sim_args, sim_dir):
+    if not sim_dir:
+        return None
     flux_keys = [k for k in sim_args.get("object_order", [])
                  if sim_args.get(k, {}).get("class") == "monitor"
                  and sim_args.get(k, {}).get("type") == "flux"
@@ -80,348 +42,178 @@ def _compute_T(sim_args, sim_dir):
     return float(np.mean(np.where(f0 > 0, f1 / f0 * 100.0, np.nan)))
 
 
-def _load_dft_curves(sim_args, sim_dir):
-    """Return list of (key, y, I[0], lam_nm) for guide-face DFT monitors (have on_object)."""
-    curves = []
-    for key in sim_args.get("object_order", []):
-        mon = sim_args.get(key)
-        if mon is None or mon.get("class") != "monitor":
-            continue
-        if mon.get("type") not in ("1Ddft", "2Ddft"):
-            continue
-        if "on_object" not in mon:
-            continue
-        npz_path = os.path.join(sim_dir, f"{key}.npz")
-        if not os.path.exists(npz_path):
-            continue
-        data   = np.load(npz_path)
-        freqs  = data["freqs"]
-        I      = (np.abs(data["Ex"]) ** 2
-                  + np.abs(data["Ey"]) ** 2
-                  + np.abs(data["Ez"]) ** 2)
-        I_plot = I[0].sum(axis=-1) if I[0].ndim == 2 else I[0]
-        size_y = _monitor_size_y(mon, sim_args)
-        y      = np.linspace(-size_y / 2, size_y / 2, I_plot.shape[0])
-        lam_nm = 1.0 / freqs[0] * 1000
-        curves.append((key, y, I_plot, lam_nm))
-    return curves
-
-
-def _load_dft_components(sim_args, sim_dir):
-    """Return list of (key, y, Ex2, Ey2, Ez2, lam_nm) for guide-face DFT monitors (have on_object)."""
-    out = []
-    for key in sim_args.get("object_order", []):
-        mon = sim_args.get(key)
-        if mon is None or mon.get("class") != "monitor":
-            continue
-        if mon.get("type") not in ("1Ddft", "2Ddft"):
-            continue
-        if "on_object" not in mon:
-            continue
-        npz_path = os.path.join(sim_dir, f"{key}.npz")
-        if not os.path.exists(npz_path):
-            continue
-        data   = np.load(npz_path)
-        freqs  = data["freqs"]
-        Ex2    = np.abs(data["Ex"][0]) ** 2
-        Ey2    = np.abs(data["Ey"][0]) ** 2
-        Ez2    = np.abs(data["Ez"][0]) ** 2
-        if Ex2.ndim == 2:
-            Ex2 = Ex2.sum(axis=-1)
-            Ey2 = Ey2.sum(axis=-1)
-            Ez2 = Ez2.sum(axis=-1)
-        size_y = _monitor_size_y(mon, sim_args)
-        y      = np.linspace(-size_y / 2, size_y / 2, Ex2.shape[0])
-        lam_nm = 1.0 / freqs[0] * 1000
-        out.append((key, y, Ex2, Ey2, Ez2, lam_nm))
-    return out
-
-
-def plot_dft_components(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
-    lc_curves  = _load_dft_components(sim_args, sim_dir)
-    air_curves = _load_dft_components(sim_args, sim_dir_empty) if sim_dir_empty else []
-    if not lc_curves and not air_curves:
+def _iter_dft(sim_args, sim_dir):
+    """Yield (key, y, I, Ex2, Ey2, Ez2, lam_nm) for all guide-face DFT monitors."""
+    if not sim_dir:
         return
+    for key in sim_args.get("object_order", []):
+        mon = sim_args.get(key)
+        if mon is None or mon.get("class") != "monitor":
+            continue
+        if mon.get("type") not in ("1Ddft", "2Ddft"):
+            continue
+        if "on_object" not in mon:
+            continue
+        npz = os.path.join(sim_dir, f"{key}.npz")
+        if not os.path.exists(npz):
+            continue
+        d = np.load(npz)
 
-    lam_nm = (lc_curves[0] if lc_curves else air_curves[0])[5]
+        def _comp(c):
+            a = np.atleast_1d(d[c][0])   # drop freq axis; scalar → 1-elem array
+            if a.ndim == 2: a = a.sum(-1) # 3-D monitor: integrate over z
+            return np.abs(a) ** 2
+
+        Ex2, Ey2, Ez2 = _comp("Ex"), _comp("Ey"), _comp("Ez")
+        # degenerate component (e.g. Ez in 2D TE sim stored as scalar) → zeros
+        n = max(Ex2.size, Ey2.size, Ez2.size)
+        if Ex2.size < n: Ex2 = np.zeros(n)
+        if Ey2.size < n: Ey2 = np.zeros(n)
+        if Ez2.size < n: Ez2 = np.zeros(n)
+
+        I = Ex2 + Ey2 + Ez2
+        size_y = _monitor_size_y(mon, sim_args)
+        y = np.linspace(-size_y / 2, size_y / 2, n)
+        lam_nm = 1e3 / d["freqs"][0]
+        yield key, y, I, Ex2, Ey2, Ez2, lam_nm
+
+
+# ── 1-D intensity (2D sims) ───────────────────────────────────────────────────
+
+def plot_intensity(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
+    """I(y) for all guide-face DFT monitors; LC solid, air dashed."""
+    lc  = list(_iter_dft(sim_args, sim_dir))
+    air = list(_iter_dft(sim_args, sim_dir_empty)) if sim_dir_empty else []
+    if not lc and not air:
+        return
+    lam_nm = (lc[0] if lc else air[0])[6]
+    T_lc   = _compute_T(sim_args, sim_dir)
+    T_air  = _compute_T(sim_args, sim_dir_empty)
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
-    fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=False)
-    comp_labels = ["|Ex|²", "|Ey|²", "|Ez|²"]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for ci, (key, y, I, *_) in enumerate(lc):
+        ax.plot(y, I, color=colors[ci % len(colors)], label=f"LC  {key}")
+    for ci, (key, y, I, *_) in enumerate(air):
+        ax.plot(y, I, color=colors[ci % len(colors)], linestyle="--", label=f"air  {key}")
+    parts = [f"I(y)  —  λ = {lam_nm:.1f} nm"]
+    if T_lc  is not None: parts.append(f"T_LC = {T_lc:.1f}%")
+    if T_air is not None: parts.append(f"T_air = {T_air:.1f}%")
+    ax.set_title("  |  ".join(parts))
+    ax.set_xlabel("y (µm)"); ax.set_ylabel("|E|²")
+    ax.legend(); ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    out = os.path.join(fig_dir, "intensity.png")
+    fig.savefig(out, dpi=150); plt.close(fig); print(f"Saved {out}")
 
-    color_idx = 0
-    for key, y, Ex2, Ey2, Ez2 in [(k, y, a, b, c) for k, y, a, b, c, _ in lc_curves]:
-        c = colors[color_idx % len(colors)]
+
+def plot_components(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
+    """|Ex|², |Ey|², |Ez|² for all guide-face DFT monitors."""
+    lc  = list(_iter_dft(sim_args, sim_dir))
+    air = list(_iter_dft(sim_args, sim_dir_empty)) if sim_dir_empty else []
+    if not lc and not air:
+        return
+    lam_nm = (lc[0] if lc else air[0])[6]
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+    for ci, (key, y, _, Ex2, Ey2, Ez2, _) in enumerate(lc):
+        c = colors[ci % len(colors)]
         for ax, comp in zip(axes, [Ex2, Ey2, Ez2]):
             ax.plot(y, comp, color=c, label=f"LC  {key}")
-        color_idx += 1
-    for key, y, Ex2, Ey2, Ez2 in [(k, y, a, b, c) for k, y, a, b, c, _ in air_curves]:
-        c = colors[color_idx % len(colors)]
+    for ci, (key, y, _, Ex2, Ey2, Ez2, _) in enumerate(air):
+        c = colors[ci % len(colors)]
         for ax, comp in zip(axes, [Ex2, Ey2, Ez2]):
             ax.plot(y, comp, color=c, linestyle="--", label=f"air  {key}")
-        color_idx += 1
-
-    for ax, label in zip(axes, comp_labels):
-        ax.set_xlabel("y (µm)")
-        ax.set_ylabel(label)
-        ax.set_title(label)
-        ax.grid(True, alpha=0.3)
-        ax.legend(fontsize=7)
-
-    fig.suptitle(f"DFT field components  —  λ = {lam_nm:.1f} nm", y=1.01)
+    for ax, label in zip(axes, ["|Ex|²", "|Ey|²", "|Ez|²"]):
+        ax.set_xlabel("y (µm)"); ax.set_ylabel(label); ax.set_title(label)
+        ax.grid(True, alpha=0.3); ax.legend(fontsize=7)
+    fig.suptitle(f"Field components  —  λ = {lam_nm:.1f} nm", y=1.01)
     fig.tight_layout()
-    out = os.path.join(fig_dir, "monitors_components.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved {out}")
+    out = os.path.join(fig_dir, "components.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print(f"Saved {out}")
 
 
-def plot_dft_monitors(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
-    lc_curves  = _load_dft_curves(sim_args, sim_dir)
-    air_curves = _load_dft_curves(sim_args, sim_dir_empty) if sim_dir_empty else []
-    if not lc_curves and not air_curves:
+# ── 2-D field imshow ──────────────────────────────────────────────────────────
+
+def plot_field_2d(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
+    """2D imshow for all 2Ddft monitors (snap_full and 3D guide-face monitors)."""
+    dft_keys = [k for k in sim_args.get("object_order", [])
+                if sim_args.get(k, {}).get("class") == "monitor"
+                and sim_args.get(k, {}).get("type") == "2Ddft"
+                and os.path.exists(os.path.join(sim_dir, f"{k}.npz"))]
+    if not dft_keys:
         return
+    cell_z = float(sim_args.get("cell_size_z", 0.0))
+    cell_y = float(sim_args.get("cell_size_y", 10.0))
+    cell_x = _compute_cell_x(sim_args)
+    T_lc   = _compute_T(sim_args, sim_dir)
+    T_air  = _compute_T(sim_args, sim_dir_empty)
 
-    lam_nm = (lc_curves[0] if lc_curves else air_curves[0])[3]
-    T_lc  = _compute_T(sim_args, sim_dir)
-    T_air = _compute_T(sim_args, sim_dir_empty) if sim_dir_empty else None
+    fig, axes = plt.subplots(len(dft_keys), 3,
+                             figsize=(12, 4 * len(dft_keys)), squeeze=False)
+    for row, key in enumerate(dft_keys):
+        mon  = sim_args[key]
+        data = np.load(os.path.join(sim_dir, f"{key}.npz"))
+        if "on_object" not in mon and cell_z == 0.0:
+            extent = [-cell_x / 2, cell_x / 2, -cell_y / 2, cell_y / 2]
+            xlabel, ylabel = "x (µm)", "y (µm)"
+        else:
+            size_y = _monitor_size_y(mon, sim_args)
+            extent = [-size_y / 2, size_y / 2, -cell_z / 2, cell_z / 2]
+            xlabel, ylabel = "y (µm)", "z (µm)"
+        comps = [np.abs(data["Ex"][0]) ** 2,
+                 np.abs(data["Ey"][0]) ** 2,
+                 np.abs(data["Ez"][0]) ** 2]
+        vmax  = max(float(c.max()) for c in comps) or 1.0
+        for col, (comp, label) in enumerate(zip(comps, ["|Ex|²", "|Ey|²", "|Ez|²"])):
+            ax = axes[row][col]
+            im = ax.imshow(comp.T, origin="lower", cmap="inferno",
+                           vmin=0, vmax=vmax, aspect="auto", extent=extent)
+            ax.set_title(f"{key}  {label}", fontsize=9)
+            ax.set_xlabel(xlabel); ax.set_ylabel(ylabel)
+            plt.colorbar(im, ax=ax, shrink=0.8)
 
-    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
-    fig, ax = plt.subplots(figsize=(7, 4))
-    color_idx = 0
-    for key, y, I, lam in lc_curves:
-        ax.plot(y, I, color=colors[color_idx % len(colors)], label=f"LC  {key}")
-        color_idx += 1
-    for key, y, I, lam in air_curves:
-        ax.plot(y, I, color=colors[color_idx % len(colors)],
-                linestyle="--", label=f"air  {key}")
-        color_idx += 1
-
-    title_parts = [f"DFT intensity  —  λ = {lam_nm:.1f} nm"]
-    if T_lc is not None:
-        title_parts.append(f"T_LC = {T_lc:.1f}%")
-    if T_air is not None:
-        title_parts.append(f"T_air = {T_air:.1f}%")
-    ax.set_title("  |  ".join(title_parts))
-    ax.set_xlabel("y (µm)")
-    ax.set_ylabel("Intensity |E|²")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
+    lam_nm = 1e3 / np.load(os.path.join(sim_dir, f"{dft_keys[0]}.npz"))["freqs"][0]
+    parts  = [f"DFT fields  —  λ = {lam_nm:.1f} nm"]
+    if T_lc  is not None: parts.append(f"T_LC = {T_lc:.1f}%")
+    if T_air is not None: parts.append(f"T_air = {T_air:.1f}%")
+    fig.suptitle("  |  ".join(parts), y=1.01)
     fig.tight_layout()
-    out = os.path.join(fig_dir, "monitors_intensity.png")
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
-    print(f"Saved {out}")
+    out = os.path.join(fig_dir, "field_2d.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print(f"Saved {out}")
 
 
-def plot_2dsnap_grid(sim_args, sim_dir, fig_dir, n, suffix=""):
-    for key in sim_args.get("object_order", []):
-        mon = sim_args.get(key)
-        if mon is None or mon.get("class") != "monitor":
-            continue
-        if mon.get("type") != "2Dsnap":
-            continue
-
-        npz_path = os.path.join(sim_dir, f"{key}.npz")
-        if not os.path.exists(npz_path):
-            print(f"No data for {key}, skipping")
-            continue
-
-        data = np.load(npz_path)
-        t  = data["t"]
-        Ez = data["Ez"]
-        Ex = data["Ex"] if "Ex" in data else np.zeros_like(Ez)
-        Ey = data["Ey"] if "Ey" in data else np.zeros_like(Ez)
-        I  = Ex ** 2 + Ey ** 2 + Ez ** 2
-
-        n_snap  = I.shape[0]
-        n2      = min(n * n, n_snap)
-        indices = np.round(np.linspace(0, n_snap - 1, n2)).astype(int)
-        ncols   = min(n, n2)
-        nrows   = (n2 + ncols - 1) // ncols
-
-        is_1d = Ex.ndim == 2
-        vmax  = float(np.percentile(I, 99)) if I.max() > 0 else 1.0
-        size_y = _monitor_size_y(mon, sim_args)
-        cell_z = float(sim_args.get("cell_size_z", 0.0))
-        snap_extent = [-size_y / 2, size_y / 2, -cell_z / 2, cell_z / 2] if cell_z > 0 else None
-
-        fig, axes = plt.subplots(nrows, ncols, figsize=(2.5 * ncols, 2.5 * nrows))
-        axes = np.array(axes).reshape(nrows, ncols)
-
-        for idx in range(nrows * ncols):
-            i   = idx // ncols
-            j   = idx % ncols
-            ax  = axes[i, j]
-            if idx < n2:
-                snap_idx = indices[idx]
-                if is_1d:
-                    ax.plot(I[snap_idx])
-                    ax.set_ylim(0, vmax)
-                else:
-                    ax.imshow(I[snap_idx].T, origin="lower", cmap="inferno",
-                              vmin=0, vmax=vmax, aspect="auto", extent=snap_extent)
-                    if snap_extent is not None:
-                        ax.set_xlabel("y (µm)", fontsize=5)
-                        ax.set_ylabel("z (µm)", fontsize=5)
-                        ax.tick_params(labelsize=5)
-                    else:
-                        ax.axis("off")
-                ax.set_title(f"t={t[snap_idx]:.0f}", fontsize=6)
-            else:
-                ax.axis("off")
-
-        fig.suptitle(f"{key}  —  I = |Ex|² + |Ey|² + |Ez|²", y=1.01)
-        fig.tight_layout()
-        out = os.path.join(fig_dir, f"{key}_snapshots{suffix}.png")
-        fig.savefig(out, dpi=120, bbox_inches="tight")
-        plt.close(fig)
-        print(f"Saved {out}")
-
-
-def _quiver_slice(ax, a0, a1, u, v, color, label0, label1, title, stride=1):
-    aa, bb = np.meshgrid(a0[::stride], a1[::stride], indexing="ij")
-    c = ax.quiver(aa, bb, u[::stride, ::stride], v[::stride, ::stride],
-                  color[::stride, ::stride], cmap="hsv", clim=(-np.pi, np.pi),
-                  pivot="mid", scale=None, headlength=0, headwidth=0, headaxislength=0)
-    ax.set_xlabel(label0)
-    ax.set_ylabel(label1)
-    ax.set_title(title, fontsize=7)
-    ax.set_aspect("equal")
-    return c
-
-
-def plot_lc_field_slices(sim_dir, fig_dir, n=3, stride=2):
-    npz_path = os.path.join(sim_dir, "lc_fields.npz")
-    if not os.path.exists(npz_path):
-        print("No lc_fields.npz, skipping LC field plot")
-        return
-
-    data  = np.load(npz_path)
-    phi   = data["phi"]    # (nx, ny, nz)
-    theta = data["theta"]
-    x, y, z = data["x"], data["y"], data["z"]
-
-    nd = np.sin(theta) * np.cos(phi)  # nx component
-    ne = np.sin(theta) * np.sin(phi)  # ny component
-    nf = np.cos(theta)                # nz component
-
-    is_2d = phi.shape[2] <= 5
-
-    if is_2d:
-        iz = phi.shape[2] // 2
-        fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-        # Panel 1: director field, all-black lines
-        aa, bb = np.meshgrid(x[::stride], y[::stride], indexing="ij")
-        axes[0].quiver(aa, bb,
-                       nd[:, :, iz][::stride, ::stride],
-                       ne[:, :, iz][::stride, ::stride],
-                       color="black", pivot="mid", scale=None,
-                       headlength=0, headwidth=0, headaxislength=0)
-        axes[0].set_xlabel("x (µm)")
-        axes[0].set_ylabel("y (µm)")
-        axes[0].set_title(f"Director field — XY  z={z[iz]:.2f} µm")
-        axes[0].set_aspect("equal")
-        # Panel 2: phi imshow
-        im_phi = axes[1].imshow(phi[:, :, iz].T, origin="lower",
-                                extent=[x[0], x[-1], y[0], y[-1]],
-                                cmap="hsv", vmin=-np.pi, vmax=np.pi, aspect="equal")
-        axes[1].set_xlabel("x (µm)")
-        axes[1].set_ylabel("y (µm)")
-        axes[1].set_title(f"φ — XY  z={z[iz]:.2f} µm")
-        plt.colorbar(im_phi, ax=axes[1], label="φ (rad)")
-        # Panel 3: theta imshow
-        im_th = axes[2].imshow(theta[:, :, iz].T, origin="lower",
-                               extent=[x[0], x[-1], y[0], y[-1]],
-                               cmap="plasma", vmin=0, vmax=np.pi / 2, aspect="equal")
-        axes[2].set_xlabel("x (µm)")
-        axes[2].set_ylabel("y (µm)")
-        axes[2].set_title(f"θ — XY  z={z[iz]:.2f} µm")
-        plt.colorbar(im_th, ax=axes[2], label="θ (rad)")
-        fig.tight_layout()
-        out = os.path.join(fig_dir, "lc_field_slices.png")
-        fig.savefig(out, dpi=150)
-        plt.close(fig)
-        print(f"Saved {out}")
-        return
-
-    # 3D: rows = XY/XZ/YZ planes, 2 col-groups (phi quiver | theta imshow) × n slices
-    planes = {
-        "XY": (x, y, nd, ne, phi, theta, "x (µm)", "y (µm)", z, 2),
-        "XZ": (x, z, nd, nf, phi, theta, "x (µm)", "z (µm)", y, 1),
-        "YZ": (y, z, ne, nf, phi, theta, "y (µm)", "z (µm)", x, 0),
-    }
-    fig, axes = plt.subplots(3, 2 * n, figsize=(3 * 2 * n, 9))
-    axes = np.array(axes).reshape(3, 2 * n)
-    last_phi_c = last_th_im = None
-    for row, (plane, (a0, a1, u3d, v3d, phi3d, th3d, la, lb, perp, ax_idx)) in enumerate(planes.items()):
-        indices = np.round(np.linspace(0, perp.size - 1, n)).astype(int)
-        for col, idx in enumerate(indices):
-            sl = [slice(None)] * 3
-            sl[ax_idx] = idx
-            last_phi_c = _quiver_slice(axes[row, col],
-                                       a0, a1,
-                                       u3d[tuple(sl)], v3d[tuple(sl)], phi3d[tuple(sl)],
-                                       la, lb,
-                                       f"{plane} φ  {perp[idx]:.2f} µm", stride)
-            last_th_im = axes[row, n + col].imshow(
-                th3d[tuple(sl)].T, origin="lower",
-                extent=[a0[0], a0[-1], a1[0], a1[-1]],
-                cmap="plasma", vmin=0, vmax=np.pi / 2, aspect="equal")
-            axes[row, n + col].set_xlabel(la)
-            axes[row, n + col].set_ylabel(lb)
-            axes[row, n + col].set_title(f"{plane} θ  {perp[idx]:.2f} µm", fontsize=7)
-    if last_phi_c is not None:
-        fig.colorbar(last_phi_c, ax=axes[:, :n], label="φ (rad)", shrink=0.6)
-    if last_th_im is not None:
-        fig.colorbar(last_th_im, ax=axes[:, n:], label="θ (rad)", shrink=0.6)
-    fig.tight_layout()
-    out = os.path.join(fig_dir, "lc_field_slices.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved {out}")
-
+# ── snapshots ─────────────────────────────────────────────────────────────────
 
 def plot_snapshots(sim_dir, fig_dir, sim_args=None):
-    npz_path = os.path.join(sim_dir, "snapshots.npz")
-    if not os.path.exists(npz_path):
+    npz = os.path.join(sim_dir, "snapshots.npz")
+    if not os.path.exists(npz):
         return
-    data = np.load(npz_path)
-    Ex = data["Ex"]
-    Ey = data["Ey"]
-    Ez = data["Ez"]
-    t  = data["t"] if "t" in data else np.arange(Ex.shape[0], dtype=float)
-    I  = Ex ** 2 + Ey ** 2 + Ez ** 2  # shape (n_snap, nx, ny) or (n_snap, nx, ny, nz)
+    d  = np.load(npz)
+    t  = d["t"] if "t" in d else np.arange(d["Ex"].shape[0], dtype=float)
+    I  = d["Ex"] ** 2 + d["Ey"] ** 2 + d["Ez"] ** 2
+    if I.ndim == 4:
+        I = I[:, :, :, I.shape[3] // 2]
 
-    is_3d = I.ndim == 4
-    if is_3d:
-        iz = I.shape[3] // 2
-        I_plot = I[:, :, :, iz]
-    else:
-        I_plot = I
-
-    # physical extents in µm (x=right, y=up)
+    extent = None
     if sim_args is not None:
-        cell_x = _compute_cell_x(sim_args)
-        cell_y = float(sim_args.get("cell_size_y", 0.0))
-        extent = [-cell_x / 2, cell_x / 2, -cell_y / 2, cell_y / 2]
-    else:
-        extent = None
+        cx = _compute_cell_x(sim_args)
+        cy = float(sim_args.get("cell_size_y", 0.0))
+        extent = [-cx / 2, cx / 2, -cy / 2, cy / 2]
 
-    n_snap = I_plot.shape[0]
+    n_snap = I.shape[0]
     ncols  = min(5, n_snap)
     nrows  = (n_snap + ncols - 1) // ncols
-    vmax   = float(np.percentile(I_plot, 99.5)) if I_plot.max() > 0 else 1.0
+    vmax   = float(np.percentile(I, 99.5)) if I.max() > 0 else 1.0
 
-    subtitle = "central z-slice" if is_3d else ""
     fig, axes = plt.subplots(nrows, ncols, figsize=(3 * ncols, 2.5 * nrows))
     axes = np.array(axes).reshape(nrows, ncols)
-
     for idx in range(nrows * ncols):
         r, c = idx // ncols, idx % ncols
         ax = axes[r, c]
         if idx < n_snap:
-            ax.imshow(I_plot[idx].T, origin="lower", cmap="inferno",
+            ax.imshow(I[idx].T, origin="lower", cmap="inferno",
                       vmin=0, vmax=vmax, aspect="auto", extent=extent)
             ax.set_title(f"t={t[idx]:.2f}", fontsize=7)
             if extent is not None:
@@ -432,93 +224,173 @@ def plot_snapshots(sim_dir, fig_dir, sim_args=None):
                 ax.axis("off")
         else:
             ax.axis("off")
-
-    title = "Snapshots  —  I = |Ex|² + |Ey|² + |Ez|²"
-    if subtitle:
-        title += f"  ({subtitle})"
-    fig.suptitle(title, y=1.01)
+    fig.suptitle("Snapshots — I = |Ex|²+|Ey|²+|Ez|²", y=1.01)
     fig.tight_layout()
-    out = os.path.join(fig_dir, "snapshots_evolution.png")
-    fig.savefig(out, dpi=130, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved {out}")
+    out = os.path.join(fig_dir, "snapshots.png")
+    fig.savefig(out, dpi=130, bbox_inches="tight"); plt.close(fig); print(f"Saved {out}")
 
 
-def plot_dft_imshow(sim_args, sim_dir, fig_dir, sim_dir_empty=None):
-    """2D imshow grid: n_monitors rows × 3 cols (|Ex|², |Ey|², |Ez|²) with T in title."""
-    dft_keys = [k for k in sim_args.get("object_order", [])
-                if sim_args.get(k, {}).get("class") == "monitor"
-                and sim_args.get(k, {}).get("type") == "2Ddft"
-                and os.path.exists(os.path.join(sim_dir, f"{k}.npz"))]
-    if not dft_keys:
+# ── director structure ────────────────────────────────────────────────────────
+
+def _quiver_slice(ax, a0, a1, u, v, color, la, lb, title, stride=1):
+    aa, bb = np.meshgrid(a0[::stride], a1[::stride], indexing="ij")
+    c = ax.quiver(aa, bb, u[::stride, ::stride], v[::stride, ::stride],
+                  color[::stride, ::stride], cmap="hsv", clim=(-np.pi, np.pi),
+                  pivot="mid", scale=None, headlength=0, headwidth=0, headaxislength=0)
+    ax.set_xlabel(la); ax.set_ylabel(lb)
+    ax.set_title(title, fontsize=7); ax.set_aspect("equal")
+    return c
+
+
+def plot_director(sim_dir, fig_dir, n=3, stride=2):
+    """Director phi/theta from lc_fields.npz; 2D=3-panel, 3D=slice grid."""
+    npz = os.path.join(sim_dir, "lc_fields.npz")
+    if not os.path.exists(npz):
         return
+    d = np.load(npz)
+    phi, theta = d["phi"] % np.pi, d["theta"]
+    x, y, z = d["x"], d["y"], d["z"]
+    nd = np.sin(theta) * np.cos(phi)
+    ne = np.sin(theta) * np.sin(phi)
+    nf = np.cos(theta)
+    is_2d = phi.shape[2] <= 5
 
-    cell_z = float(sim_args.get("cell_size_z", 0.0))
-    T_lc   = _compute_T(sim_args, sim_dir)
-    T_air  = _compute_T(sim_args, sim_dir_empty) if sim_dir_empty else None
-    n_mon  = len(dft_keys)
-    fig, axes = plt.subplots(n_mon, 3, figsize=(12, 4 * n_mon), squeeze=False)
-    comp_labels = ["|Ex|²", "|Ey|²", "|Ez|²"]
+    if is_2d:
+        iz  = phi.shape[2] // 2
+        fig, axes = plt.subplots(3, 1, figsize=(8, 14))
+        aa, bb = np.meshgrid(x[::stride], y[::stride], indexing="ij")
+        axes[0].quiver(aa, bb,
+                       nd[:, :, iz][::stride, ::stride],
+                       ne[:, :, iz][::stride, ::stride],
+                       color="black", pivot="mid", scale=None,
+                       headlength=0, headwidth=0, headaxislength=0)
+        axes[0].set_xlabel("x (µm)"); axes[0].set_ylabel("y (µm)")
+        axes[0].set_title(f"Director XY  z={z[iz]:.2f} µm")
+        axes[0].set_aspect("equal")
+        im0 = axes[1].imshow(phi[:, :, iz].T, origin="lower",
+                             extent=[x[0], x[-1], y[0], y[-1]],
+                             cmap="hsv", vmin=0, vmax=np.pi, aspect="equal")
+        axes[1].set_xlabel("x (µm)"); axes[1].set_ylabel("y (µm)"); axes[1].set_title("φ")
+        div0 = make_axes_locatable(axes[1]); cax0 = div0.append_axes("right", size="3%", pad=0.05)
+        plt.colorbar(im0, cax=cax0, label="φ (rad)")
+        im1 = axes[2].imshow(theta[:, :, iz].T, origin="lower",
+                             extent=[x[0], x[-1], y[0], y[-1]],
+                             cmap="plasma", vmin=0, vmax=np.pi / 2, aspect="equal")
+        axes[2].set_xlabel("x (µm)"); axes[2].set_ylabel("y (µm)"); axes[2].set_title("θ")
+        div1 = make_axes_locatable(axes[2]); cax1 = div1.append_axes("right", size="3%", pad=0.05)
+        plt.colorbar(im1, cax=cax1, label="θ (rad)")
+    else:
+        planes = {
+            "XY": (x, y, nd, ne, phi, theta, "x (µm)", "y (µm)", z, 2),
+            "XZ": (x, z, nd, nf, phi, theta, "x (µm)", "z (µm)", y, 1),
+            "YZ": (y, z, ne, nf, phi, theta, "y (µm)", "z (µm)", x, 0),
+        }
+        fig, axes = plt.subplots(3, 2 * n, figsize=(3 * 2 * n, 9))
+        axes = np.array(axes).reshape(3, 2 * n)
+        last_c = last_im = None
+        for row, (plane, (a0, a1, u3, v3, p3, t3, la, lb, perp, ax_i)) in enumerate(planes.items()):
+            idxs = np.round(np.linspace(0, perp.size - 1, n)).astype(int)
+            for col, idx in enumerate(idxs):
+                sl = [slice(None)] * 3; sl[ax_i] = idx
+                last_c  = _quiver_slice(axes[row, col], a0, a1,
+                                        u3[tuple(sl)], v3[tuple(sl)], p3[tuple(sl)],
+                                        la, lb, f"{plane} φ  {perp[idx]:.2f} µm", stride)
+                last_im = axes[row, n + col].imshow(
+                    t3[tuple(sl)].T, origin="lower",
+                    extent=[a0[0], a0[-1], a1[0], a1[-1]],
+                    cmap="plasma", vmin=0, vmax=np.pi / 2, aspect="equal")
+                axes[row, n + col].set_xlabel(la); axes[row, n + col].set_ylabel(lb)
+                axes[row, n + col].set_title(f"{plane} θ  {perp[idx]:.2f} µm", fontsize=7)
+        if last_c:  fig.colorbar(last_c,  ax=axes[:, :n], label="φ (rad)", shrink=0.6)
+        if last_im: fig.colorbar(last_im, ax=axes[:, n:], label="θ (rad)", shrink=0.6)
 
-    for row, key in enumerate(dft_keys):
-        mon    = sim_args[key]
-        data   = np.load(os.path.join(sim_dir, f"{key}.npz"))
-        size_y = _monitor_size_y(mon, sim_args)
-        extent = [-size_y / 2, size_y / 2, -cell_z / 2, cell_z / 2]
-        comps  = [np.abs(data["Ex"][0]) ** 2,
-                  np.abs(data["Ey"][0]) ** 2,
-                  np.abs(data["Ez"][0]) ** 2]
-        vmax = max(float(c.max()) for c in comps) or 1.0
-        for col, (comp, label) in enumerate(zip(comps, comp_labels)):
-            ax = axes[row][col]
-            im = ax.imshow(comp.T, origin="lower", cmap="inferno",
-                           vmin=0, vmax=vmax, aspect="auto", extent=extent)
-            ax.set_title(f"{key}  {label}", fontsize=9)
-            ax.set_xlabel("y (µm)")
-            ax.set_ylabel("z (µm)")
-            plt.colorbar(im, ax=ax, shrink=0.8)
-
-    freqs  = np.load(os.path.join(sim_dir, f"{dft_keys[0]}.npz"))["freqs"]
-    lam_nm = 1.0 / freqs[0] * 1000
-    title_parts = [f"DFT field components (2D)  —  λ = {lam_nm:.1f} nm"]
-    if T_lc  is not None: title_parts.append(f"T_LC = {T_lc:.1f}%")
-    if T_air is not None: title_parts.append(f"T_air = {T_air:.1f}%")
-    fig.suptitle("  |  ".join(title_parts), y=1.01)
     fig.tight_layout()
-    out = os.path.join(fig_dir, "monitors_2d.png")
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    print(f"Saved {out}")
+    out = os.path.join(fig_dir, "director.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print(f"Saved {out}")
 
 
-def main(folder, n):
-    json_path     = os.path.join(folder, "simulation_data.json")
-    sim_dir       = os.path.join(folder, "simulation")
-    sim_dir_empty = os.path.join(folder, "simulation_empty")
-    fig_dir       = os.path.join(folder, "figures")
+# ── boundary conditions ───────────────────────────────────────────────────────
+
+def plot_boundary_conditions(sim_dir, fig_dir):
+    """Phi and theta at reservoir boundaries from lc_fields.npz."""
+    npz = os.path.join(sim_dir, "lc_fields.npz")
+    if not os.path.exists(npz):
+        return
+    d = np.load(npz)
+    phi, theta = d["phi"] % np.pi, d["theta"]
+    x, y, z = d["x"], d["y"], d["z"]
+    is_2d = phi.shape[2] <= 5
+
+    if is_2d:
+        iz  = phi.shape[2] // 2
+        fig, axes = plt.subplots(2, 1, figsize=(10, 6))
+        for name, vals_phi, vals_theta in [("y_min", phi[:, 0, iz], theta[:, 0, iz]),
+                                           ("y_max", phi[:, -1, iz], theta[:, -1, iz])]:
+            axes[0].plot(x, vals_phi,  label=name)
+            axes[1].plot(x, vals_theta, label=name)
+        axes[0].set_ylim(0, np.pi)
+        axes[0].set_xlabel("x (µm)"); axes[0].set_ylabel("φ (rad)")
+        axes[0].set_title("Boundary φ"); axes[0].legend(); axes[0].grid(True, alpha=0.3)
+        axes[1].set_xlabel("x (µm)"); axes[1].set_ylabel("θ (rad)")
+        axes[1].set_title("Boundary θ"); axes[1].legend(); axes[1].grid(True, alpha=0.3)
+    else:
+        faces = [
+            ("x_min", phi[0, :, :],   theta[0, :, :],   y, z, "y (µm)", "z (µm)"),
+            ("x_max", phi[-1, :, :],  theta[-1, :, :],  y, z, "y (µm)", "z (µm)"),
+            ("y_min", phi[:, 0, :],   theta[:, 0, :],   x, z, "x (µm)", "z (µm)"),
+            ("y_max", phi[:, -1, :],  theta[:, -1, :],  x, z, "x (µm)", "z (µm)"),
+            ("z_min", phi[:, :, 0],   theta[:, :, 0],   x, y, "x (µm)", "y (µm)"),
+            ("z_max", phi[:, :, -1],  theta[:, :, -1],  x, y, "x (µm)", "y (µm)"),
+        ]
+        fig, axes = plt.subplots(6, 2, figsize=(8, 18))
+        for row, (name, pf, tf, a0, a1, la, lb) in enumerate(faces):
+            ext = [a0[0], a0[-1], a1[0], a1[-1]]
+            im0 = axes[row, 0].imshow(pf.T, origin="lower", extent=ext,
+                                      cmap="hsv", vmin=0, vmax=np.pi, aspect="auto")
+            axes[row, 0].set_title(f"{name} φ", fontsize=8)
+            axes[row, 0].set_xlabel(la); axes[row, 0].set_ylabel(lb)
+            plt.colorbar(im0, ax=axes[row, 0], shrink=0.8)
+            im1 = axes[row, 1].imshow(tf.T, origin="lower", extent=ext,
+                                      cmap="plasma", vmin=0, vmax=np.pi / 2, aspect="auto")
+            axes[row, 1].set_title(f"{name} θ", fontsize=8)
+            axes[row, 1].set_xlabel(la); axes[row, 1].set_ylabel(lb)
+            plt.colorbar(im1, ax=axes[row, 1], shrink=0.8)
+
+    fig.tight_layout()
+    out = os.path.join(fig_dir, "boundary_conditions.png")
+    fig.savefig(out, dpi=150, bbox_inches="tight"); plt.close(fig); print(f"Saved {out}")
+
+
+# ── main ──────────────────────────────────────────────────────────────────────
+
+def main(folder, n=3):
+    sim_dir = os.path.join(folder, "simulation")
+    empty   = os.path.join(folder, "simulation_empty")
+    fig_dir = os.path.join(folder, "figures")
     os.makedirs(fig_dir, exist_ok=True)
 
-    with open(json_path) as f:
+    with open(os.path.join(folder, "simulation_data.json")) as f:
         sim_args = json.load(f)
 
-    empty_exists = os.path.isdir(sim_dir_empty)
-    empty_dir    = sim_dir_empty if empty_exists else None
+    empty_dir = empty if os.path.isdir(empty) else None
     is_3d = int(sim_args.get("dimention", 1)) == 3
+
     if is_3d:
-        plot_dft_imshow(sim_args, sim_dir, fig_dir, sim_dir_empty=empty_dir)
+        plot_field_2d(sim_args, sim_dir, fig_dir, empty_dir)
     else:
-        plot_dft_monitors(sim_args, sim_dir, fig_dir, sim_dir_empty=empty_dir)
-        plot_dft_components(sim_args, sim_dir, fig_dir)
-        plot_dft_imshow(sim_args, sim_dir, fig_dir, sim_dir_empty=empty_dir)
-    plot_2dsnap_grid(sim_args, sim_dir, fig_dir, n)
-    plot_lc_field_slices(sim_dir, fig_dir)
-    plot_snapshots(sim_dir, fig_dir, sim_args=sim_args)
+        plot_intensity(sim_args, sim_dir, fig_dir, empty_dir)
+        plot_components(sim_args, sim_dir, fig_dir, empty_dir)
+        plot_field_2d(sim_args, sim_dir, fig_dir, empty_dir)
+
+    plot_snapshots(sim_dir, fig_dir, sim_args)
+    plot_director(sim_dir, fig_dir, n=n)
+    plot_boundary_conditions(sim_dir, fig_dir)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", default="data/test")
-    parser.add_argument("--n", type=int, default=5,
-                        help="n×n grid for snapshot plots")
+    parser.add_argument("--n", type=int, default=3,
+                        help="director slices shown for 3D plots")
     args = parser.parse_args()
     main(args.path, args.n)

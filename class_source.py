@@ -24,6 +24,8 @@ class Source:
 
     def return_source_object(self) -> list[mp.Source]:
         if isinstance(self.args.get("amplitude"), list):
+            if self.args.get("grid_shape") is not None:
+                return self.return_gridsource()
             return self.return_quadrosource()
         if self.amplitude is None:
             return [mp.Source(self.source, self.component, center=self.center, size=self.size,
@@ -73,6 +75,26 @@ class Source:
             size   = mp.Vector3(float(self.size.x), strip_sy, float(self.size.z))
             sources.append(mp.Source(self.source, self.component, center=center, size=size,
                                      amplitude=float(amp)))
+        return sources
+
+
+    def return_gridsource(self) -> list[mp.Source]:
+        """2D grid source: amplitude is flat list of ny*nz values, grid_shape=[ny, nz]."""
+        amps = self.args["amplitude"]
+        ny, nz = self.args["grid_shape"]
+        sy = float(self.size.y)
+        sz = float(self.size.z)
+        dy = sy / ny
+        dz = sz / nz
+        sources = []
+        for j in range(ny):
+            for k in range(nz):
+                cy = float(self.center.y) - sy / 2 + (j + 0.5) * dy
+                cz = float(self.center.z) - sz / 2 + (k + 0.5) * dz
+                center = mp.Vector3(float(self.center.x), cy, cz)
+                size   = mp.Vector3(float(self.size.x), dy, dz)
+                sources.append(mp.Source(self.source, self.component, center=center, size=size,
+                                         amplitude=float(amps[j * nz + k])))
         return sources
 
 
