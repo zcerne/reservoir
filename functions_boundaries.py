@@ -266,6 +266,76 @@ def random_2d_boundaries(resolution, dimensions, seed=None, ignore_faces=None):
             face_theta[key] = rng.uniform(0, np.pi / 2, sz_face)
     return face_phi, face_theta
 
+
+def smooth_random_2d_boundaries(resolution, dimensions, seed=None, ignore_faces=None,
+                                scale=3.0):
+    """Large-scale SMOOTH random boundary anchoring on the 4 side faces of a 2D cell.
+
+    Per-pixel white noise (`random_2d`) is essentially uniform for an LC — the
+    high-frequency anchoring averages out / can't be resolved by the elastic
+    field. This Gaussian-smooths the random face values to a correlation length
+    `scale` (µm), giving big smooth director fluctuations the bulk can follow.
+    `scale` larger = bigger, smoother patterns.
+    """
+    rng = np.random.default_rng(seed)
+    sx, sy = float(dimensions[0]), float(dimensions[1])
+    n_x = int(sx * resolution) + 1
+    n_y = int(sy * resolution) + 1
+    ign = ignore_faces if ignore_faces is not None else [False] * 6
+    sigma = scale * resolution                    # pixels per smoothing length
+    keys  = ("x_min", "x_max", "y_min", "y_max")
+    sizes = (n_y, n_y, n_x, n_x)
+    face_phi, face_theta = {}, {}
+    for key, sz_face, ignored in zip(keys, sizes, ign):
+        if ignored:
+            face_phi[key] = None; face_theta[key] = None
+        else:
+            face_phi[key]   = _smooth_face(rng, (sz_face,), sigma).ravel() * np.pi
+            face_theta[key] = _smooth_face(rng, (sz_face,), sigma).ravel() * (np.pi / 2)
+    return face_phi, face_theta
+
+
+def defect_2d_boundaries(resolution, dimensions, seed=None, ignore_faces=None,
+                         scale=1.0, n_periods=0.0):
+    """Boundary anchoring with a topological WINDING -> forces a defect inside.
+
+    Sets the in-plane director on the 4 side faces to the azimuthal/spiral pattern
+    φ(r) = m·atan2(y−yc, x−xc) + ψ0 about the cell centre (xc,yc). Going once around
+    the perimeter the director winds by 2π·m, so a defect of charge m sits inside
+    (m=1 → one +1 defect in the middle; Q-tensor melts its S→0 core, the director
+    model shows a phase singularity). `scale` = winding m (use 1.0 for one defect),
+    `n_periods` = constant spiral offset ψ0/π (0 = radial, 0.5 = azimuthal).
+    theta is planar (π/2) everywhere.
+    """
+    sx, sy = float(dimensions[0]), float(dimensions[1])
+    xc, yc = sx / 2.0, sy / 2.0
+    m = float(scale); psi0 = float(n_periods) * np.pi
+    n_x = int(sx * resolution) + 1
+    n_y = int(sy * resolution) + 1
+    xs = np.linspace(0.0, sx, n_x)
+    ys = np.linspace(0.0, sy, n_y)
+    ign = ignore_faces if ignore_faces is not None else [False] * 6
+
+    def az(xpts, ypts):
+        return (m * np.arctan2(ypts - yc, xpts - xc) + psi0) % np.pi
+
+    faces = {
+        "x_min": (np.full(n_y, 0.0), ys),
+        "x_max": (np.full(n_y, sx), ys),
+        "y_min": (xs, np.full(n_x, 0.0)),
+        "y_max": (xs, np.full(n_x, sy)),
+    }
+    face_phi, face_theta = {}, {}
+    for key, ignored in zip(("x_min", "x_max", "y_min", "y_max"), ign):
+        if ignored:
+            face_phi[key] = None; face_theta[key] = None
+        else:
+            xp, yp = faces[key]
+            face_phi[key]   = az(xp, yp)
+            face_theta[key] = np.full(xp.shape if xp.ndim else yp.shape, np.pi / 2)
+    return face_phi, face_theta
+
+
 if __name__ == "__main__":
     import argparse
     import json

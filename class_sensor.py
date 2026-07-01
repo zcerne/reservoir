@@ -38,10 +38,24 @@ class Sensor:
     # ------------------------------------------------------------------
 
     def _parse_position(self) -> tuple[str, float]:
+        """Return (label, requested y-size). For list-form size, applies the
+        BlockOpt-style heuristic: size[1] > 0 → [sx, sy] (2D box, sy = size[1]);
+        else → [sy] / [sy, 0] (1D plane, sy = size[0]).
+        """
         pos = self.args.get("position", {})
         if isinstance(pos, dict):
-            label    = pos.get("position", "center")
-            req_size = float(pos.get("size", 0))
+            label = pos.get("position", "center")
+            raw = pos.get("size", 0)
+            if isinstance(raw, (int, float)):
+                req_size = float(raw)
+            elif isinstance(raw, list) and len(raw) == 1:
+                req_size = float(raw[0])
+            elif isinstance(raw, list) and len(raw) >= 2 and float(raw[1]) > 0:
+                req_size = float(raw[1])      # [sx, sy] 2D
+            elif isinstance(raw, list) and len(raw) >= 1:
+                req_size = float(raw[0])      # [sy, 0] plane
+            else:
+                req_size = 0.0
         else:
             label    = str(pos) if pos else "center"
             req_size = 0.0

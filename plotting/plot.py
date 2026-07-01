@@ -1,3 +1,4 @@
+import os as _os, sys as _sys; _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))  # find root core modules
 import argparse
 import json
 import os
@@ -371,6 +372,16 @@ def main(folder, n=3):
 
     with open(os.path.join(folder, "simulation_data.json")) as f:
         sim_args = json.load(f)
+
+    # Dispatch to voltage-reservoir plotter for that reservoir class — the old
+    # plot.py functions (boundary_conditions / director / etc.) all assume the
+    # legacy MEEP-relaxed-LC pipeline and produce nothing useful here.
+    res_class = sim_args.get("reservoir", {}).get("class")
+    if res_class == "voltage_reservoir":
+        from plot_voltage_reservoir import plot_all as _plot_voltage_all
+        for p in _plot_voltage_all(folder):
+            print(f"saved {p}")
+        return
 
     empty_dir = empty if os.path.isdir(empty) else None
     is_3d = int(sim_args.get("dimention", 1)) == 3

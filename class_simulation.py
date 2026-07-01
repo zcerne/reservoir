@@ -107,7 +107,7 @@ class Simulation:
                 guide_y = float(sizes_raw[1]) if isinstance(sizes_raw, list) and len(sizes_raw) > 1 else float(obj_args.get("size_y", 0.0))
                 obj_args["sizes"] = mp.Vector3(size_x, guide_y if guide_y > 0 else mp.inf, mp.inf)
 
-            elif cls == "reservoir":
+            elif cls in ("reservoir", "voltage_reservoir"):
                 obj_args["center"] = mp.Vector3(edge_x + size_x / 2, 0, 0)
 
             elif cls == "slm":
@@ -158,7 +158,7 @@ class Simulation:
             return Source(args)
         if cls == "monitor":
             return Sensor(args)
-        if cls == "reservoir":
+        if cls in ("reservoir", "voltage_reservoir"):
             if self._empty:
                 return None  # reservoir region stays as air background
             return LCReservoir(self.folder_path)
@@ -179,7 +179,7 @@ class Simulation:
                 self.sources.extend(obj.return_source_object())  # type: ignore[union-attr]
             elif cls == "monitor":
                 self.sensors.append(obj)  # type: ignore[arg-type]
-            elif cls == "reservoir":
+            elif cls in ("reservoir", "voltage_reservoir"):
                 fields_file = os.path.join(self.folder_path, "simulation", "lc_fields.npz")
                 if os.path.exists(fields_file):
                     obj.load_fields()  # type: ignore[union-attr]

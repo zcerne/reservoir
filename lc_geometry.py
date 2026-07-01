@@ -1,5 +1,8 @@
 import numpy as np
-import meep as mp
+try:
+    import meep as mp          # only needed for the MEEP geometry builders below
+except ImportError:
+    mp = None                  # relax / characterization paths don't need meep
 
 
 def get_dielectric_3d(n_o_sq, n_e_sq, phi, theta, S=1.0):

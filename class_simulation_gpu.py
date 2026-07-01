@@ -84,6 +84,13 @@ def _pos_to_center_size_2d(pos, on_edge_x, on_size_x, cell_x, cell_y):
     Position can be 'left', 'right', 'center' relative to the on_object.
     Returns x in MEEP coords (cell centered at origin) and the y span of the
     feature (full cell_y by default for monitors/sources without size).
+
+    Size convention disambiguation (matches BlockOptimization fix 2026-06-02):
+      * scalar             → 1D: size_y = value
+      * [sy]               → 1D: size_y = sy
+      * [sy, 0]            → 1D / plane source / 1D monitor (MEEP plane convention)
+      * [sx, sy] (sy > 0)  → 2D box monitor: size_y = sy (the SECOND entry)
+    Disambiguator: size[1] > 0 → 2D, so size[1] is sy; else size[0] is sy.
     """
     if isinstance(pos, dict):
         label = pos.get("position", "center")
@@ -92,8 +99,13 @@ def _pos_to_center_size_2d(pos, on_edge_x, on_size_x, cell_x, cell_y):
         label = str(pos) if pos else "center"
         raw = [0.0, 0.0]
     if isinstance(raw, (int, float)):
-        raw = [float(raw), 0.0]
-    sy = float(raw[0]) if raw[0] else cell_y
+        raw = [float(raw)]
+    if len(raw) == 1:
+        sy = float(raw[0]) if raw[0] else cell_y
+    elif float(raw[1]) > 0:                  # [sx, sy] 2D box
+        sy = float(raw[1])
+    else:                                    # [sy, 0] plane / 1D
+        sy = float(raw[0]) if raw[0] else cell_y
     x_meep = {"left": on_edge_x,
               "right": on_edge_x + on_size_x}.get(label, on_edge_x + on_size_x / 2)
     return x_meep, sy
@@ -189,7 +201,7 @@ class SimulationGPU:
             size_x = float(obj.get("size_x", 0.0))
             cls = obj.get("class", "")
 
-            if cls == "guide" or cls == "reservoir":
+            if cls == "guide" or cls == "reservoir" or cls == "voltage_reservoir":
                 obj["center_x_meep"] = edge_x + size_x / 2
                 obj["edge_x_meep"] = edge_x
 
@@ -238,7 +250,7 @@ class SimulationGPU:
             return
         # Find reservoir object (only one supported here)
         res_args = next((o for o in self.objects_args
-                         if o.get("class") == "reservoir"), None)
+                         if o.get("class") in ("reservoir", "voltage_reservoir")), None)
         if res_args is None:
             self._build_vacuum_material()
             return
@@ -368,14 +380,36 @@ class SimulationGPU:
 
     def _build_monitors(self):
         """Build single-frequency DFT monitors from each `class: monitor` obj.
-        Currently supports type 'flux' and '1Ddft' on x-normal planes."""
+        Supports 'flux', '1Ddft' (x-normal plane), and '2Ddft' (full-grid DFT
+        over a [i_lo:i_hi, j_lo:j_hi] box, accumulated in the time loop).
+        2Ddft monitors set `is_2d=True` and `state2d` to a (4, Nx, Ny) tuple of
+        (rE, iE, rH, iH) accumulators — the loop updates them with cos/sin
+        weighting per step; the cropped slice is extracted in _save_monitor.
+        """
         for obj in self.objects_args:
             if obj.get("class") != "monitor":
                 continue
             x_meep = obj["center_x_meep"]
             sy = obj["size_y_meep"]
+            mtype = obj.get("type", "1Ddft")
             i_mon = _meep_to_grid_x(x_meep, self.cell_x, self.dx)
             j_lo, j_hi = _meep_to_grid_y_range(0.0, sy, self.cell_y, self.dx)
+            # 2Ddft: optional x-span from position.size[0] (default = full reservoir along x)
+            sx = 0.0
+            if mtype == "2Ddft":
+                pos = obj.get("position", {})
+                size_raw = pos.get("size", [])
+                if isinstance(size_raw, list) and len(size_raw) >= 2 and float(size_raw[1]) > 0:
+                    sx = float(size_raw[0])
+                if sx > 0:
+                    i_lo = _meep_to_grid_x(x_meep - sx / 2.0, self.cell_x, self.dx)
+                    i_hi = _meep_to_grid_x(x_meep + sx / 2.0, self.cell_x, self.dx)
+                else:
+                    i_lo = 0; i_hi = self.Nx
+                i_lo = max(0, i_lo); i_hi = min(self.Nx, i_hi)
+            else:
+                i_lo = i_mon; i_hi = i_mon + 1
+
             lam_range = obj.get("lam_range", [0.5, 0.5])
             n_lam = int(obj.get("n_lam", 1))
             if n_lam == 1:
@@ -383,21 +417,30 @@ class SimulationGPU:
             else:
                 lambdas = np.linspace(lam_range[0], lam_range[1], n_lam)
                 freqs = 1.0 / lambdas
-            f0 = float(freqs[0])  # single-freq for now
+            f0 = float(freqs[0])
 
-            updater = f2.make_dft_updater_2d(axis=0, index=i_mon, frequency=f0)
-            print(f"Monitor {obj['_key']}: x=i_mon={i_mon}, y∈[{j_lo},{j_hi}], "
-                  f"type={obj.get('type')}, f0={f0}")
-            self.monitors.append({
-                "key": obj["_key"],
-                "type": obj.get("type", "1Ddft"),
-                "i_mon": i_mon,
-                "j_lo": j_lo,
-                "j_hi": j_hi,
-                "freqs": freqs,
-                "updater": updater,
-                "state": f2.make_dft_state_2d(self.grid, axis=0),
-            })
+            mon: dict = {
+                "key": obj["_key"], "type": mtype,
+                "i_mon": i_mon, "i_lo": i_lo, "i_hi": i_hi,
+                "j_lo": j_lo, "j_hi": j_hi, "freqs": freqs,
+            }
+            if mtype == "2Ddft":
+                # Full-grid DFT accumulator: (rEx, iEx, rEy, iEy, rHz, iHz) all (Nx, Ny).
+                z = jnp.zeros((self.Nx, self.Ny), dtype=_JDTYPE)
+                mon["is_2d"] = True
+                mon["omega"] = 2.0 * float(np.pi) * f0
+                mon["state"] = (z, z, z, z, z, z)
+                # No updater fn — the run_loop has a special branch for is_2d entries.
+                mon["updater"] = None
+                print(f"Monitor {obj['_key']} (2Ddft): i∈[{i_lo},{i_hi}] j∈[{j_lo},{j_hi}], f0={f0}")
+            else:
+                updater = f2.make_dft_updater_2d(axis=0, index=i_mon, frequency=f0)
+                mon["is_2d"] = False
+                mon["updater"] = updater
+                mon["state"] = f2.make_dft_state_2d(self.grid, axis=0)
+                print(f"Monitor {obj['_key']}: x=i_mon={i_mon}, y∈[{j_lo},{j_hi}], "
+                      f"type={mtype}, f0={f0}")
+            self.monitors.append(mon)
 
     # ---------------- Run ----------------
 
@@ -427,13 +470,28 @@ class SimulationGPU:
 
         # Build the time-loop body
         sources = self.sources
-        updaters = [m["updater"] for m in self.monitors]
         grid = self.grid; dt = self.dt; material = self.material
+        # Static lists captured by closure (one per monitor, by index).
+        is_2d_flags = [m["is_2d"] for m in self.monitors]
+        omegas_2d = [m["omega"] if m["is_2d"] else 0.0 for m in self.monitors]
+        updaters_1d = [m["updater"] for m in self.monitors]
 
         def apply_sources(fields, t):
             for s in sources:
                 fields = s.apply(fields, t)
             return fields
+
+        def _update_one_mon(idx, mon_state, fields, t):
+            if is_2d_flags[idx]:
+                rEx, iEx, rEy, iEy, rHz, iHz = mon_state
+                c = jnp.cos(omegas_2d[idx] * t); s = jnp.sin(omegas_2d[idx] * t)
+                rEx = rEx + c * fields.Ex; iEx = iEx - s * fields.Ex
+                rEy = rEy + c * fields.Ey; iEy = iEy - s * fields.Ey
+                rHz = rHz + c * fields.Hz; iHz = iHz - s * fields.Hz
+                return (rEx, iEx, rEy, iEy, rHz, iHz)
+            else:
+                u = updaters_1d[idx]
+                return u(mon_state, fields, t)
 
         @jax.jit
         def run_loop(fields, pml_state, mon_states, n_steps):
@@ -442,7 +500,7 @@ class SimulationGPU:
                 t = i * dt
                 f = apply_sources(f, t)
                 f, p = f2.step_2d(f, grid, dt, p, material)
-                ms = [u(m, f, t) for u, m in zip(updaters, ms)]
+                ms = [_update_one_mon(k, m, f, t) for k, m in enumerate(ms)]
                 return (f, p, ms)
             return jax.lax.fori_loop(0, n_steps, body, (fields, pml_state, mon_states))
 
@@ -457,23 +515,46 @@ class SimulationGPU:
 
         # Save monitor outputs
         for m, st in zip(self.monitors, mon_states):
-            amps = f2.extract_complex_2d(st, n_total)
+            if m["is_2d"]:
+                # Convert accumulators to complex + apply standard 2/N scale (same as 1D).
+                rEx, iEx, rEy, iEy, rHz, iHz = st
+                scale = 2.0 / n_total
+                amps = {
+                    "Ex": (np.asarray(rEx) + 1j * np.asarray(iEx)) * scale,
+                    "Ey": (np.asarray(rEy) + 1j * np.asarray(iEy)) * scale,
+                    "Hz": (np.asarray(rHz) + 1j * np.asarray(iHz)) * scale,
+                }
+            else:
+                amps = f2.extract_complex_2d(st, n_total)
             self._save_monitor(m, amps)
 
     def _save_monitor(self, mon, amps):
         out_path = os.path.join(self.paths["simulation"], f"{mon['key']}.npz")
         if mon["type"] == "flux":
-            # Compute time-averaged Poynting flux through x-plane (S_x)
-            # S_x = 0.5*Re(Ey*conj(Hz) - Ez*conj(Hy)). In TE 2D: Ez = Hy = 0,
-            # so S_x = 0.5*Re(Ey * conj(Hz)).
-            Sx = 0.5 * np.real(amps["Ey"] * np.conj(amps["Hz"]))
+            # S_x density via library helper; 2D TE has Ez = Hy = 0 → pass zeros.
+            zeros = np.zeros_like(amps["Ey"])
+            Sx = mon3d.poynting_density_x(amps["Ey"], zeros,
+                                          zeros, amps["Hz"])
             flux = np.sum(Sx[mon["j_lo"]:mon["j_hi"]]) * self.dx
             np.savez(out_path,
                      freqs=mon["freqs"], fluxes=np.array([flux]))
             print(f"Saved {out_path}: flux={flux:.4g}")
         else:
-            # DFT monitor: save Ex, Ey, Ez complex arrays cropped to monitor span
-            # Ez doesn't exist in 2D TE — save zeros to match MEEP format
+            # DFT monitor: save Ex, Ey, Ez complex arrays cropped to monitor span.
+            # 2Ddft: save the (i_lo:i_hi, j_lo:j_hi) box. 1Ddft: just the j-strip.
+            if mon["type"] == "2Ddft":
+                Ex = np.asarray(amps["Ex"])[mon["i_lo"]:mon["i_hi"],
+                                            mon["j_lo"]:mon["j_hi"]]
+                Ey = np.asarray(amps["Ey"])[mon["i_lo"]:mon["i_hi"],
+                                            mon["j_lo"]:mon["j_hi"]]
+                Ez = np.zeros_like(Ex)
+                np.savez(out_path,
+                         Ex=Ex[None, :, :], Ey=Ey[None, :, :], Ez=Ez[None, :, :],
+                         freqs=mon["freqs"],
+                         i_lo=mon["i_lo"], i_hi=mon["i_hi"],
+                         j_lo=mon["j_lo"], j_hi=mon["j_hi"])
+                print(f"Saved {out_path}: 2D shape {Ex.shape}")
+                return
             Ex = np.array(amps["Ex"])[mon["j_lo"]:mon["j_hi"]]
             Ey = np.array(amps["Ey"])[mon["j_lo"]:mon["j_hi"]]
             Ez = np.zeros_like(Ex)
@@ -500,7 +581,7 @@ class SimulationGPU:
             return
 
         res_args = next((o for o in self.objects_args
-                         if o.get("class") == "reservoir"), None)
+                         if o.get("class") in ("reservoir", "voltage_reservoir")), None)
         if res_args is None:
             ones = jnp.ones((Nx, Ny, Nz), dtype=_JDTYPE)
             zeros = jnp.zeros((Nx, Ny, Nz), dtype=_JDTYPE)
@@ -540,43 +621,43 @@ class SimulationGPU:
         interp_theta = RegularGridInterpolator((lc_x_g, lc_y_g, lc_z_g), theta_lc,
                                                bounds_error=False, fill_value=None)
 
-        i = np.arange(Nx) * self.dx
-        j = np.arange(Ny) * self.dx
-        k = np.arange(Nz) * self.dx
-        # Mask of voxels inside the reservoir block
-        mask = ((i[:, None, None] >= res_x_lo) & (i[:, None, None] < res_x_hi)
-                & (j[None, :, None] >= res_y_lo) & (j[None, :, None] < res_y_hi)
-                & (k[None, None, :] >= res_z_lo) & (k[None, None, :] < res_z_hi))
+        # Project-specific samplers for the LC director and reservoir block
+        # mask. The half-cell Yee shift lives in src (`mats.sample_yee`),
+        # so the driver only describes WHAT to sample, not WHERE.
 
-        # Sample phi/theta at every voxel (clip coords into the LC domain so the
-        # interpolator doesn't extrapolate wildly; masked-out voxels are vacuum)
-        I, J, K = np.meshgrid(
-            np.clip(i, lc_x_g[0], lc_x_g[-1]),
-            np.clip(j, lc_y_g[0], lc_y_g[-1]),
-            np.clip(k, lc_z_g[0], lc_z_g[-1]), indexing="ij")
-        pts = np.stack([I.ravel(), J.ravel(), K.ravel()], axis=1)
-        phi = interp_phi(pts).reshape(Nx, Ny, Nz)
-        theta = interp_theta(pts).reshape(Nx, Ny, Nz)
+        def _interp(interp, xs, ys, zs):
+            Xc = np.clip(xs, lc_x_g[0], lc_x_g[-1])
+            Yc = np.clip(ys, lc_y_g[0], lc_y_g[-1])
+            Zc = np.clip(zs, lc_z_g[0], lc_z_g[-1])
+            I, J, K = np.meshgrid(Xc, Yc, Zc, indexing="ij")
+            pts = np.stack([I.ravel(), J.ravel(), K.ravel()], axis=1)
+            return interp(pts).reshape(len(xs), len(ys), len(zs))
 
-        # Build eps tensor: LC inside the mask, vacuum (eps=1) outside.
-        delta0 = n_e ** 2 - n_o ** 2
-        eps_bar = (2.0 * n_o ** 2 + n_e ** 2) / 3.0
-        eps_perp = eps_bar - delta0 / 3.0
-        delta = delta0
-        st = np.sin(theta); ct = np.cos(theta)
-        sp = np.sin(phi); cp = np.cos(phi)
-        nx = st * cp; ny = st * sp; nz = ct
-        exx = np.where(mask, eps_perp + delta * nx * nx, 1.0)
-        eyy = np.where(mask, eps_perp + delta * ny * ny, 1.0)
-        ezz = np.where(mask, eps_perp + delta * nz * nz, 1.0)
-        exy = np.where(mask, delta * nx * ny, 0.0)
-        exz = np.where(mask, delta * nx * nz, 0.0)
-        eyz = np.where(mask, delta * ny * nz, 0.0)
+        def director_phi(xs, ys, zs):   return _interp(interp_phi,   xs, ys, zs)
+        def director_theta(xs, ys, zs): return _interp(interp_theta, xs, ys, zs)
 
-        self.material = mats.anisotropic_from_tensor(
-            jnp.asarray(exx, dtype=_JDTYPE), jnp.asarray(eyy, dtype=_JDTYPE),
-            jnp.asarray(ezz, dtype=_JDTYPE), jnp.asarray(exy, dtype=_JDTYPE),
-            jnp.asarray(exz, dtype=_JDTYPE), jnp.asarray(eyz, dtype=_JDTYPE))
+        def reservoir_mask(xs, ys, zs):
+            return ((xs[:, None, None] >= res_x_lo) & (xs[:, None, None] < res_x_hi)
+                    & (ys[None, :, None] >= res_y_lo) & (ys[None, :, None] < res_y_hi)
+                    & (zs[None, None, :] >= res_z_lo) & (zs[None, None, :] < res_z_hi))
+
+        phi_Ex,   phi_Ey,   phi_Ez   = mats.sample_yee(self.grid, director_phi)
+        theta_Ex, theta_Ey, theta_Ez = mats.sample_yee(self.grid, director_theta)
+        mask_Ex,  mask_Ey,  mask_Ez  = mats.sample_yee(self.grid, reservoir_mask)
+
+        self.material = mats.anisotropic3dyee_from_director_at_yee(
+            n_o_sq=float(n_o) ** 2, n_e_sq=float(n_e) ** 2,
+            theta_Ex=jnp.asarray(theta_Ex, dtype=_JDTYPE),
+            phi_Ex  =jnp.asarray(phi_Ex,   dtype=_JDTYPE),
+            mask_Ex =jnp.asarray(mask_Ex),
+            theta_Ey=jnp.asarray(theta_Ey, dtype=_JDTYPE),
+            phi_Ey  =jnp.asarray(phi_Ey,   dtype=_JDTYPE),
+            mask_Ey =jnp.asarray(mask_Ey),
+            theta_Ez=jnp.asarray(theta_Ez, dtype=_JDTYPE),
+            phi_Ez  =jnp.asarray(phi_Ez,   dtype=_JDTYPE),
+            mask_Ez =jnp.asarray(mask_Ez),
+            S=1.0,
+        )
 
     def _build_sources_3d(self):
         for obj in self.objects_args:
@@ -657,7 +738,7 @@ class SimulationGPU:
 
         # Material-aware Courant from peak eps eigenvalue (use n_e as upper bound)
         n_max = 0.0
-        res_args = next((o for o in self.objects_args if o.get("class") == "reservoir"), None)
+        res_args = next((o for o in self.objects_args if o.get("class") in ("reservoir", "voltage_reservoir")), None)
         if res_args and not self.empty:
             n_max = float(res_args.get("n_e", 1.71))
         n_max = max(n_max, 1.0)
@@ -708,10 +789,9 @@ class SimulationGPU:
         out_path = os.path.join(self.paths["simulation"], f"{mon['key']}.npz")
         jl, jh, kl, kh = mon["j_lo"], mon["j_hi"], mon["k_lo"], mon["k_hi"]
         if mon["type"] == "flux":
-            # S_x = 0.5 Re(Ey conj(Hz) - Ez conj(Hy)) integrated over the yz patch
-            Ey = np.array(amps["Ey"]); Ez = np.array(amps["Ez"])
-            Hy = np.array(amps["Hy"]); Hz = np.array(amps["Hz"])
-            Sx = 0.5 * np.real(Ey * np.conj(Hz) - Ez * np.conj(Hy))
+            # S_x density via library helper; integrate over the yz patch.
+            Sx = mon3d.poynting_density_x(amps["Ey"], amps["Ez"],
+                                          amps["Hy"], amps["Hz"])
             flux = np.sum(Sx[jl:jh, kl:kh]) * self.dx * self.dx
             np.savez(out_path, freqs=mon["freqs"], fluxes=np.array([flux]))
             print(f"Saved {out_path}: flux={flux:.4g}")

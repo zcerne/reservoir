@@ -17,6 +17,45 @@ def _load_iris_normalized():
     return X_norm, y
 
 
+def _load_mnist_downsampled_normalized(target_size: int = 14):
+    """Load full MNIST and block-mean-downsample each digit to (target_size,
+    target_size). Returns (X, y) with X shape (70000, target_size**2) ∈ [0, 1]
+    and y shape (70000,) ∈ {0..9}.
+
+    Downsample factor `28 // target_size` must divide 28 exactly (so 14, 7, 4,
+    2 are valid). Uses sklearn's openml fetcher (auto-caches in
+    ~/scikit_learn_data/, first call downloads ~50 MB).
+    """
+    from sklearn.datasets import fetch_openml
+    if 28 % target_size != 0:
+        raise ValueError(f"target_size={target_size} must divide 28")
+    factor = 28 // target_size
+
+    cache = fetch_openml("mnist_784", version=1, as_frame=False, parser="liac-arff")
+    X = cache.data.astype(np.float32) / 255.0          # (70000, 784) in [0,1]
+    y = cache.target.astype(int)
+    X28 = X.reshape(-1, 28, 28)
+    # Block-mean downsample: e.g. for factor=2 -> reshape(-1, 14, 2, 14, 2).mean((2,4))
+    X_ds = X28.reshape(-1, target_size, factor, target_size, factor).mean(axis=(2, 4))
+    X_flat = X_ds.reshape(-1, target_size * target_size)
+    return X_flat, y
+
+
+def _load_dataset_normalized(name: str):
+    """Dispatch on dataset name. Returns (X, y) with X normalized to [0,1].
+
+    Supported keywords:
+        'iris'  -> 150 samples, 4 features, 3 classes
+        'mnist' -> 70000 samples, 196 features (14×14 block-mean), 10 classes
+    """
+    name = name.lower().strip()
+    if name == "iris":
+        return _load_iris_normalized()
+    if name == "mnist":
+        return _load_mnist_downsampled_normalized(target_size=14)
+    raise ValueError(f"unknown dataset '{name}' (use 'iris' or 'mnist')")
+
+
 class DenseNN(nn.Module):
     def __init__(
         self,
@@ -24,11 +63,20 @@ class DenseNN(nn.Module):
         activation: str = "relu",
         dropout: float = 0.0,
         batch_norm: bool = False,
+        device: str | None = None,
     ):
-        """layer_sizes = [input_dim, hidden1, hidden2, ..., output_dim]"""
+        """layer_sizes = [input_dim, hidden1, hidden2, ..., output_dim]
+
+        device: "cuda" / "cpu" / "mps" / None. None auto-picks
+        torch.cuda.is_available() → "cuda", else "cpu". Tensors fed to .fit /
+        .predict / .score are moved to this device internally.
+        """
         super().__init__()
         if len(layer_sizes) < 2:
             raise ValueError("layer_sizes must have at least [input_dim, output_dim]")
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = torch.device(device)
         activations = {
             "relu": nn.ReLU,
             "tanh": nn.Tanh,
@@ -51,6 +99,7 @@ class DenseNN(nn.Module):
         self.net = nn.Sequential(*layers)
         self.history = {}
         self._init_weights()
+        self.to(self.device)
 
     def _init_weights(self):
         for m in self.modules():
@@ -77,10 +126,16 @@ class DenseNN(nn.Module):
 
         n_val = max(1, int(len(X_t) * val_split))
         idx = torch.randperm(len(X_t))
-        X_val, y_val = X_t[idx[:n_val]], y_t[idx[:n_val]]
-        X_tr, y_tr = X_t[idx[n_val:]], y_t[idx[n_val:]]
+        X_val = X_t[idx[:n_val]].to(self.device)
+        y_val = y_t[idx[:n_val]].to(self.device)
+        X_tr,  y_tr  = X_t[idx[n_val:]], y_t[idx[n_val:]]
 
-        loader = DataLoader(TensorDataset(X_tr, y_tr), batch_size=batch_size, shuffle=True)
+        # Pin host memory + non_blocking copies if on CUDA (a free speedup).
+        pin = (self.device.type == "cuda")
+        loader = DataLoader(
+            TensorDataset(X_tr, y_tr),
+            batch_size=batch_size, shuffle=True, pin_memory=pin,
+        )
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=weight_decay)
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
@@ -90,6 +145,8 @@ class DenseNN(nn.Module):
         for epoch in range(epochs):
             train_loss = 0.0
             for xb, yb in loader:
+                xb = xb.to(self.device, non_blocking=pin)
+                yb = yb.to(self.device, non_blocking=pin)
                 optimizer.zero_grad()
                 loss = criterion(self(xb), yb)
                 loss.backward()
@@ -121,14 +178,16 @@ class DenseNN(nn.Module):
     def predict(self, X: np.ndarray) -> np.ndarray:
         self.eval()
         with torch.no_grad():
-            logits = self(torch.tensor(X, dtype=torch.float32))
-        return logits.argmax(1).numpy()
+            xb = torch.as_tensor(X, dtype=torch.float32, device=self.device)
+            logits = self(xb)
+        return logits.argmax(1).cpu().numpy()
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         self.eval()
         with torch.no_grad():
-            logits = self(torch.tensor(X, dtype=torch.float32))
-        return torch.softmax(logits, dim=1).numpy()
+            xb = torch.as_tensor(X, dtype=torch.float32, device=self.device)
+            logits = self(xb)
+        return torch.softmax(logits, dim=1).cpu().numpy()
 
     def score(self, X: np.ndarray, y: np.ndarray) -> float:
         return float((self.predict(X) == y).mean())
@@ -141,7 +200,8 @@ class DenseNN(nn.Module):
                 json.dump(self.history, f)
 
     def load(self, path: str):
-        self.load_state_dict(torch.load(path, map_location="cpu"))
+        self.load_state_dict(torch.load(path, map_location=self.device))
+        self.to(self.device)
         history_path = os.path.splitext(path)[0] + "_history.json"
         if os.path.exists(history_path):
             with open(history_path) as f:

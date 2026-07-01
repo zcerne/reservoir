@@ -25,9 +25,12 @@ class Reservoir:
         ec = cfg["elastic_constants"]
         self.dimensions = tuple(cfg["sizes"])
         self.resolution = cfg["resolution"]
-        self.boundary_conditions = tuple(cfg["boundary_conditions"])
+        # Back-compat for voltage_reservoir JSON which doesn't carry these keys.
+        # They're only used by run_minimization(), which voltage_reservoir runs
+        # don't go through (they write lc_fields.npz directly via run_voltage_reservoir.py).
+        self.boundary_conditions = tuple(cfg.get("boundary_conditions", ("free",) * 3))
         self.elastic_constants = (ec["K1"], ec["K2"], ec["K3"], ec["q0"])
-        self.face_phi   = tuple(x if x is not None else None for x in cfg["face_phi"])
+        self.face_phi   = tuple(x if x is not None else None for x in cfg.get("face_phi", [None]*6))
         _fp = cfg.get("face_theta")
         if _fp is not None:
             self.face_theta = tuple(x if x is not None else None for x in _fp)
@@ -50,9 +53,14 @@ class Reservoir:
         self.n_e = float(cfg.get("n_e", 1.71))
         self.S   = float(cfg.get("S", 1.0))
         self.n_background = float(data.get("background_index", 1.0))
+        # LC model: "director" (Frank, XaLCS) or "Q3D" (Landau-de Gennes, fe_core_qtensor)
+        self.lc_param = str(cfg.get("lc_param", "director"))
+        self.S_eq  = float(cfg.get("S_eq", 0.80))
+        self.S_cap = float(cfg.get("S_cap", 1.05 * self.S_eq))
         self._sim = None
         self._phi_cache: np.ndarray | None = None
         self._theta_cache: np.ndarray | None = None
+        self._S_cache: np.ndarray | None = None
         self._meep_center_x: float = 0.0
 
     def _cell_size(self) -> tuple[float, float, float]:
@@ -79,17 +87,21 @@ class Reservoir:
             from functions_boundaries import (random_2d_boundaries, random_3d_boundaries,
                                               perlin_3d_boundaries, sinus_3d_boundaries,
                                               sinus_2d_boundaries, sinus_random_2d_boundaries,
+                                              smooth_random_2d_boundaries,
+                                              defect_2d_boundaries,
                                               competing_3d_boundaries)
             _fn_map = {"random": random_2d_boundaries, "random_3d": random_3d_boundaries,
                        "perlin_3d": perlin_3d_boundaries, "sinus_3d": sinus_3d_boundaries,
                        "sinus_2d": sinus_2d_boundaries,
                        "sinus_random_2d": sinus_random_2d_boundaries,
+                       "smooth_random_2d": smooth_random_2d_boundaries,
+                       "defect_2d": defect_2d_boundaries,
                        "competing_3d": competing_3d_boundaries}
             fn = _fn_map[self.boundary_function]
             dims = self.dimensions if self.boundary_function in (
                 "random_3d", "perlin_3d", "sinus_3d", "competing_3d") else self.dimensions[:2]
             extra_kw = {}
-            if self.boundary_function in ("perlin_3d", "competing_3d"):
+            if self.boundary_function in ("perlin_3d", "competing_3d", "smooth_random_2d"):
                 extra_kw["scale"] = self.boundary_scale
             if self.boundary_function == "perlin_3d" and self.boundary_same_opposite is not None:
                 extra_kw["same_opposite_faces"] = self.boundary_same_opposite
@@ -172,9 +184,73 @@ class Reservoir:
         sim.lower_bounds_theta = lb_theta
         sim.upper_bounds_theta = ub_theta
 
+        # Q-tensor (Landau-de Gennes) relaxation path: reuse the face anchoring
+        # (phi0/theta0 + pinned bounds) but minimize fe_core_qtensor over q5 via
+        # GPU_MMA, then recover (phi,theta) by eigendecomposition. Resolution is
+        # uniform (dx=dy=dz=1/res) so the elastic energy is axis-permutation-
+        # invariant -> reshape order is irrelevant.
+        if self.lc_param == "Q3D":
+            gshape = tuple(int(v) for v in res)
+            # Warm-start the Q relax from the DIRECTOR solution: the director angle
+            # is a soft Goldstone mode the q5-MMA won't relax from a cold phi=0
+            # interior, so first run the (fwdbwd) Frank relax and seed Q with it.
+            # sim._result[:n] is the flat optimized phi in phi0's exact order.
+            sim.setup(); sim.minimize()
+            n = phi0.size
+            r = np.asarray(sim._result)
+            opt_phi, opt_theta = self.optimize_phi_theta
+            if opt_phi and opt_theta:
+                phi_seed, theta_seed = r[:n].copy(), r[n:].copy()
+            elif opt_phi:
+                phi_seed, theta_seed = r[:n].copy(), theta0.copy()
+            else:
+                phi_seed, theta_seed = phi0.copy(), r[:n].copy()
+            self._relax_qtensor(phi_seed, theta_seed, lb_phi, ub_phi,
+                                lb_theta, ub_theta, gshape, 1.0 / self.resolution)
+            return
+
         sim.setup()
         sim.minimize()
         self._sim = sim
+
+    def _relax_qtensor(self, phi0, theta0, lb_phi, ub_phi, lb_theta, ub_theta, gshape, dx):
+        """Q-tensor (LdG) relaxation using **BlockOpt's exact machinery** — the same
+        `relax_qtensor_3d` + `ldg_constants_5cb` (real 5CB SI Landau coefficients,
+        L=K_avg/2S², ξ=ε₀ε_a/S, SI units), so the reservoir relax is identical to
+        the BlockOptimization LC stage. Boundary anchoring → Dirichlet boundary_mask.
+        Note: physical 5CB defect-core ξ_n≈1.4nm is sub-grid, so S stays ≈S_eq
+        except a ~1-pixel core (set artificially soft A,B,C for fat melted cores)."""
+        import sys, os, time, numpy as _np, jax.numpy as jnp
+        for _p in ("/home/ziga/Orion/BlockOptimization", "/home/cernez/BlockOptimization"):
+            if os.path.isdir(_p) and _p not in sys.path:
+                sys.path.insert(0, _p)
+        from lc_stuff.qtensor_3d import (relax_qtensor_3d, ldg_constants_5cb,
+                                         q5_from_director, director_and_S)
+        from alcs_jax import n_sph
+        ec = self.elastic_constants                                    # (K1,K2,K3,q0)
+        eps_a = self.n_e ** 2 - self.n_o ** 2
+        cst = ldg_constants_5cb(float(ec[0]), float(ec[1]), float(ec[2]), eps_a, dx_um=dx)
+        S = float(cst["S_eq"])
+        spac = (dx * 1e-6, dx * 1e-6, dx * 1e-6)                        # µm → m (SI)
+        # uniaxial Q seed from the (warm-started) director; n shape (3,)+gshape
+        nv = _np.asarray(n_sph(jnp.asarray(phi0), jnp.asarray(theta0))).reshape((3,) + gshape)
+        q5_0 = _np.asarray(q5_from_director(jnp.asarray(nv), S))        # (5,)+gshape
+        # Dirichlet pin on anchored faces (where phi or theta bound was pinned)
+        pin = ((lb_phi == ub_phi) | (lb_theta == ub_theta)).reshape(gshape)
+        t0 = time.time()
+        q5_star, info = relax_qtensor_3d(
+            q5_0, None, A=cst["A"], B=cst["B"], C=cst["C"], L=cst["L"], xi=cst["xi"],
+            spacings=spac, boundary_mask=jnp.asarray(pin), maxiter=int(self.maxeval))
+        print(f"[reservoir/Q3D BlockOpt-LdG] {int(info['niter'])} iters, "
+              f"f*={float(info['f_star']):.3e}, S_eq={S:.4f}, xi_n={cst['xi_n_nm']:.2f}nm, "
+              f"wall={time.time()-t0:.1f}s")
+        q5 = _np.asarray(q5_star)
+        self._Q_cache = q5                       # raw q5 → direct ε(Q) (biaxiality/core preserved)
+        n_dir, Sf = director_and_S(jnp.asarray(q5))    # n (3,)+gshape, S gshape
+        n_dir = _np.asarray(n_dir)
+        self._phi_cache = _np.arctan2(n_dir[1], n_dir[0]).reshape(gshape)
+        self._theta_cache = _np.arccos(_np.clip(n_dir[2], -1.0, 1.0)).reshape(gshape)
+        self._S_cache = _np.asarray(Sf).reshape(gshape)
 
     def load_fields(self):
         """Load pre-computed director field from lc_fields.npz (skips minimization)."""

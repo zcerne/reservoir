@@ -2,7 +2,8 @@ import nlopt
 import numpy as np
 from numpy.typing import NDArray
 from jax import value_and_grad
-from alcs_jax import n_sph, fe_core_director, fe_core_director_periodic
+from alcs_jax import (n_sph, fe_core_director, fe_core_director_periodic,
+                      fe_core_director_fwdbwd)
 
 
 class XaLCS:
@@ -155,7 +156,9 @@ class XaLCS:
         if XaLCS.periodic_b:
             out = fe_core_director_periodic(nv, XaLCS.ek, XaLCS.dp, XaLCS.bpad, XaLCS.bpad_ixs)
         else:
-            out = fe_core_director(nv, XaLCS.ek, XaLCS.dp)
+            # fwdbwd (Nyquist-safe) discretization — central diff is blind to the
+            # 1-cell checkerboard mode and leaves griddy director stripes.
+            out = fe_core_director_fwdbwd(nv, XaLCS.ek, XaLCS.dp)
         XaLCS.iter_counter += 1
         return out
 
