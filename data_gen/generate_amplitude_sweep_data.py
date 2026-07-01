@@ -1,82 +1,62 @@
-"""Generate amplitude-swept probe data — Nonlinearity Method C (amplitude-dependent BLA).
+"""Amplitude-sweep data — Nonlinearity Method C (amplitude-dependent BLA). Index/assemble.
 
-Re-fitting the best-linear map G at several drive levels reveals nonlinearity: a
-linear system's G is amplitude-independent, so any drift of G with drive level is
-nonlinearity (and tells you at what amplitude it turns on).
+M random UNIT input directions (shared) × L drive levels → L·M forward runs. Work item
+k=(li·M + p) runs E = levels[li]·dirs[p]. Each item → part (incremental). --assemble →
+final <out>.npz {inputs, outputs, level_id, levels} for n3_amplitude_dependant.
 
-We draw M random UNIT input directions ONCE, then at each amplitude level ℓ scale
-them by `levels[ℓ]` and forward-run the reservoir — so the per-level BLA fits share
-the same input directions (apples-to-apples). Total = L·M sims.
+REAL amplitudes (source casts to float). Deterministic from --seed.
 
-  python data_gen/generate_amplitude_sweep_data.py --path data/test2D \
-      --levels 0.1,0.3,1,3,10 --n_probes 12 --out data/test2D/amp_sweep.npz
-
-Then:  from n3_amplitude_dependant import amplitude_dependance, report
-        d = dict(np.load("data/test2D/amp_sweep.npz", allow_pickle=True))
-        print(report(amplitude_dependance(d)))                 # field: no drift
-        d["outputs"] = np.abs(d["outputs"])**2                 # |E|² readout
-        print(report(amplitude_dependance(d)))                 # G drifts with drive
+  N=$(python data_gen/generate_amplitude_sweep_data.py --path data/test2D --levels 0.1,0.3,1,3,10 --n_probes 12 --count)
+  sbatch --array=0-$((N-1)) slurm_char_array.sh ampsweep data/test2D --levels 0.1,0.3,1,3,10 --n_probes 12
+  python data_gen/generate_amplitude_sweep_data.py --path data/test2D --levels 0.1,0.3,1,3,10 --n_probes 12 --assemble
 """
 from __future__ import annotations
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import argparse
 import numpy as np
+import _gen_common as gc
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--path", required=True, help="reservoir design dir (simulation_data.json + relaxed LC)")
-    ap.add_argument("--out", default=None, help="output npz (default <path>/amp_sweep.npz)")
-    ap.add_argument("--levels", default="0.1,0.3,1,3,10", help="drive amplitude levels, comma-sep")
-    ap.add_argument("--n_probes", type=int, default=12, help="M random input directions (shared across levels)")
-    ap.add_argument("--components", default="Ey", help="sensor components to save (Ey[,Ex,Ez])")
-    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--path", required=True)
+    ap.add_argument("--out", default=None)
+    ap.add_argument("--levels", default="0.1,0.3,1,3,10")
+    ap.add_argument("--n_probes", type=int, default=12)
+    gc.add_common_args(ap)
     args = ap.parse_args()
 
-    from class_simulation_T import SimulationT
-    try:
-        import meep as mp
-        is_master = bool(mp.am_master())
-    except Exception:
-        is_master = True
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
     levels = np.array([float(x) for x in args.levels.split(",")], dtype=float)
     out_path = args.out or os.path.join(args.path, "amp_sweep.npz")
+    M = args.n_probes
+    n_items = len(levels) * M
 
-    sim = SimulationT(args.path)
-    sim._set_data()
-    src_key = sim._source_key(sim.args)
-    amp0 = sim.args[src_key].get("amplitude", [1.0])
-    n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
-    print(f"[ampdata] reservoir={args.path}  n_strips={n_strips}  levels={list(levels)}  "
-          f"n_probes={args.n_probes}  comps={comps}", flush=True)
+    forward = n_strips = is_master = dirs = None
+    if args.count or args.assemble:
+        is_master = True
+    else:
+        forward, n_strips, is_master = gc.open_reservoir(args.path, comps)
+        rng = np.random.default_rng(args.seed)
+        dirs = rng.normal(size=(M, n_strips))                 # REAL directions
+        dirs /= (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
 
-    def forward(E):
-        Ey, Ex, Ez = sim._run_basis(list(E))
-        fields = {"Ey": Ey, "Ex": Ex, "Ez": Ez}
-        return np.concatenate([np.asarray(fields[c]).ravel() for c in comps])
+    def run_one(k):
+        li, p = divmod(k, M)
+        E = levels[li] * dirs[p]
+        gc.save_part(out_path, k, is_master, output=forward(E), inp=E, level_id=int(li))
 
-    rng = np.random.default_rng(args.seed)
-    # M shared unit input directions
-    dirs = rng.normal(size=(args.n_probes, n_strips))  # REAL (source casts amplitude to float)
-    dirs /= (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
+    def assemble():
+        parts = gc.load_parts(out_path)
+        inputs = np.stack([p["inp"] for p in parts])
+        outputs = np.stack([p["output"] for p in parts])
+        level_id = np.asarray([int(p["level_id"]) for p in parts])
+        np.savez(out_path, inputs=inputs, outputs=outputs, level_id=level_id,
+                 levels=levels, components=np.asarray(comps))
+        print(f"[ampdata] assembled → {out_path}  ({len(parts)} probes, {len(levels)} levels)", flush=True)
 
-    inputs, outputs, level_id = [], [], []
-    for li, lv in enumerate(levels):
-        for p in range(args.n_probes):
-            E = lv * dirs[p]
-            inputs.append(E); outputs.append(forward(E)); level_id.append(li)
-            print(f"[ampdata] level {li+1}/{len(levels)} (amp {lv:g})  probe {p+1}/{args.n_probes}", flush=True)
-
-    if is_master:
-        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-        np.savez(out_path,
-                 inputs=np.stack(inputs), outputs=np.stack(outputs),
-                 level_id=np.asarray(level_id), levels=levels,
-                 components=np.asarray(comps), n_strips=n_strips)
-        print(f"[ampdata] DONE → {out_path}  ({len(levels)*args.n_probes} sims)", flush=True)
-    return 0
+    return gc.run_mode(args, n_items, run_one, assemble, is_master)
 
 
 if __name__ == "__main__":
