@@ -33,8 +33,10 @@ import argparse
 import numpy as np
 
 
-def _cplx(rng, shape, scale):
-    return (rng.normal(size=shape) + 1j * rng.normal(size=shape)) * scale
+def _real(rng, shape, scale):
+    # REAL amplitudes: the reservoir source (class_source) casts amplitude to float,
+    # so complex phase is discarded. Real inputs fully test linearity/superposition.
+    return rng.normal(size=shape) * scale
 
 
 def main():
@@ -75,7 +77,7 @@ def main():
     rng = np.random.default_rng(args.seed)
 
     # --- base pool: one sim each ---
-    E_base = _cplx(rng, (args.n_base, n_strips), args.scale)
+    E_base = _real(rng, (args.n_base, n_strips), args.scale)
     base_out = []
     for i in range(args.n_base):
         base_out.append(forward(E_base[i]))
@@ -86,7 +88,7 @@ def main():
     E1, E2, alpha, beta, out1, out2, out_combo = [], [], [], [], [], [], []
     for t in range(args.n_trials):
         i, j = rng.choice(args.n_base, size=2, replace=False)
-        a, b = _cplx(rng, (), args.scale / max(args.scale, 1.0)), _cplx(rng, (), 1.0)
+        a, b = _real(rng, (), args.scale / max(args.scale, 1.0)), _real(rng, (), 1.0)
         combo_in = a * E_base[i] + b * E_base[j]
         oc = forward(combo_in)
         E1.append(E_base[i]); E2.append(E_base[j]); alpha.append(a); beta.append(b)

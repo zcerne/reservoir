@@ -59,7 +59,7 @@ def main():
 
     rng = np.random.default_rng(args.seed)
     # M shared unit input directions
-    dirs = rng.normal(size=(args.n_probes, n_strips)) + 1j * rng.normal(size=(args.n_probes, n_strips))
+    dirs = rng.normal(size=(args.n_probes, n_strips))  # REAL (source casts amplitude to float)
     dirs /= (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
 
     inputs, outputs, level_id = [], [], []
