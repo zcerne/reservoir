@@ -18,14 +18,17 @@
 #
 # Prereq: relaxed LC at the design dir (python class_reservoir.py --path <design>).
 
-# Small per-task footprint so MANY array tasks PACK onto each node (a single 2D
-# reservoir MEEP run doesn't need a whole node). e.g. 8 cores → ~12 tasks/node.
+# One FULL node per task. The MEEP sim is compute-bound and genuinely uses all 96
+# cores (~10 min); packing many small-core MPI jobs on a node caused PMI-init failures
+# + ~26x slowdown (they don't co-locate). So: one sim per node, run as many in
+# parallel as there are free nodes. Reduce the WORKLOAD (fewer probes / run_until),
+# not the cores-per-task, to make a run tractable.
 #SBATCH --nodes=1
 #SBATCH --partition=of
 #SBATCH --qos=soft
 #SBATCH --time=2:00:00
-#SBATCH --mem=48GB
-#SBATCH --cpus-per-task=8
+#SBATCH --mem=1900GB
+#SBATCH --cpus-per-task=96
 #SBATCH --output=slurm_char_%A_%a.log
 
 set -e
@@ -33,7 +36,7 @@ set -e
 BASE_DIR="/home/cernez/resevoir"
 PYTHON_MEEP=/home/cernez/miniconda3/envs/pmp/bin/python
 MPIRUN=/home/cernez/miniconda3/envs/pmp/bin/mpirun
-N=8   # MPI ranks per forward run (matches --cpus-per-task); small 2D sim, packs many/node
+N=96  # MPI ranks per forward run = full node (compute-bound sim; don't co-locate)
 
 METHOD=${1:?usage: sbatch --array=0-(N-1) slurm_char_array.sh <method> <design> [args]}
 PATH_ARG=${2:?usage: sbatch --array=0-(N-1) slurm_char_array.sh <method> <design> [args]}
