@@ -46,7 +46,7 @@ def main():
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
     out_path = args.out or os.path.join(args.path, "ipc.npz")
 
-    sim = SimulationT(os.path.join(args.path, "simulation_data.json"))
+    sim = SimulationT(args.path)
     sim._set_data()
     src_key = sim._source_key(sim.args)
     amp0 = sim.args[src_key].get("amplitude", [1.0])

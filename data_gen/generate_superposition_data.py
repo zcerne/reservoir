@@ -57,7 +57,7 @@ def main():
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
     out_path = args.out or os.path.join(args.path, "superposition.npz")
 
-    sim = SimulationT(os.path.join(args.path, "simulation_data.json"))
+    sim = SimulationT(args.path)
     # infer #source strips from the JSON amplitude length
     sim._set_data()
     src_key = sim._source_key(sim.args)
