@@ -79,3 +79,56 @@ class PlotValidator(cv.Validator):
             fig.savefig(out, dpi=130, bbox_inches="tight")
             print(f"[plot] saved {out}")
         return fig
+
+    # -------------------------------------------------------- nonlinearity
+    def plot_nonlinear_stats(self, save=True):
+        """NONLINEARITY table — A. superposition (n1) + B. linear residual (n2),
+        each in the field view (Maxwell-linear sanity ≈0) and the |E|² readout view
+        (the reservoir's actual nonlinearity). Field should be LINEAR, |E|² NONLINEAR."""
+        if "n1_field" not in self.results:
+            self.superposition()
+        if not any(k.startswith("n2") for k in self.results):
+            self.linear_residual()
+        R = self.results
+
+        def _cell(x, fmt="{:.3g}"):
+            return "n/a" if x is None else fmt.format(x)
+
+        # n2 may be split (complex ipc → n2_field/n2_intensity) or single (intensity ipc → n2)
+        n2f = R.get("n2_field"); n2i = R.get("n2_intensity") or R.get("n2")
+        n1f = R.get("n1_field"); n1i = R.get("n1_intensity")
+
+        rows = [
+            ("A. superposition  R²",
+             _cell(n1f.get("r2") if n1f else None, "{:.4f}"),
+             _cell(n1i.get("r2") if n1i else None, "{:.4f}")),
+            ("A. superposition  mean violation",
+             _cell(n1f.get("violation") if n1f else None, "{:.2e}"),
+             _cell(n1i.get("violation") if n1i else None, "{:.2e}")),
+            ("B. linear residual  1−R²",
+             _cell(n2f.get("residual_fraction") if n2f else None, "{:.2e}"),
+             _cell(n2i.get("residual_fraction") if n2i else None, "{:.3g}")),
+            ("verdict",
+             "LINEAR" if (n1f and n1f.get("linear")) else "—",
+             "NONLINEAR" if (n1i and not n1i.get("linear")) else "—"),
+        ]
+
+        fig, ax = plt.subplots(figsize=(7.5, 2.8))
+        ax.axis("off")
+        tbl = ax.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
+                       colWidths=[0.5, 0.25, 0.25], loc="center", cellLoc="center")
+        tbl.auto_set_font_size(False); tbl.set_fontsize(9); tbl.scale(1, 1.7)
+        # colour the verdict row
+        for c in (1, 2):
+            cell = tbl[len(rows), c]
+            txt = cell.get_text().get_text()
+            cell.set_facecolor("#d6f5d6" if txt == "LINEAR" else "#f8d6d6" if txt == "NONLINEAR" else "white")
+        ax.set_title(f"Nonlinearity (A superposition + B residual) — {os.path.basename(self.path)}",
+                     fontsize=10)
+        fig.tight_layout()
+        if save:
+            os.makedirs(self.figdir, exist_ok=True)
+            out = os.path.join(self.figdir, "nonlinear_stats.png")
+            fig.savefig(out, dpi=130, bbox_inches="tight")
+            print(f"[plot] saved {out}")
+        return fig
