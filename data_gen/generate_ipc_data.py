@@ -25,7 +25,8 @@ def main():
     ap.add_argument("--path", required=True)
     ap.add_argument("--out", default=None)
     ap.add_argument("--n", type=int, default=400)
-    ap.add_argument("--readout", default="intensity", choices=["field", "intensity"])
+    ap.add_argument("--readout", default="field", choices=["field", "intensity"],
+                    help="save complex FIELD (default, lossless — analysis derives |E|²) or |E|² directly")
     gc.add_common_args(ap)
     args = ap.parse_args()
 

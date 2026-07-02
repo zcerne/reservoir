@@ -58,14 +58,15 @@ class Validator:
         field) → m1 (BLA+SVD), m2 (PCA), m3 (sum-rule + mixing). Falls back to ipc if
         its outputs are complex (field readout)."""
         Xin = Yout = None
-        d = self._load("superposition.npz")
-        if d is not None and d.get("out1") is not None and np.iscomplexobj(d["out1"]):
-            Xin = np.concatenate([d["E1"], d["E2"]], axis=0)      # E1→out1, E2→out2 field pairs
-            Yout = np.concatenate([d["out1"], d["out2"]], axis=0)
+        # prefer the ipc field probe set (many i.i.d. probes); else superposition base pairs
+        ipc = self._load("ipc.npz")
+        if ipc is not None and ipc.get("outputs") is not None and np.iscomplexobj(ipc["outputs"]):
+            Xin, Yout = ipc["inputs"], ipc["outputs"]
         else:
-            ipc = self._load("ipc.npz")
-            if ipc is not None and ipc.get("outputs") is not None and np.iscomplexobj(ipc["outputs"]):
-                Xin, Yout = ipc["inputs"], ipc["outputs"]
+            d = self._load("superposition.npz")
+            if d is not None and d.get("out1") is not None and np.iscomplexobj(d["out1"]):
+                Xin = np.concatenate([d["E1"], d["E2"]], axis=0)  # E1→out1, E2→out2 field pairs
+                Yout = np.concatenate([d["out1"], d["out2"]], axis=0)
         if Xin is None:
             return None                                           # no field data → skip MODES
         res = m1.best_linear_approx({"inputs": Xin, "outputs": Yout}, test_frac=0.3)
@@ -89,7 +90,11 @@ class Validator:
         d = self._load("ipc.npz")
         if d is None:
             return None
-        self.results["n2"] = n2.linear_residual(d)
+        if np.iscomplexobj(d["outputs"]):                 # complex field → field-linearity + |E|² readout
+            self.results["n2_field"] = n2.linear_residual(d)
+            self.results["n2_intensity"] = n2.linear_residual(self._to_intensity(d, ("outputs",)))
+            return self.results["n2_intensity"]
+        self.results["n2"] = n2.linear_residual(d)        # already intensity
         return self.results["n2"]
 
     def amplitude(self):
@@ -112,6 +117,10 @@ class Validator:
         d = self._load("ipc.npz")
         if d is None:
             return None
+        if np.iscomplexobj(d["outputs"]):                 # complex field → field + |E|² readout
+            self.results["n5_field"] = n5.volterra_series(d, degree=2)
+            self.results["n5_intensity"] = n5.volterra_series(self._to_intensity(d, ("outputs",)), degree=2)
+            return self.results["n5_intensity"]
         self.results["n5"] = n5.volterra_series(d, degree=2)
         return self.results["n5"]
 
@@ -119,7 +128,9 @@ class Validator:
         d = self._load("ipc.npz")
         if d is None:
             return None
-        self.results["n6"] = n6.dambre_ipc(d, max_degree=3)
+        # IPC = capacity of the actual (nonlinear) readout → intensity. Square if field.
+        di = self._to_intensity(d, ("outputs",)) if np.iscomplexobj(d["outputs"]) else d
+        self.results["n6"] = n6.dambre_ipc(di, max_degree=3)
         return self.results["n6"]
 
     # ------------------------------------------------------------- orchestrate
@@ -136,18 +147,19 @@ class Validator:
     def report(self):
         R = self.results
         rep = {"m1_bla": m1.report, "m2_pca": m2.report,
-               "n1_field": n1.report, "n1_intensity": n1.report, "n2": n2.report,
+               "n1_field": n1.report, "n1_intensity": n1.report,
+               "n2": n2.report, "n2_field": n2.report, "n2_intensity": n2.report,
                "n3_field": n3.report, "n3_intensity": n3.report,
                "n4_field": n4.report, "n4_intensity": n4.report,
-               "n5": n5.report, "n6": n6.report}
+               "n5": n5.report, "n5_field": n5.report, "n5_intensity": n5.report, "n6": n6.report}
         lines = [f"=== Reservoir characterization: {self.path} ==="]
         for k in ("m1_bla", "m2_pca"):
             if k in R:
                 lines.append(f"\n[MODES {k}]\n" + rep[k](R[k]))
         if "m3_sum" in R:
             lines.append("\n[MODES m3]\n" + m3.report(R["m3_sum"], R.get("m3_mix")))
-        for k in ("n1_field", "n1_intensity", "n2", "n3_field", "n3_intensity",
-                  "n4_field", "n4_intensity", "n5", "n6"):
+        for k in ("n1_field", "n1_intensity", "n2", "n2_field", "n2_intensity",
+                  "n3_field", "n3_intensity", "n4_field", "n4_intensity", "n5", "n5_field", "n5_intensity", "n6"):
             if k in R:
                 lines.append(f"\n[{k}]\n" + rep[k](R[k]))
         return "\n".join(lines)
