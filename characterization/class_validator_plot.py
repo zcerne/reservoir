@@ -119,18 +119,23 @@ class PlotValidator(cv.Validator):
              "NONLINEAR" if (n1i and not n1i.get("linear")) else "—"),
         ]
 
-        fig, ax = plt.subplots(figsize=(7.5, 3.2))
-        ax.axis("off")
-        tbl = ax.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
-                       colWidths=[0.5, 0.25, 0.25], loc="center", cellLoc="center")
+        # two panels: stats table (left) + D. harmonic spectrum before/after |E|² (right)
+        fig, (ax_tbl, ax_sp) = plt.subplots(1, 2, figsize=(13, 3.6),
+                                            gridspec_kw={"width_ratios": [1.05, 1]})
+        ax_tbl.axis("off")
+        tbl = ax_tbl.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
+                           colWidths=[0.5, 0.25, 0.25], loc="center", cellLoc="center")
         tbl.auto_set_font_size(False); tbl.set_fontsize(9); tbl.scale(1, 1.7)
-        # colour the verdict row
-        for c in (1, 2):
+        for c in (1, 2):                                   # colour the verdict row
             cell = tbl[len(rows), c]
             txt = cell.get_text().get_text()
             cell.set_facecolor("#d6f5d6" if txt == "LINEAR" else "#f8d6d6" if txt == "NONLINEAR" else "white")
-        ax.set_title(f"Nonlinearity (A superposition + B residual + C amplitude-BLA) — "
-                     f"{os.path.basename(self.path)}", fontsize=10)
+        ax_tbl.set_title(f"Nonlinearity — {os.path.basename(self.path)}", fontsize=10)
+
+        # D. harmonic spectrum — DFT the output over the tone-sweep t. Field shows ONLY
+        # the input tones (linear); |E|² grows DC + harmonics (2ω) + intermod (ω₁±ω₂).
+        self._plot_harmonic_spectrum(ax_sp)
+
         fig.tight_layout()
         if save:
             os.makedirs(self.figdir, exist_ok=True)
@@ -138,3 +143,40 @@ class PlotValidator(cv.Validator):
             fig.savefig(out, dpi=130, bbox_inches="tight")
             print(f"[plot] saved {out}")
         return fig
+
+    def _plot_harmonic_spectrum(self, ax):
+        """D. Harmonic/intermod spectrum (n4 data): overlay the field spectrum (before
+        |E|²) and the |E|² spectrum (after) so the harmonics/intermod peaks that only
+        the readout creates are visible."""
+        d = self._load("harmonics.npz")
+        if d is None:
+            ax.text(0.5, 0.5, "no harmonics.npz\n(run n4 data gen)", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=9, color="gray")
+            ax.set_xticks([]); ax.set_yticks([]); return
+        Y = np.asarray(d["outputs"]); N_t = Y.shape[0]
+        Yf = Y.reshape(N_t, -1)
+        tones = np.asarray(d.get("tones", []))
+        freqs = np.fft.fftfreq(N_t, d=1.0 / N_t).round().astype(int)
+        pos = freqs >= 0
+
+        def _spec(sig):
+            F = np.fft.fft(sig, axis=0) / N_t
+            P = (np.abs(F) ** 2).sum(1)                    # power per bin (summed over sensor)
+            return P / (P.max() + 1e-30)
+
+        P_field = _spec(Yf) if np.iscomplexobj(Yf) else None
+        P_int = _spec(np.abs(Yf) ** 2)
+
+        f = freqs[pos]
+        if P_field is not None:
+            ax.stem(f - 0.15, P_field[pos], linefmt="C0-", markerfmt="C0o", basefmt=" ",
+                    label="field (before |E|²)")
+        ax.stem(f + 0.15, P_int[pos], linefmt="C3-", markerfmt="C3s", basefmt=" ",
+                label="|E|² (after)")
+        for tw in tones:                                  # mark input tones
+            ax.axvline(int(tw), ls=":", lw=0.8, color="gray", alpha=0.6)
+        ax.set_yscale("log"); ax.set_ylim(1e-6, 2)
+        ax.set_xlabel("frequency bin (harmonic order)"); ax.set_ylabel("normalized power")
+        ax.set_title(f"D. spectrum before/after |E|²  (tones {list(map(int, tones))})", fontsize=10)
+        ax.legend(fontsize=8, loc="upper right")
+        ax.set_xlim(-0.5, max(2 * int(tones.max()) + 1, 8) if tones.size else 12)
