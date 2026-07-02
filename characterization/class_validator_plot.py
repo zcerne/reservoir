@@ -91,6 +91,8 @@ class PlotValidator(cv.Validator):
             self.linear_residual()
         if "n3_field" not in self.results:
             self.amplitude()
+        if "n4_field" not in self.results:
+            self.harmonics()
         if not any(k.startswith("n5") for k in self.results):
             self.volterra()
         if "n6" not in self.results:
@@ -104,6 +106,7 @@ class PlotValidator(cv.Validator):
         n2f = R.get("n2_field"); n2i = R.get("n2_intensity") or R.get("n2")
         n1f = R.get("n1_field"); n1i = R.get("n1_intensity")
         n3f = R.get("n3_field"); n3i = R.get("n3_intensity")
+        n4f = R.get("n4_field"); n4i = R.get("n4_intensity")
         n5f = R.get("n5_field"); n5i = R.get("n5_intensity") or R.get("n5")
         n6 = R.get("n6")
 
@@ -120,6 +123,11 @@ class PlotValidator(cv.Validator):
             ("C. amplitude-BLA  max drift",
              _cell(n3f.get("max_drift") if n3f else None, "{:.2e}"),
              _cell(n3i.get("max_drift") if n3i else None, "{:.3g}")),
+            ("D. harmonics  THD / distortion frac",
+             _cell(n4f.get("thd") if n4f else None, "{:.3f}") + " / " +
+             _cell(n4f.get("distortion_frac") if n4f else None, "{:.3f}"),
+             _cell(n4i.get("thd") if n4i else None, "{:.3f}") + " / " +
+             _cell(n4i.get("distortion_frac") if n4i else None, "{:.3f}")),
             ("E. Volterra  nonlinear frac (order≥2)",
              _cell(n5f.get("nonlinear_fraction") if n5f else None, "{:.3f}"),
              _cell(n5i.get("nonlinear_fraction") if n5i else None, "{:.3f}")),
@@ -163,41 +171,32 @@ class PlotValidator(cv.Validator):
         return fig
 
     def _plot_harmonic_spectrum(self, ax):
-        """D. Harmonic/intermod spectrum (n4 data): overlay the field spectrum (before
-        |E|²) and the |E|² spectrum (after) so the harmonics/intermod peaks that only
-        the readout creates are visible."""
-        d = self._load("harmonics.npz")
-        if d is None:
+        """D. Harmonic spectrum: power-by-order bars from n4.harmonic_specter() —
+        field (only order 1) vs |E|² (DC + harmonics + intermod at higher orders)."""
+        n4f = self.results.get("n4_field"); n4i = self.results.get("n4_intensity")
+        if n4f is None and n4i is None:
             ax.text(0.5, 0.5, "no harmonics.npz\n(run n4 data gen)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=9, color="gray")
             ax.set_xticks([]); ax.set_yticks([]); return
-        Y = np.asarray(d["outputs"]); N_t = Y.shape[0]
-        Yf = Y.reshape(N_t, -1)
-        tones = np.asarray(d.get("tones", []))
-        freqs = np.fft.fftfreq(N_t, d=1.0 / N_t).round().astype(int)
-        pos = freqs >= 0
-
-        def _spec(sig):
-            F = np.fft.fft(sig, axis=0) / N_t
-            P = (np.abs(F) ** 2).sum(1)                    # power per bin (summed over sensor)
-            return P / (P.max() + 1e-30)
-
-        P_field = _spec(Yf) if np.iscomplexobj(Yf) else None
-        P_int = _spec(np.abs(Yf) ** 2)
-
-        f = freqs[pos]
-        if P_field is not None:
-            ax.stem(f - 0.15, P_field[pos], linefmt="C0-", markerfmt="C0o", basefmt=" ",
-                    label="field (before |E|²)")
-        ax.stem(f + 0.15, P_int[pos], linefmt="C3-", markerfmt="C3s", basefmt=" ",
-                label="|E|² (after)")
-        for tw in tones:                                  # mark input tones
-            ax.axvline(int(tw), ls=":", lw=0.8, color="gray", alpha=0.6)
-        ax.set_yscale("log"); ax.set_ylim(1e-6, 2)
-        ax.set_xlabel("frequency bin (harmonic order)"); ax.set_ylabel("normalized power")
-        ax.set_title(f"D. spectrum before/after |E|²  (tones {list(map(int, tones))})", fontsize=10)
-        ax.legend(fontsize=8, loc="upper right")
-        ax.set_xlim(-0.5, max(2 * int(tones.max()) + 1, 8) if tones.size else 12)
+        orders = sorted(set(list((n4f or {}).get("power_by_order", {}).keys()) +
+                            list((n4i or {}).get("power_by_order", {}).keys())))
+        orders = [o for o in orders if o >= 0] or list(range(6))
+        x = np.arange(len(orders)); w = 0.35
+        def _norm(d, key):
+            po = d.get(key, {}) if d else {}
+            tot = sum(po.values()) or 1.0
+            return [po.get(o, 0.0) / tot for o in orders]
+        if n4f:
+            ax.bar(x - w/2, _norm(n4f, "power_by_order"), w, color="C0", label="field (E)")
+        if n4i:
+            ax.bar(x + w/2, _norm(n4i, "power_by_order"), w, color="C3", label="|E|²")
+        ax.set_xticks(x); ax.set_xticklabels([str(o) for o in orders])
+        ax.set_xlabel("harmonic order"); ax.set_ylabel("fraction of total power")
+        tones = list(map(int, (n4i or n4f).get("tones", [])))
+        thd_i = (n4i or {}).get("thd", 0); df_i = (n4i or {}).get("distortion_frac", 0)
+        ax.set_title(f"D. harmonic_specter — tones {tones}  |E|² THD={thd_i:.3f} distort={df_i:.3f}",
+                     fontsize=10)
+        ax.legend(fontsize=8); ax.set_ylim(0, 1.05)
 
     def _plot_order_spectrum(self, ax, n5, n6):
         """E. Volterra variance-explained by polynomial order + F. Dambre IPC capacity
