@@ -160,7 +160,7 @@ class PlotValidator(cv.Validator):
         # the input tones (linear); |E|² grows DC + harmonics (2ω) + intermod (ω₁±ω₂).
         self._plot_harmonic_spectrum(ax_sp)
         # E+F. polynomial-order spectrum: Volterra variance-by-order + IPC capacity-by-degree
-        self._plot_order_spectrum(ax_ord, n5i, n6)
+        self._plot_order_spectrum(ax_ord)
 
         fig.tight_layout()
         if save:
@@ -198,10 +198,14 @@ class PlotValidator(cv.Validator):
                      fontsize=10)
         ax.legend(fontsize=8); ax.set_ylim(0, 1.05)
 
-    def _plot_order_spectrum(self, ax, n5, n6):
+    def _plot_order_spectrum(self, ax):
         """E. Volterra variance-explained by polynomial order + F. Dambre IPC capacity
-        by degree — grouped bars vs order/degree. A pure |E|² system puts all the
-        nonlinear weight at order/degree 2."""
+        by degree — grouped bars vs order/degree. Reads from self.results (output of
+        n5.volterra_series + n6.dambre_ipc). A pure |E|² system puts all the nonlinear
+        weight at order/degree 2."""
+        R = self.results
+        n5 = R.get("n5_intensity") or R.get("n5")
+        n6 = R.get("n6")
         if n5 is None and n6 is None:
             ax.text(0.5, 0.5, "no ipc.npz\n(run n5/n6 data gen)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=9, color="gray")
