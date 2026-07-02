@@ -33,7 +33,7 @@
             30,
             20
         ],
-        "resolution": 5,
+        "resolution": 10,
         "boundary_conditions": [
             "free",
             "free",
