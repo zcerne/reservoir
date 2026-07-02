@@ -1,5 +1,7 @@
 import os
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")                     # headless (smaug/Orion/lips have no $DISPLAY)
 import matplotlib.pyplot as plt
 
 import class_reservoir_validator as cv
