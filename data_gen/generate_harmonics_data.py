@@ -36,7 +36,7 @@ def main():
     amps = ([float(a) for a in args.amps.split(",")] if args.amps else [1.0] * len(tones))
     if len(amps) != len(tones):
         raise SystemExit("--amps must have one value per tone")
-    out_path = args.out or os.path.join(args.path, "harmonics.npz")
+    out_path = args.out or os.path.join(args.path, "datasets", "harmonics.npz")
     t_grid = 2.0 * np.pi * np.arange(args.n_t) / args.n_t
     n_items = args.n_t
 

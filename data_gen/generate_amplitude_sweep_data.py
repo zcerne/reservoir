@@ -29,7 +29,7 @@ def main():
 
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
     levels = np.array([float(x) for x in args.levels.split(",")], dtype=float)
-    out_path = args.out or os.path.join(args.path, "amp_sweep.npz")
+    out_path = args.out or os.path.join(args.path, "datasets", "amp_sweep.npz")
     M = args.n_probes
     n_items = len(levels) * M
 

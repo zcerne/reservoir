@@ -30,7 +30,7 @@ def main():
     args = ap.parse_args()
 
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
-    out_path = args.out or os.path.join(args.path, "ipc.npz")
+    out_path = args.out or os.path.join(args.path, "datasets", "ipc.npz")
     n_items = args.n
 
     forward = n_strips = is_master = U = None

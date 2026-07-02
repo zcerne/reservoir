@@ -45,7 +45,7 @@ def main():
     args = ap.parse_args()
 
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
-    out_path = args.out or os.path.join(args.path, "superposition.npz")
+    out_path = args.out or os.path.join(args.path, "datasets", "superposition.npz")
     n_items = args.n_base + args.n_trials
 
     forward = n_strips = is_master = None
