@@ -85,6 +85,15 @@ def run_mode(args, n_items, run_one, assemble, is_master):
             raise SystemExit(f"--index {k} out of range [0,{n_items})")
         run_one(k)
         return 0
+    if getattr(args, "batch", None) is not None:
+        S = int(args.batch_size); lo = int(args.batch) * S; hi = min(lo + S, n_items)
+        if lo >= n_items:
+            raise SystemExit(f"--batch {args.batch} (size {S}) starts at {lo} ≥ n_items {n_items}")
+        for k in range(lo, hi):
+            run_one(k)
+            if is_master:
+                print(f"[gen] batch {args.batch}: {k-lo+1}/{hi-lo} (idx {k}/{n_items})", flush=True)
+        return 0
     if getattr(args, "assemble", False):
         if is_master:
             assemble()
@@ -101,6 +110,8 @@ def run_mode(args, n_items, run_one, assemble, is_master):
 
 def add_common_args(ap):
     ap.add_argument("--index", type=int, default=None, help="run one work item K → part file")
+    ap.add_argument("--batch", type=int, default=None, help="run item batch B: indices [B*batch_size, +batch_size)")
+    ap.add_argument("--batch_size", type=int, default=50, help="items per batch (with --batch)")
     ap.add_argument("--assemble", action="store_true", help="combine parts → final npz")
     ap.add_argument("--count", action="store_true", help="print #work items (for sbatch --array)")
     ap.add_argument("--components", default="Ey", help="sensor components to save (Ey[,Ex,Ez])")
