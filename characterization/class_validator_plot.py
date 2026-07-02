@@ -97,6 +97,8 @@ class PlotValidator(cv.Validator):
             self.volterra()
         if "n6" not in self.results:
             self.dambre()
+        if "n7_field" not in self.results:
+            self.dimension_expansion()
         R = self.results
 
         def _cell(x, fmt="{:.3g}"):
@@ -109,6 +111,7 @@ class PlotValidator(cv.Validator):
         n4f = R.get("n4_field"); n4i = R.get("n4_intensity")
         n5f = R.get("n5_field"); n5i = R.get("n5_intensity") or R.get("n5")
         n6 = R.get("n6")
+        n7f = R.get("n7_field"); n7i = R.get("n7_intensity")
 
         rows = [
             ("A. superposition  R²",
@@ -138,29 +141,37 @@ class PlotValidator(cv.Validator):
             ("F. IPC  nonlinear frac (deg≥2)",
              "n/a",
              _cell(n6.get("nonlinear_fraction") if n6 else None, "{:.3f}")),
+            ("G. dim-expansion  PR / d99",
+             _cell(n7f.get("pr") if n7f else None, "{:.1f}") + " / " +
+             _cell(n7f.get("d99") if n7f else None, "{:.0f}"),
+             _cell(n7i.get("pr") if n7i else None, "{:.1f}") + " / " +
+             _cell(n7i.get("d99") if n7i else None, "{:.0f}")),
+            ("G. dim-expansion  plateau R²",
+             _cell(n7f.get("plateau_r2") if n7f else None, "{:.4f}"),
+             _cell(n7i.get("plateau_r2") if n7i else None, "{:.4f}")),
             ("verdict",
              "LINEAR" if (n1f and n1f.get("linear")) else "—",
              "NONLINEAR" if (n1i and not n1i.get("linear")) else "—"),
         ]
 
-        # 3 panels: stats table | D. harmonic spectrum | E/F order-&-degree spectrum
-        fig, (ax_tbl, ax_sp, ax_ord) = plt.subplots(1, 3, figsize=(18, 3.8),
-                                                    gridspec_kw={"width_ratios": [1.15, 1, 1]})
+        # 2×2 grid: stats table | D spectrum | E/F order bars | G expansion R²(k)
+        fig, ((ax_tbl, ax_sp), (ax_ord, ax_exp)) = plt.subplots(2, 2, figsize=(16, 7),
+                                                gridspec_kw={"width_ratios": [1.2, 1],
+                                                             "height_ratios": [1, 1]})
         ax_tbl.axis("off")
         tbl = ax_tbl.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
-                           colWidths=[0.52, 0.24, 0.24], loc="center", cellLoc="center")
-        tbl.auto_set_font_size(False); tbl.set_fontsize(8); tbl.scale(1, 1.5)
+                           colWidths=[0.55, 0.225, 0.225], loc="center", cellLoc="center")
+        tbl.auto_set_font_size(False); tbl.set_fontsize(7.5); tbl.scale(1, 1.35)
         for c in (1, 2):                                   # colour the verdict row
             cell = tbl[len(rows), c]
             txt = cell.get_text().get_text()
             cell.set_facecolor("#d6f5d6" if txt == "LINEAR" else "#f8d6d6" if txt == "NONLINEAR" else "white")
-        ax_tbl.set_title(f"Nonlinearity — {os.path.basename(self.path)}", fontsize=10)
+        ax_tbl.set_title(f"Nonlinearity — {os.path.basename(self.path)}", fontsize=10,
+                         fontweight="bold")
 
-        # D. harmonic spectrum — DFT the output over the tone-sweep t. Field shows ONLY
-        # the input tones (linear); |E|² grows DC + harmonics (2ω) + intermod (ω₁±ω₂).
-        self._plot_harmonic_spectrum(ax_sp)
-        # E+F. polynomial-order spectrum: Volterra variance-by-order + IPC capacity-by-degree
-        self._plot_order_spectrum(ax_ord)
+        self._plot_harmonic_spectrum(ax_sp)                 # D
+        self._plot_order_spectrum(ax_ord)                   # E + F
+        self._plot_expansion(ax_exp)                         # G
 
         fig.tight_layout()
         if save:
@@ -227,3 +238,33 @@ class PlotValidator(cv.Validator):
         ax.set_xlabel("polynomial order / degree"); ax.set_ylabel("fraction")
         ax.set_title("E. Volterra order + F. IPC degree", fontsize=10)
         ax.legend(fontsize=8); ax.set_ylim(0, 1.05)
+
+    def _plot_expansion(self, ax):
+        """G. Dimension expansion: R²(k) — linear-fit held-out R² vs input dimension k
+        (from n7.dimension_expansion). Field: R²→1 at k=K. |E|²: plateaus ≪1 + higher
+        PCA effective rank."""
+        R = self.results
+        n7f = R.get("n7_field"); n7i = R.get("n7_intensity")
+        if n7f is None and n7i is None:
+            ax.text(0.5, 0.5, "no ipc.npz\n(run n7 data gen)", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=9, color="gray")
+            ax.set_xticks([]); ax.set_yticks([]); return
+        ks = sorted((n7f or n7i)["r2_vs_k"].keys())
+        if n7f:
+            r2f = [n7f["r2_vs_k"][k] for k in ks]
+            ax.plot(ks, r2f, "C0o-", lw=2, ms=6, label="field R²(k)")
+            ax.axhline(1.0, color="C0", ls=":", lw=0.8)
+        if n7i:
+            r2i = [n7i["r2_vs_k"][k] for k in ks]
+            ax.plot(ks, r2i, "C3s--", lw=2, ms=6, label="|E|² R²(k)")
+        ax.set_xticks(ks); ax.set_xlabel("input dimension k"); ax.set_ylabel("R² (linear fit)")
+        txt = ""
+        if n7f: txt += f"field PR={n7f['pr']:.1f} d99={n7f['d99']}"
+        if n7i: txt += f"\n|E|² PR={n7i['pr']:.1f} d99={n7i['d99']}"
+        ax.text(0.95, 0.05, txt, transform=ax.transAxes, fontsize=7.5, va="bottom",
+                ha="right", bbox=dict(boxstyle="round,pad=0.3", fc="wheat", alpha=0.5))
+        ax.set_title(f"G. dimension expansion  "
+                     f"{'LINEAR' if (n7f or {}).get('linear') else ''}"
+                     f"{' | NONLINEAR' if n7i and not n7i.get('linear') else ''}",
+                     fontsize=10)
+        ax.legend(fontsize=8); ax.set_ylim(-0.05, 1.15)

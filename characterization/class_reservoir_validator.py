@@ -30,6 +30,7 @@ import n3_amplitude_dependant as n3
 import n4_harmonics_distortion as n4
 import n5_voltera_series as n5
 import n6_dambre as n6
+import n7_dimention_expansion as n7
 
 
 class Validator:
@@ -132,6 +133,18 @@ class Validator:
         di = self._to_intensity(d, ("outputs",)) if np.iscomplexobj(d["outputs"]) else d
         self.results["n6"] = n6.dambre_ipc(di, max_degree=3)
         return self.results["n6"]
+
+    def dimension_expansion(self):
+        d = self._load("ipc.npz")
+        if d is None:
+            return None
+        if np.iscomplexobj(d["outputs"]):                     # field → field + |E|² views
+            self.results["n7_field"] = n7.dimension_expansion(d)
+            self.results["n7_intensity"] = n7.dimension_expansion(
+                self._to_intensity(d, ("outputs",)))
+            return self.results["n7_intensity"]
+        self.results["n7"] = n7.dimension_expansion(d)
+        return self.results["n7"]
 
     # ------------------------------------------------------------- orchestrate
     def run_all(self):
