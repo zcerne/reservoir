@@ -12,9 +12,9 @@
 #
 #   method = superposition | harmonics | ampsweep | ipc
 # Example:
-#   N=$(.../python data_gen/generate_ipc_data.py --path data/test2D --n 400 --count)   # -> 400
-#   sbatch --array=0-399%40 slurm_char_array.sh ipc data/test2D --n 400 --readout intensity
-#   .../python data_gen/generate_ipc_data.py --path data/test2D --n 400 --readout intensity --assemble
+#   N=$(.../python data_gen/generate_ipc_data.py --path data/reservoir_clasifications/01_2D_director --n 400 --count)   # -> 400
+#   sbatch --array=0-399%40 slurm_char_array.sh ipc data/reservoir_clasifications/01_2D_director --n 400 --readout intensity
+#   .../python data_gen/generate_ipc_data.py --path data/reservoir_clasifications/01_2D_director --n 400 --readout intensity --assemble
 #
 # Prereq: relaxed LC at the design dir (python class_reservoir.py --path <design>).
 

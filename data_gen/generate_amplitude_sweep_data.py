@@ -6,9 +6,9 @@ final <out>.npz {inputs, outputs, level_id, levels} for n3_amplitude_dependant.
 
 REAL amplitudes (source casts to float). Deterministic from --seed.
 
-  N=$(python data_gen/generate_amplitude_sweep_data.py --path data/test2D --levels 0.1,0.3,1,3,10 --n_probes 12 --count)
-  sbatch --array=0-$((N-1)) slurm_char_array.sh ampsweep data/test2D --levels 0.1,0.3,1,3,10 --n_probes 12
-  python data_gen/generate_amplitude_sweep_data.py --path data/test2D --levels 0.1,0.3,1,3,10 --n_probes 12 --assemble
+  N=$(python data_gen/generate_amplitude_sweep_data.py --path data/reservoir_clasifications/01_2D_director --levels 0.1,0.3,1,3,10 --n_probes 12 --count)
+  sbatch --array=0-$((N-1)) slurm_char_array.sh ampsweep data/reservoir_clasifications/01_2D_director --levels 0.1,0.3,1,3,10 --n_probes 12
+  python data_gen/generate_amplitude_sweep_data.py --path data/reservoir_clasifications/01_2D_director --levels 0.1,0.3,1,3,10 --n_probes 12 --assemble
 """
 from __future__ import annotations
 import os, sys

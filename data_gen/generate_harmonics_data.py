@@ -8,9 +8,9 @@ REAL cosine `cos(ωt)` — i.e. real-cosine multi-tone drive (gives 2ω + sum + 
 
 Use well-separated integer tones (default 3,5) on distinct channels; N_t > 2·max_order·max_tone.
 
-  N=$(python data_gen/generate_harmonics_data.py --path data/test2D --tones 3,5 --channels 0,1 --n_t 64 --count)
-  sbatch --array=0-$((N-1)) slurm_char_array.sh harmonics data/test2D --tones 3,5 --channels 0,1 --n_t 64
-  python data_gen/generate_harmonics_data.py --path data/test2D --tones 3,5 --channels 0,1 --n_t 64 --assemble
+  N=$(python data_gen/generate_harmonics_data.py --path data/reservoir_clasifications/01_2D_director --tones 3,5 --channels 0,1 --n_t 64 --count)
+  sbatch --array=0-$((N-1)) slurm_char_array.sh harmonics data/reservoir_clasifications/01_2D_director --tones 3,5 --channels 0,1 --n_t 64
+  python data_gen/generate_harmonics_data.py --path data/reservoir_clasifications/01_2D_director --tones 3,5 --channels 0,1 --n_t 64 --assemble
 """
 from __future__ import annotations
 import os, sys

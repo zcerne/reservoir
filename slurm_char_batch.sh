@@ -8,7 +8,7 @@
 #
 # Preferred — ONE array submission covers all batches (batch id = array task id):
 #   sbatch --array=0-9 slurm_char_batch.sh <method> <design> [--batch_size N] [gen args]
-#   e.g. sbatch --array=0-9 slurm_char_batch.sh superposition data/test2D --batch_size 5 --n_base 10 --n_trials 40
+#   e.g. sbatch --array=0-9 slurm_char_batch.sh superposition data/reservoir_clasifications/01_2D_director --batch_size 5 --n_base 10 --n_trials 40
 #   (nbatch = ceil(N_items / batch_size);  N_items = $(PY <gen>.py --path <design> [args] --count))
 #
 # Or individual jobs — batch id as positional $3:

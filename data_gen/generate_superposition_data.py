@@ -11,9 +11,9 @@ out1/out2 from the base parts → final <out>.npz with the keys n1 expects.
 REAL amplitudes (the reservoir source casts amplitude to float; complex phase is lost —
 real inputs fully test linearity). Consumed by n1_superposition.super_position_test.
 
-  N=$(python data_gen/generate_superposition_data.py --path data/test2D --n_base 8 --n_trials 40 --count)
-  sbatch --array=0-$((N-1)) slurm_char_array.sh superposition data/test2D --n_base 8 --n_trials 40
-  python data_gen/generate_superposition_data.py --path data/test2D --n_base 8 --n_trials 40 --assemble
+  N=$(python data_gen/generate_superposition_data.py --path data/reservoir_clasifications/01_2D_director --n_base 8 --n_trials 40 --count)
+  sbatch --array=0-$((N-1)) slurm_char_array.sh superposition data/reservoir_clasifications/01_2D_director --n_base 8 --n_trials 40
+  python data_gen/generate_superposition_data.py --path data/reservoir_clasifications/01_2D_director --n_base 8 --n_trials 40 --assemble
 """
 from __future__ import annotations
 import os, sys

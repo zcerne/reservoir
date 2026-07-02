@@ -8,9 +8,9 @@ Also serves n2 (residual) and n5 (Volterra). Need M ≫ #output features.
 `--readout intensity` (default) saves |E|² (IPC uses the nonlinear readout state);
 `--readout field` saves the complex field.
 
-  N=$(python data_gen/generate_ipc_data.py --path data/test2D --n 400 --count)
-  sbatch --array=0-$((N-1)) slurm_char_array.sh ipc data/test2D --n 400 --readout intensity
-  python data_gen/generate_ipc_data.py --path data/test2D --n 400 --readout intensity --assemble
+  N=$(python data_gen/generate_ipc_data.py --path data/reservoir_clasifications/01_2D_director --n 400 --count)
+  sbatch --array=0-$((N-1)) slurm_char_array.sh ipc data/reservoir_clasifications/01_2D_director --n 400 --readout intensity
+  python data_gen/generate_ipc_data.py --path data/reservoir_clasifications/01_2D_director --n 400 --readout intensity --assemble
 """
 from __future__ import annotations
 import os, sys
