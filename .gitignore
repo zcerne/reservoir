@@ -1,4 +1,8 @@
-data/
+# ignore everything under data/ ...
+data/**
+# ... but keep the directory tree + the per-reservoir descriptor JSONs versioned
+!data/**/
+!data/**/simulation_data.json
 __pycache__/
 *.pyc
 *.out

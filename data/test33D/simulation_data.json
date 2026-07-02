@@ -1,0 +1,115 @@
+{
+    "resolution": 20,
+    "run_until": 200,
+    "snapshot_t1": 170,
+    "snapshot_t2": 178,
+    "snapshot_dt": 2,
+    "dimention": 3,
+    "cell_size_y": 14.0,
+    "cell_size_z": 14.0,
+    "periodic": false,
+    "pml_size": 2.0,
+    "background_index": 1.0,
+
+    "object_order": [
+        "guide_1",
+        "reservoir",
+        "guide_2",
+        "source_1",
+        "flux_1",
+        "flux_2",
+        "monitor_1",
+        "monitor_2"
+    ],
+
+    "guide_1": {
+        "class": "guide",
+        "index": 1.0,
+        "sizes": [2.0, 10.0]
+    },
+
+    "reservoir": {
+        "class": "reservoir",
+        "sizes": [50, 10, 10],
+        "resolution": 5,
+        "boundary_conditions": ["free", "free", "free"],
+        "face_phi":   [null, null, null, null, null, null],
+        "face_theta": [null, null, null, null, null, null],
+        "ignore_faces": [false, false, false, false, false, false],
+        "elastic_constants": {
+            "K1": 11.1,
+            "K2": 2.0,
+            "K3": 17.1,
+            "q0": 1.257
+        },
+        "n_o": 1.52,
+        "n_e": 1.71,
+        "S": 1.0,
+        "maxeval": 10000,
+        "f_tolerance": 1e-6,
+        "optimize_phi_theta": [true, true],
+        "boundary_function": "competing_3d",
+        "boundary_scale": 1.0,
+        "boundary_seed": 7
+    },
+
+    "guide_2": {
+        "class": "guide",
+        "index": 1.0,
+        "sizes": [2.0, 10.0]
+    },
+
+    "source_1": {
+        "class": "source",
+        "position": {
+            "on_object": "guide_1",
+            "position": "center",
+            "size": [10.0, 10.0]
+        },
+        "amplitude": 1.0,
+        "component": "Ey",
+        "source_type": "continuous",
+        "lam": 0.532,
+        "dlam": 0.0
+    },
+
+    "flux_1": {
+        "class": "monitor",
+        "type": "flux",
+        "on_object": "guide_1",
+        "position": {"position": "right", "size": 10.0},
+        "lam_range": [0.532, 0.532],
+        "n_lam": 1
+    },
+
+    "flux_2": {
+        "class": "monitor",
+        "type": "flux",
+        "on_object": "guide_2",
+        "position": {"position": "left", "size": 10.0},
+        "lam_range": [0.532, 0.532],
+        "n_lam": 1
+    },
+
+    "monitor_1": {
+        "class": "monitor",
+        "type": "2Ddft",
+        "on_object": "guide_1",
+        "position": {"position": "right", "size": 10.0},
+        "lam_range": [0.532, 0.532],
+        "n_lam": 1
+    },
+
+    "monitor_2": {
+        "class": "monitor",
+        "type": "2Ddft",
+        "on_object": "guide_2",
+        "position": {"position": "left", "size": 10.0},
+        "lam_range": [0.532, 0.532],
+        "n_lam": 1
+    },
+
+    "_options": {
+        "note": "competing_3d BCs: y_min homeotropic-biased, y_max planar-biased, z_min planar-biased, z_max homeotropic-biased — orthogonal theta gradients in y+z; q0=1.257 (pitch=5µm, 10 periods), K2=2.0, scale=1.0µm, seed=7"
+    }
+}
