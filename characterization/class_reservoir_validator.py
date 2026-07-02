@@ -46,11 +46,18 @@ class Validator:
         return dict(np.load(p, allow_pickle=True)) if os.path.exists(p) else None
 
     def _load_stats(self, name):
-        """Load cached analysis results from stats_data/<name>.npz."""
+        """Load cached analysis results from stats_data/<name>.npz. Each stored value
+        is an analysis-result dict; np.savez wraps it as a 0-d object array, so unwrap
+        with .item() to recover the nested dict (power_by_order, gain_by_order, …)."""
         p = os.path.join(self.stats_dir, f"{name}.npz")
         if not os.path.exists(p):
             return None
-        return dict(np.load(p, allow_pickle=True))
+        raw = np.load(p, allow_pickle=True)
+        out = {}
+        for k in raw.files:
+            v = raw[k]
+            out[k] = v.item() if getattr(v, "ndim", None) == 0 and v.dtype == object else v
+        return out
 
     def _save_stats(self, name, **kwargs):
         """Save analysis results to stats_data/<name>.npz (skips None values)."""
