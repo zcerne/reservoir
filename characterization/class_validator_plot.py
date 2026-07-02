@@ -89,6 +89,8 @@ class PlotValidator(cv.Validator):
             self.superposition()
         if not any(k.startswith("n2") for k in self.results):
             self.linear_residual()
+        if "n3_field" not in self.results:
+            self.amplitude()
         R = self.results
 
         def _cell(x, fmt="{:.3g}"):
@@ -97,6 +99,7 @@ class PlotValidator(cv.Validator):
         # n2 may be split (complex ipc → n2_field/n2_intensity) or single (intensity ipc → n2)
         n2f = R.get("n2_field"); n2i = R.get("n2_intensity") or R.get("n2")
         n1f = R.get("n1_field"); n1i = R.get("n1_intensity")
+        n3f = R.get("n3_field"); n3i = R.get("n3_intensity")
 
         rows = [
             ("A. superposition  R²",
@@ -108,12 +111,15 @@ class PlotValidator(cv.Validator):
             ("B. linear residual  1−R²",
              _cell(n2f.get("residual_fraction") if n2f else None, "{:.2e}"),
              _cell(n2i.get("residual_fraction") if n2i else None, "{:.3g}")),
+            ("C. amplitude-BLA  max drift",
+             _cell(n3f.get("max_drift") if n3f else None, "{:.2e}"),
+             _cell(n3i.get("max_drift") if n3i else None, "{:.3g}")),
             ("verdict",
              "LINEAR" if (n1f and n1f.get("linear")) else "—",
              "NONLINEAR" if (n1i and not n1i.get("linear")) else "—"),
         ]
 
-        fig, ax = plt.subplots(figsize=(7.5, 2.8))
+        fig, ax = plt.subplots(figsize=(7.5, 3.2))
         ax.axis("off")
         tbl = ax.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
                        colWidths=[0.5, 0.25, 0.25], loc="center", cellLoc="center")
@@ -123,8 +129,8 @@ class PlotValidator(cv.Validator):
             cell = tbl[len(rows), c]
             txt = cell.get_text().get_text()
             cell.set_facecolor("#d6f5d6" if txt == "LINEAR" else "#f8d6d6" if txt == "NONLINEAR" else "white")
-        ax.set_title(f"Nonlinearity (A superposition + B residual) — {os.path.basename(self.path)}",
-                     fontsize=10)
+        ax.set_title(f"Nonlinearity (A superposition + B residual + C amplitude-BLA) — "
+                     f"{os.path.basename(self.path)}", fontsize=10)
         fig.tight_layout()
         if save:
             os.makedirs(self.figdir, exist_ok=True)
