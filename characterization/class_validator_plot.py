@@ -91,6 +91,10 @@ class PlotValidator(cv.Validator):
             self.linear_residual()
         if "n3_field" not in self.results:
             self.amplitude()
+        if not any(k.startswith("n5") for k in self.results):
+            self.volterra()
+        if "n6" not in self.results:
+            self.dambre()
         R = self.results
 
         def _cell(x, fmt="{:.3g}"):
@@ -100,6 +104,8 @@ class PlotValidator(cv.Validator):
         n2f = R.get("n2_field"); n2i = R.get("n2_intensity") or R.get("n2")
         n1f = R.get("n1_field"); n1i = R.get("n1_intensity")
         n3f = R.get("n3_field"); n3i = R.get("n3_intensity")
+        n5f = R.get("n5_field"); n5i = R.get("n5_intensity") or R.get("n5")
+        n6 = R.get("n6")
 
         rows = [
             ("A. superposition  R²",
@@ -114,18 +120,28 @@ class PlotValidator(cv.Validator):
             ("C. amplitude-BLA  max drift",
              _cell(n3f.get("max_drift") if n3f else None, "{:.2e}"),
              _cell(n3i.get("max_drift") if n3i else None, "{:.3g}")),
+            ("E. Volterra  nonlinear frac (order≥2)",
+             _cell(n5f.get("nonlinear_fraction") if n5f else None, "{:.3f}"),
+             _cell(n5i.get("nonlinear_fraction") if n5i else None, "{:.3f}")),
+            ("F. Dambre IPC  total / ceiling",
+             "n/a",
+             _cell(n6.get("ipc_total") if n6 else None, "{:.1f}") + " / " +
+             _cell(n6.get("bound") if n6 else None, "{:.0f}")),
+            ("F. IPC  nonlinear frac (deg≥2)",
+             "n/a",
+             _cell(n6.get("nonlinear_fraction") if n6 else None, "{:.3f}")),
             ("verdict",
              "LINEAR" if (n1f and n1f.get("linear")) else "—",
              "NONLINEAR" if (n1i and not n1i.get("linear")) else "—"),
         ]
 
-        # two panels: stats table (left) + D. harmonic spectrum before/after |E|² (right)
-        fig, (ax_tbl, ax_sp) = plt.subplots(1, 2, figsize=(13, 3.6),
-                                            gridspec_kw={"width_ratios": [1.05, 1]})
+        # 3 panels: stats table | D. harmonic spectrum | E/F order-&-degree spectrum
+        fig, (ax_tbl, ax_sp, ax_ord) = plt.subplots(1, 3, figsize=(18, 3.8),
+                                                    gridspec_kw={"width_ratios": [1.15, 1, 1]})
         ax_tbl.axis("off")
         tbl = ax_tbl.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
-                           colWidths=[0.5, 0.25, 0.25], loc="center", cellLoc="center")
-        tbl.auto_set_font_size(False); tbl.set_fontsize(9); tbl.scale(1, 1.7)
+                           colWidths=[0.52, 0.24, 0.24], loc="center", cellLoc="center")
+        tbl.auto_set_font_size(False); tbl.set_fontsize(8); tbl.scale(1, 1.5)
         for c in (1, 2):                                   # colour the verdict row
             cell = tbl[len(rows), c]
             txt = cell.get_text().get_text()
@@ -135,6 +151,8 @@ class PlotValidator(cv.Validator):
         # D. harmonic spectrum — DFT the output over the tone-sweep t. Field shows ONLY
         # the input tones (linear); |E|² grows DC + harmonics (2ω) + intermod (ω₁±ω₂).
         self._plot_harmonic_spectrum(ax_sp)
+        # E+F. polynomial-order spectrum: Volterra variance-by-order + IPC capacity-by-degree
+        self._plot_order_spectrum(ax_ord, n5i, n6)
 
         fig.tight_layout()
         if save:
@@ -180,3 +198,29 @@ class PlotValidator(cv.Validator):
         ax.set_title(f"D. spectrum before/after |E|²  (tones {list(map(int, tones))})", fontsize=10)
         ax.legend(fontsize=8, loc="upper right")
         ax.set_xlim(-0.5, max(2 * int(tones.max()) + 1, 8) if tones.size else 12)
+
+    def _plot_order_spectrum(self, ax, n5, n6):
+        """E. Volterra variance-explained by polynomial order + F. Dambre IPC capacity
+        by degree — grouped bars vs order/degree. A pure |E|² system puts all the
+        nonlinear weight at order/degree 2."""
+        if n5 is None and n6 is None:
+            ax.text(0.5, 0.5, "no ipc.npz\n(run n5/n6 data gen)", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=9, color="gray")
+            ax.set_xticks([]); ax.set_yticks([]); return
+        degs = sorted(set(list((n5.get("gain_by_order", {}) if n5 else {}).keys()) +
+                          list((n6.get("ipc_by_degree", {}) if n6 else {}).keys())))
+        degs = [d for d in degs if d >= 1] or [1, 2]
+        x = np.arange(len(degs)); w = 0.4
+        if n5:
+            g = n5.get("gain_by_order", {})
+            v = [max(g.get(d, 0.0), 0.0) for d in degs]
+            ax.bar(x - w/2, v, w, color="C0", label="E. Volterra variance frac")
+        if n6:
+            ipc = n6.get("ipc_by_degree", {})
+            tot = n6.get("ipc_total", 1.0) or 1.0
+            v = [ipc.get(d, 0.0) / tot for d in degs]        # normalized IPC share
+            ax.bar(x + w/2, v, w, color="C3", label="F. IPC capacity frac")
+        ax.set_xticks(x); ax.set_xticklabels([str(d) for d in degs])
+        ax.set_xlabel("polynomial order / degree"); ax.set_ylabel("fraction")
+        ax.set_title("E. Volterra order + F. IPC degree", fontsize=10)
+        ax.legend(fontsize=8); ax.set_ylim(0, 1.05)
