@@ -62,15 +62,17 @@ def dimension_expansion(data, max_k=None, test_frac=0.3, n_repeats=5, seed=0):
         r2s = []
         for _ in range(n_repeats):
             ix = rng.permutation(N); n_te = int(N * test_frac)
-            X_tr, Y_tr = X[ix[n_te:], :k], Y[ix[n_te:]]
-            X_te, Y_te = X[ix[:n_te], :k], Y[ix[:n_te]]
-            # linear least squares: Y ≈ X @ beta  (real X → complex Y)
-            # beta = (X^T X)^-1 X^T Y, real-valued pseudoinverse
+            # AFFINE least squares: Y ≈ [X,1]·beta. The intercept column is essential —
+            # without it any biased/affine map (e.g. a NN with bias, or a reservoir with
+            # a DC operating point) reads as nonlinear. An affine map is degree-1 linear.
+            Xtr = np.concatenate([X[ix[n_te:], :k], np.ones((N - n_te, 1))], axis=1)
+            Xte = np.concatenate([X[ix[:n_te], :k], np.ones((n_te, 1))], axis=1)
+            Y_tr = Y[ix[n_te:]]; Y_te = Y[ix[:n_te]]
             try:
-                beta = np.linalg.lstsq(X_tr, Y_tr, rcond=None)[0]  # (k, M) complex
+                beta = np.linalg.lstsq(Xtr, Y_tr, rcond=None)[0]   # (k+1, M)
             except np.linalg.LinAlgError:
                 r2s.append(0.0); continue
-            Yp = X_te @ beta
+            Yp = Xte @ beta
             num = np.linalg.norm(Y_te - Yp)**2
             den = np.linalg.norm(Y_te - Y_tr.mean(0))**2 + 1e-30
             r2s.append(max(0.0, 1.0 - float(num / den)))
