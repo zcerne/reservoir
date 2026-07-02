@@ -99,7 +99,7 @@ class PlotValidator(cv.Validator):
             self.volterra()
         if "n6" not in self.results:
             self.dambre()
-        if "n7_field" not in self.results:
+        if not any(k.startswith("n7") for k in self.results):
             self.dimension_expansion()
         R = self.results
 
@@ -113,7 +113,7 @@ class PlotValidator(cv.Validator):
         n4f = R.get("n4_field"); n4i = R.get("n4_intensity")
         n5f = R.get("n5_field"); n5i = R.get("n5_intensity") or R.get("n5")
         n6 = R.get("n6")
-        n7f = R.get("n7_field"); n7i = R.get("n7_intensity")
+        n7f = R.get("n7_field"); n7i = R.get("n7_intensity") or R.get("n7")
 
         rows = [
             ("A. superposition  R²",
@@ -246,7 +246,7 @@ class PlotValidator(cv.Validator):
         (from n7.dimension_expansion). Field: R²→1 at k=K. |E|²: plateaus ≪1 + higher
         PCA effective rank."""
         R = self.results
-        n7f = R.get("n7_field"); n7i = R.get("n7_intensity")
+        n7f = R.get("n7_field"); n7i = R.get("n7_intensity") or R.get("n7")
         if n7f is None and n7i is None:
             ax.text(0.5, 0.5, "no ipc.npz\n(run n7 data gen)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=9, color="gray")
