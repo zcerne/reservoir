@@ -183,5 +183,8 @@
         "position": "'left' | 'center' | 'right'",
         "boundary_function": "null=use face_phi/theta scalars | 'random'=random_2d_boundaries per pixel",
         "boundary_seed": "integer seed for boundary_function (null=random each run)"
-    }
+    },
+    "snapshot_t1": 450,
+    "snapshot_t2": 480,
+    "snapshot_dt": 5
 }

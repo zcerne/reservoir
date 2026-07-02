@@ -30,7 +30,7 @@
     "reservoir": {
         "class": "reservoir",
         "sizes": [
-            150,
+            30,
             20
         ],
         "resolution": 5,
@@ -81,7 +81,7 @@
         "class": "guide",
         "index": 1.0,
         "sizes": [
-            2.0,
+            10.0,
             20.0
         ]
     },
@@ -125,7 +125,7 @@
         "type": "flux",
         "on_object": "guide_2",
         "position": {
-            "position": "left",
+            "position": "right",
             "size": 20.0
         },
         "lam_range": [
@@ -181,5 +181,8 @@
         "position": "'left' | 'center' | 'right'",
         "boundary_function": "null=use face_phi/theta scalars | 'random'=random_2d_boundaries per pixel",
         "boundary_seed": "integer seed for boundary_function (null=random each run)"
-    }
+    },
+    "snapshot_t1": 450,
+    "snapshot_t2": 480,
+    "snapshot_dt": 5
 }
