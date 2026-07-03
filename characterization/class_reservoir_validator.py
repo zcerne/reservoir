@@ -82,13 +82,16 @@ class Validator:
             for k, v in cached.items():
                 self.results[k] = v
             return cached.get("m1_bla")
+        # MODES = SVD of the input→state operator G. Prefer the ipc probe set (complex
+        # FIELD for LC reservoirs, or REAL state for NN references — both give a valid
+        # linear operator). Fall back to the superposition base pairs.
         Xin = Yout = None
         ipc = self._load("ipc.npz")
-        if ipc is not None and ipc.get("outputs") is not None and np.iscomplexobj(ipc["outputs"]):
-            Xin, Yout = ipc["inputs"], ipc["outputs"]
+        if ipc is not None and ipc.get("outputs") is not None:
+            Xin, Yout = ipc["inputs"], ipc["outputs"]          # complex OR real state
         else:
             d = self._load("superposition.npz")
-            if d is not None and d.get("out1") is not None and np.iscomplexobj(d["out1"]):
+            if d is not None and d.get("out1") is not None:
                 Xin = np.concatenate([d["E1"], d["E2"]], axis=0)
                 Yout = np.concatenate([d["out1"], d["out2"]], axis=0)
         if Xin is None:
