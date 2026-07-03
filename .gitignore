@@ -1,8 +1,10 @@
-# ignore everything under data/ ...
+# ignore everything under data/ (heavy .npz etc.) ...
 data/**
-# ... but keep the directory tree + the per-reservoir descriptor JSONs versioned
+# ... but keep the directory tree + descriptors + the generated-data manifest versioned
 !data/**/
 !data/**/simulation_data.json
+!data/**/.gitkeep
+!data/GENERATED.md
 __pycache__/
 *.pyc
 *.out

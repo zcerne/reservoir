@@ -19,17 +19,54 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 
+ORION_DATA = "/home/ziga/Orion/resevoir/data"     # datasets live here, not in the git repo
+
+
+def _resolve_path(path, orion_root):
+    """The heavy datasets live on the Orion mount, not in the git repo (they're
+    gitignored). If the given path has no datasets, remap it onto the Orion data
+    root by its `data/`-relative suffix so a convenient repo-relative path works."""
+    path = os.path.abspath(os.path.expanduser(path))
+    if _has_data(path):
+        return path
+    # find "…/data/<suffix>" and rebuild as <orion_root>/<suffix>
+    parts = path.replace(os.sep, "/").split("/data/")
+    if len(parts) >= 2:
+        cand = os.path.join(orion_root, parts[-1])
+        if _has_data(cand):
+            print(f"[characteristics] local path has no datasets → using Orion: {cand}", flush=True)
+            return cand
+    return path                                    # fall through; caller reports missing
+
+
+def _has_data(path):
+    """True only if datasets/ holds a real .npz file or a NON-EMPTY .parts dir
+    (ignore .gitkeep and the empty mirrored .parts dirs the repo carries)."""
+    ds = os.path.join(path, "datasets")
+    if not os.path.isdir(ds):
+        return False
+    for f in os.listdir(ds):
+        if f.endswith(".npz"):
+            return True
+        if f.endswith(".parts"):
+            pp = os.path.join(ds, f)
+            if os.path.isdir(pp) and any(x.endswith(".npz") for x in os.listdir(pp)):
+                return True
+    return False
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--path", required=True, help="reservoir design dir (has datasets/)")
+    ap.add_argument("--path", required=True, help="reservoir design dir (repo-relative ok — auto-resolves to Orion)")
     ap.add_argument("--out", default=None,
                     help="LOCAL output dir for the figures (default: "
                          "~/reservoir_figs/<design-name> on workbox)")
+    ap.add_argument("--orion-root", default=ORION_DATA, help="Orion data root to resolve against")
     args = ap.parse_args()
 
     from class_validator_plot import PlotValidator
 
-    path = os.path.abspath(os.path.expanduser(args.path))
+    path = _resolve_path(args.path, args.orion_root)
     name = os.path.basename(path.rstrip("/"))
     out = args.out or os.path.join(os.path.expanduser("~"), "reservoir_figs", name)
     out = os.path.abspath(os.path.expanduser(out))
