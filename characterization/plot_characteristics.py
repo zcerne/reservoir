@@ -41,6 +41,15 @@ def main():
     print(f"[characteristics] design: {path}", flush=True)
     print(f"[characteristics] figures → {out}", flush=True)
 
+    # Ensure the stats exist. run_all() computes every analysis (modes + n1–n7) from
+    # the datasets and CACHES them to <path>/stats_data/; it's a fast no-op when the
+    # cache is already there, and skips any missing dataset gracefully. So if the raw
+    # data was generated but the stats weren't, this generates them before plotting.
+    if "m1_bla" not in v.results or "n6" not in v.results:
+        print("[characteristics] stats not loaded — running full analysis "
+              "(computes + caches to stats_data/) …", flush=True)
+        v.run_all()
+
     cap = v.plot_capacity(save=True)
     print(f"  capacity.png {'✓' if cap is not None else '— skipped (no field data)'}", flush=True)
     nl = v.plot_nonlinear_stats(save=True)
