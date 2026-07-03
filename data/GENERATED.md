@@ -274,9 +274,10 @@ this manifest + the folder tree are what's versioned so you can see what exists.
 - ✓ `n7_field.npz`  (2.0K)
 
 ### `reservoir_clasifications/02_2D_Q_tensor/datasets/`
+- ✓ `ipc.npz`  (2.5M)
 - `amp_sweep.npz.parts/`  (2 part files)
 - `harmonics.npz.parts/`  (2 part files)
-- `ipc.npz.parts/`  (145 part files)
+- `ipc.npz.parts/`  (200 part files)
 - `superposition.npz.parts/`  (2 part files)
 
 ### `reservoir_clasifications/02_2D_Q_tensor/figures/`
@@ -284,6 +285,13 @@ this manifest + the folder tree are what's versioned so you can see what exists.
 
 ### `reservoir_clasifications/02_2D_Q_tensor/simulation/`
 - ✓ `lc_fields.npz`  (2.3M)
+
+### `reservoir_clasifications/02_2D_Q_tensor/stats_data/`
+- ✓ `modes.npz`  (269.6K)
+- ✓ `n2_field.npz`  (1.3K)
+- ✓ `n5_field.npz`  (1.3K)
+- ✓ `n6.npz`  (605B)
+- ✓ `n7_field.npz`  (2.0K)
 
 ### `reservoir_clasifications/05_linearNN/datasets/`
 - ✓ `amp_sweep.npz`  (18.6K)
