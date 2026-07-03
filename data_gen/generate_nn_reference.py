@@ -20,46 +20,66 @@ import argparse, os
 import numpy as np
 
 
-def build_forward(activation, hidden=32, seed=0, epochs=400, lr=0.1):
-    """Train a 4→hidden→3 MLP on standardized Iris; return forward(x)->hidden state
-    (the readout layer), the standardizer, and the trained test accuracy."""
-    from sklearn.datasets import load_iris
-    X, y = load_iris(return_X_y=True)
-    mu, sd = X.mean(0), X.std(0)
-    Xs = (X - mu) / sd
-    Y = np.eye(3)[y]                                           # one-hot
+def _act_fn(activation):
+    if activation == "linear":
+        return lambda z: z
+    if activation == "tanh":
+        return np.tanh
+    return lambda z: 1.0 / (1.0 + np.exp(-z))                  # sigmoid
+
+
+def build_forward(activation, hidden=32, seed=0, epochs=400, lr=0.1,
+                  n_in=4, gain=1.0, depth=1):
+    """Return forward(x)->state, the input dimension n_in, and a quality score.
+
+    n_in=4 & depth=1 → the original Iris-TRAINED 4→hidden→3 MLP (hidden = state).
+    A `gain` multiplies the pre-activation (gain>1 pushes the sigmoid harder into
+    its nonlinear regime → stronger nonlinear MIXING at fixed rank).
+    n_in>4 → an UNTRAINED random nonlinear network with `n_in` independent inputs
+    (rank ≤ n_in, so more inputs = higher achievable rank) and `depth` hidden
+    layers (deeper = stronger high-degree mixing). Random reference system, no dataset."""
+    act = _act_fn(activation)
     rng = np.random.default_rng(seed)
-    n_in, n_out = 4, 3
-    W1 = rng.normal(0, 0.5, (hidden, n_in)); b1 = np.zeros(hidden)
-    W2 = rng.normal(0, 0.5, (n_out, hidden)); b2 = np.zeros(n_out)
 
-    def act(z):
-        return z if activation == "linear" else 1.0 / (1.0 + np.exp(-z))
+    if n_in == 4 and depth == 1:
+        from sklearn.datasets import load_iris
+        X, y = load_iris(return_X_y=True)
+        mu, sd = X.mean(0), X.std(0)
+        Xs = (X - mu) / sd
+        Y = np.eye(3)[y]                                       # one-hot
+        n_out = 3
+        W1 = rng.normal(0, 0.5, (hidden, 4)); b1 = np.zeros(hidden)
+        W2 = rng.normal(0, 0.5, (n_out, hidden)); b2 = np.zeros(n_out)
+        act_grad = ((lambda h, z: np.ones_like(z)) if activation == "linear"
+                    else (lambda h, z: h * (1.0 - h)))
+        for _ in range(epochs):                               # full-batch SGD (150 pts)
+            Z1 = gain * (Xs @ W1.T) + b1; H = act(Z1)
+            logits = H @ W2.T + b2
+            P = np.exp(logits - logits.max(1, keepdims=True)); P /= P.sum(1, keepdims=True)
+            dL = (P - Y) / len(Xs)
+            dW2 = dL.T @ H; db2 = dL.sum(0)
+            dZ1 = (dL @ W2) * act_grad(H, Z1)
+            dW1 = gain * (dZ1.T @ Xs); db1 = dZ1.sum(0)
+            W2 -= lr * dW2; b2 -= lr * db2; W1 -= lr * dW1; b1 -= lr * db1
+        acc = float((P.argmax(1) == y).mean())
 
-    def act_grad(h, z):
-        return np.ones_like(z) if activation == "linear" else h * (1.0 - h)
+        def forward(x):
+            x = np.real(np.asarray(x)).ravel()
+            return act(gain * (x @ W1.T) + b1)
+        return forward, 4, acc
 
-    # plain SGD full-batch (150 pts — trivial)
-    for _ in range(epochs):
-        Z1 = Xs @ W1.T + b1; H = act(Z1)
-        logits = H @ W2.T + b2
-        P = np.exp(logits - logits.max(1, keepdims=True))
-        P /= P.sum(1, keepdims=True)
-        dL = (P - Y) / len(Xs)                                 # softmax+CE grad
-        dW2 = dL.T @ H; db2 = dL.sum(0)
-        dH = dL @ W2
-        dZ1 = dH * act_grad(H, Z1)
-        dW1 = dZ1.T @ Xs; db1 = dZ1.sum(0)
-        W2 -= lr * dW2; b2 -= lr * db2; W1 -= lr * dW1; b1 -= lr * db1
-
-    acc = float((P.argmax(1) == y).mean())
+    # untrained random nonlinear reservoir with n_in inputs, `depth` hidden layers
+    Ws, bs, d_prev = [], [], n_in
+    for _ in range(depth):
+        Ws.append(rng.normal(0, 1.0 / np.sqrt(d_prev), (hidden, d_prev)))
+        bs.append(rng.normal(0, 0.1, hidden)); d_prev = hidden
 
     def forward(x):
-        """x: (4,) standardized-feature-space input → (hidden,) real state."""
-        x = np.real(np.asarray(x)).ravel()                    # NN takes real input
-        return act(x @ W1.T + b1)
-
-    return forward, 4, acc
+        h = np.real(np.asarray(x)).ravel()
+        for W, b in zip(Ws, bs):
+            h = act(gain * (h @ W.T) + b)
+        return h
+    return forward, n_in, float("nan")
 
 
 def gen_ipc(forward, n_strips, out, n=200, seed=0):
@@ -116,16 +136,20 @@ def gen_harmonics(forward, n_strips, out, tones=(3, 5), n_t=64, seed=3):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--activation", required=True, choices=["linear", "sigmoid"])
+    ap.add_argument("--activation", required=True, choices=["linear", "sigmoid", "tanh"])
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--hidden", type=int, default=32)
     ap.add_argument("--n_ipc", type=int, default=200)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--n_in", type=int, default=4, help="input channels (rank ≤ n_in)")
+    ap.add_argument("--gain", type=float, default=1.0, help="pre-activation scale (stronger nonlinear mixing)")
+    ap.add_argument("--depth", type=int, default=1, help="hidden layers (n_in>4 random net)")
     args = ap.parse_args()
 
-    forward, n_strips, acc = build_forward(args.activation, hidden=args.hidden, seed=args.seed)
-    print(f"[nn] activation={args.activation} hidden={args.hidden} iris train-acc={acc:.3f} "
-          f"state_dim={args.hidden}", flush=True)
+    forward, n_strips, acc = build_forward(args.activation, hidden=args.hidden, seed=args.seed,
+                                           n_in=args.n_in, gain=args.gain, depth=args.depth)
+    print(f"[nn] activation={args.activation} hidden={args.hidden} n_in={args.n_in} gain={args.gain} "
+          f"depth={args.depth} train-acc={acc:.3f} state_dim={args.hidden}", flush=True)
 
     ds = os.path.join(args.out_dir, "datasets"); os.makedirs(ds, exist_ok=True)
     gen_ipc(forward, n_strips, os.path.join(ds, "ipc.npz"), n=args.n_ipc)
