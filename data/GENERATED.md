@@ -276,7 +276,7 @@ this manifest + the folder tree are what's versioned so you can see what exists.
 ### `reservoir_clasifications/02_2D_Q_tensor/datasets/`
 - `amp_sweep.npz.parts/`  (2 part files)
 - `harmonics.npz.parts/`  (2 part files)
-- `ipc.npz.parts/`  (134 part files)
+- `ipc.npz.parts/`  (135 part files)
 - `superposition.npz.parts/`  (2 part files)
 
 ### `reservoir_clasifications/02_2D_Q_tensor/figures/`
@@ -365,12 +365,27 @@ this manifest + the folder tree are what's versioned so you can see what exists.
 
 ### `reservoir_clasifications/09_linearNN_mnist/stats_data/`
 - ✓ `modes.npz`  (860.2K)
+- ✓ `n1.npz`  (1.8K)
+- ✓ `n2.npz`  (668B)
+- ✓ `n3.npz`  (1.6K)
+- ✓ `n4.npz`  (1.3K)
+- ✓ `n5.npz`  (670B)
+- ✓ `n7.npz`  (4.7K)
 
 ### `reservoir_clasifications/10_nonlinearNN_mnist/datasets/`
 - ✓ `amp_sweep.npz`  (153.6K)
 - ✓ `harmonics.npz`  (164.0K)
 - ✓ `ipc.npz`  (507.3K)
 - ✓ `superposition.npz`  (185.1K)
+
+### `reservoir_clasifications/10_nonlinearNN_mnist/stats_data/`
+- ✓ `modes.npz`  (860.2K)
+- ✓ `n1.npz`  (1.8K)
+- ✓ `n2.npz`  (668B)
+- ✓ `n3.npz`  (1.6K)
+- ✓ `n4.npz`  (1.3K)
+- ✓ `n5.npz`  (670B)
+- ✓ `n7.npz`  (4.7K)
 
 ### `source_mnist/figures/`
 - ✓ `boundary_conditions.png`  (1.0M)
