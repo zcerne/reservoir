@@ -97,8 +97,10 @@ class PlotValidator(cv.Validator):
             self.harmonics()
         if not any(k.startswith("n5") for k in self.results):
             self.volterra()
-        if "n6" not in self.results:
-            self.dambre()
+        # n6 (Dambre IPC) is only shown if ALREADY computed — it's intractably slow
+        # for many-input reservoirs (196-input MNIST nets), so don't force it here;
+        # the IPC table cells fall back to n/a when absent. Compute it explicitly
+        # (Validator.dambre / plot_characteristics --ipc) for few-input reservoirs.
         if not any(k.startswith("n7") for k in self.results):
             self.dimension_expansion()
         R = self.results
