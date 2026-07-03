@@ -98,11 +98,14 @@ def run_mode(args, n_items, run_one, assemble, is_master):
         if is_master:
             assemble()
         return 0
-    # --serial (default): loop all, part-save each (incremental), then assemble
-    for k in range(n_items):
+    # --serial (default): loop all, part-save each (incremental), then assemble.
+    # --reverse iterates high→low so a second (backward) worker can share the job
+    # with a forward array run and meet in the middle (run_one skips done parts).
+    order = range(n_items - 1, -1, -1) if getattr(args, "reverse", False) else range(n_items)
+    for i, k in enumerate(order):
         run_one(k)
         if is_master:
-            print(f"[gen] serial {k+1}/{n_items}", flush=True)
+            print(f"[gen] serial {i+1}/{n_items} (idx {k})", flush=True)
     if is_master:
         assemble()
     return 0
@@ -116,3 +119,5 @@ def add_common_args(ap):
     ap.add_argument("--count", action="store_true", help="print #work items (for sbatch --array)")
     ap.add_argument("--components", default="Ey", help="sensor components to save (Ey[,Ex,Ez])")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--reverse", action="store_true", help="serial: iterate indices high→low")
+    ap.add_argument("--skip_existing", action="store_true", help="skip an index whose part file already exists")

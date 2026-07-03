@@ -43,6 +43,10 @@ def main():
         U = rng.uniform(-1.0, 1.0, size=(args.n, n_strips))   # i.i.d. Uniform[-1,1] (real)
 
     def run_one(m):
+        if getattr(args, "skip_existing", False):
+            part = os.path.join(gc._parts_dir(out_path), f"part_{int(m):06d}.npz")
+            if os.path.exists(part):
+                return
         v = forward(U[m].astype(complex))
         out = (np.abs(v) ** 2) if args.readout == "intensity" else v
         gc.save_part(out_path, m, is_master, output=out, inp=U[m])
