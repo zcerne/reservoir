@@ -83,26 +83,19 @@ class PlotValidator(cv.Validator):
         return fig
 
     # -------------------------------------------------------- nonlinearity
-    def _readout_complex(self):
-        """Is the reservoir readout a complex field (optical) or a real state (NN)?"""
-        d = self._load("ipc.npz")
-        return bool(d is not None and np.iscomplexobj(d.get("outputs")))
-
     def _ro(self, n):
-        """Return the result dict for metric `n` for the physical readout:
-        complex reservoir → the |E|² (intensity) analysis; real reservoir → the
-        plain/real-state analysis. Handles the Validator's mixed key naming."""
+        """Return the result dict for metric `n` on the RAW reservoir output — pure
+        input→output, no detector: the complex field for an optical reservoir, the
+        real state for an NN. (The Validator stores this as nX_field for complex data
+        or plain nX for real data; |E|² detector views are ignored here.)"""
         R = self.results
-        if self._complex:
-            return R.get(f"{n}_intensity") or R.get(n)
-        return R.get(n) or R.get(f"{n}_field") or R.get(f"{n}_intensity")
+        return R.get(f"{n}_field") or R.get(n) or R.get(f"{n}_intensity")
 
     def plot_nonlinear_stats(self, save=True):
-        """NONLINEARITY of the reservoir readout (what comes out for what goes in).
-        ONE column = the physical output: the real state for an NN reservoir, |E|²
-        (the detector reading) for an optical one. A. superposition, B. linear
-        residual, C–G. amplitude/harmonics/Volterra/IPC/dim-expansion."""
-        self._complex = self._readout_complex()
+        """NONLINEARITY of the reservoir — pure input→output, no detector. ONE column
+        = the RAW reservoir output: the complex field for an optical reservoir, the
+        real state for an NN. A. superposition, B. linear residual, C–G.
+        amplitude/harmonics/Volterra/IPC/dim-expansion."""
         if "n1_field" not in self.results:
             self.superposition()
         if not any(k.startswith("n2") for k in self.results):
@@ -122,12 +115,9 @@ class PlotValidator(cv.Validator):
         def _cell(x, fmt="{:.3g}"):
             return "n/a" if x is None else fmt.format(x)
 
-        # SINGLE readout column = "what actually comes out of the reservoir".
-        #   real reservoir (NN)  → the real state itself.
-        #   complex reservoir (optical) → |E|² (what the photodetector measures).
-        # _ro(n) returns the right result dict for metric n regardless of which
-        # naming the Validator used (real: nX / nX_field ; complex: nX_intensity).
-        col_label = "|E|² readout (detector)" if self._complex else "reservoir output"
+        # SINGLE column = the raw reservoir output, pure input→output (no detector):
+        # the complex field for an optical reservoir, the real state for an NN.
+        col_label = "reservoir output"
 
         r1 = self._ro("n1"); r2 = self._ro("n2"); r3 = self._ro("n3")
         r4 = self._ro("n4"); r5 = self._ro("n5"); r6 = self.results.get("n6")
@@ -206,8 +196,8 @@ class PlotValidator(cv.Validator):
     def _plot_order_spectrum(self, ax):
         """E. Volterra variance-explained by polynomial order + F. Dambre IPC capacity
         by degree — grouped bars vs order/degree. Reads from self.results (output of
-        n5.volterra_series + n6.dambre_ipc). A pure |E|² system puts all the nonlinear
-        weight at order/degree 2."""
+        n5.volterra_series + n6.dambre_ipc) on the raw reservoir output. A quadratic
+        nonlinearity puts all the nonlinear weight at order/degree 2."""
         n5 = self._ro("n5")
         n6 = self.results.get("n6")
         if n5 is None and n6 is None:
@@ -234,8 +224,8 @@ class PlotValidator(cv.Validator):
 
     def _plot_expansion(self, ax):
         """G. Dimension expansion: R²(k) — linear-fit held-out R² vs input dimension k
-        (from n7.dimension_expansion). Field: R²→1 at k=K. |E|²: plateaus ≪1 + higher
-        PCA effective rank."""
+        (from n7.dimension_expansion) on the raw output. R²→1 = linear image;
+        plateau ≪1 = nonlinearly-expanded state."""
         n7 = self._ro("n7")
         if n7 is None:
             ax.text(0.5, 0.5, "no ipc.npz\n(run n7 data gen)", ha="center", va="center",
