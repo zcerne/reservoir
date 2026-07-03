@@ -66,17 +66,19 @@ def main():
 
     from class_validator_plot import PlotValidator
 
-    path = _resolve_path(args.path, args.orion_root)
-    # default: save into the design's OWN figures/ folder (reservoir_clasifications/
-    # <design>/figures) — i.e. next to the design (on Orion when resolved there).
-    out = args.out or os.path.join(path, "figures")
-    out = os.path.abspath(os.path.expanduser(out))
+    # DATA is read from Orion (resolved); FIGURES are written next to the design in
+    # the NEXTCLOUD repo path the user gave (that folder is Nextcloud-synced), so the
+    # figures land at reservoir_clasifications/<design>/figures on Nextcloud, not Orion.
+    repo_path = os.path.abspath(os.path.expanduser(args.path))
+    data_path = _resolve_path(args.path, args.orion_root)
+    out = os.path.abspath(os.path.expanduser(args.out)) if args.out \
+        else os.path.join(repo_path, "figures")
     os.makedirs(out, exist_ok=True)
 
-    v = PlotValidator(path)
-    v.figdir = out                          # redirect saves to the LOCAL dir (not the mount)
+    v = PlotValidator(data_path)
+    v.figdir = out                          # save figures to the Nextcloud repo dir
 
-    print(f"[characteristics] design: {path}", flush=True)
+    print(f"[characteristics] data: {data_path}", flush=True)
     print(f"[characteristics] figures → {out}", flush=True)
 
     # Ensure the stats exist. run_all() computes every analysis (modes + n1–n7) from
