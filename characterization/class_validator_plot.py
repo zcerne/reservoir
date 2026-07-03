@@ -83,10 +83,26 @@ class PlotValidator(cv.Validator):
         return fig
 
     # -------------------------------------------------------- nonlinearity
+    def _readout_complex(self):
+        """Is the reservoir readout a complex field (optical) or a real state (NN)?"""
+        d = self._load("ipc.npz")
+        return bool(d is not None and np.iscomplexobj(d.get("outputs")))
+
+    def _ro(self, n):
+        """Return the result dict for metric `n` for the physical readout:
+        complex reservoir → the |E|² (intensity) analysis; real reservoir → the
+        plain/real-state analysis. Handles the Validator's mixed key naming."""
+        R = self.results
+        if self._complex:
+            return R.get(f"{n}_intensity") or R.get(n)
+        return R.get(n) or R.get(f"{n}_field") or R.get(f"{n}_intensity")
+
     def plot_nonlinear_stats(self, save=True):
-        """NONLINEARITY table — A. superposition (n1) + B. linear residual (n2),
-        each in the field view (Maxwell-linear sanity ≈0) and the |E|² readout view
-        (the reservoir's actual nonlinearity). Field should be LINEAR, |E|² NONLINEAR."""
+        """NONLINEARITY of the reservoir readout (what comes out for what goes in).
+        ONE column = the physical output: the real state for an NN reservoir, |E|²
+        (the detector reading) for an optical one. A. superposition, B. linear
+        residual, C–G. amplitude/harmonics/Volterra/IPC/dim-expansion."""
+        self._complex = self._readout_complex()
         if "n1_field" not in self.results:
             self.superposition()
         if not any(k.startswith("n2") for k in self.results):
@@ -103,73 +119,54 @@ class PlotValidator(cv.Validator):
         # (Validator.dambre / plot_characteristics --ipc) for few-input reservoirs.
         if not any(k.startswith("n7") for k in self.results):
             self.dimension_expansion()
-        R = self.results
-
         def _cell(x, fmt="{:.3g}"):
             return "n/a" if x is None else fmt.format(x)
 
-        # n2 may be split (complex ipc → n2_field/n2_intensity) or single (intensity ipc → n2)
-        n2f = R.get("n2_field"); n2i = R.get("n2_intensity") or R.get("n2")
-        n1f = R.get("n1_field"); n1i = R.get("n1_intensity")
-        n3f = R.get("n3_field"); n3i = R.get("n3_intensity")
-        n4f = R.get("n4_field"); n4i = R.get("n4_intensity")
-        n5f = R.get("n5_field"); n5i = R.get("n5_intensity") or R.get("n5")
-        n6 = R.get("n6")
-        n7f = R.get("n7_field"); n7i = R.get("n7_intensity") or R.get("n7")
+        # SINGLE readout column = "what actually comes out of the reservoir".
+        #   real reservoir (NN)  → the real state itself.
+        #   complex reservoir (optical) → |E|² (what the photodetector measures).
+        # _ro(n) returns the right result dict for metric n regardless of which
+        # naming the Validator used (real: nX / nX_field ; complex: nX_intensity).
+        col_label = "|E|² readout (detector)" if self._complex else "reservoir output"
+
+        r1 = self._ro("n1"); r2 = self._ro("n2"); r3 = self._ro("n3")
+        r4 = self._ro("n4"); r5 = self._ro("n5"); r6 = self.results.get("n6")
+        r7 = self._ro("n7")
 
         rows = [
-            ("A. superposition  R²",
-             _cell(n1f.get("r2") if n1f else None, "{:.4f}"),
-             _cell(n1i.get("r2") if n1i else None, "{:.4f}")),
-            ("A. superposition  mean violation",
-             _cell(n1f.get("violation") if n1f else None, "{:.2e}"),
-             _cell(n1i.get("violation") if n1i else None, "{:.2e}")),
-            ("B. linear residual  1−R²",
-             _cell(n2f.get("residual_fraction") if n2f else None, "{:.2e}"),
-             _cell(n2i.get("residual_fraction") if n2i else None, "{:.3g}")),
-            ("C. amplitude-BLA  max drift",
-             _cell(n3f.get("max_drift") if n3f else None, "{:.2e}"),
-             _cell(n3i.get("max_drift") if n3i else None, "{:.3g}")),
+            ("A. superposition  R²", _cell(r1.get("r2") if r1 else None, "{:.4f}")),
+            ("A. superposition  mean violation", _cell(r1.get("violation") if r1 else None, "{:.2e}")),
+            ("B. linear residual  1−R²", _cell(r2.get("residual_fraction") if r2 else None, "{:.3g}")),
+            ("C. amplitude-BLA  max drift", _cell(r3.get("max_drift") if r3 else None, "{:.3g}")),
             ("D. harmonics  THD / distortion frac",
-             _cell(n4f.get("thd") if n4f else None, "{:.3f}") + " / " +
-             _cell(n4f.get("distortion_frac") if n4f else None, "{:.3f}"),
-             _cell(n4i.get("thd") if n4i else None, "{:.3f}") + " / " +
-             _cell(n4i.get("distortion_frac") if n4i else None, "{:.3f}")),
+             _cell(r4.get("thd") if r4 else None, "{:.3f}") + " / " +
+             _cell(r4.get("distortion_frac") if r4 else None, "{:.3f}")),
             ("E. Volterra  nonlinear frac (order≥2)",
-             _cell(n5f.get("nonlinear_fraction") if n5f else None, "{:.3f}"),
-             _cell(n5i.get("nonlinear_fraction") if n5i else None, "{:.3f}")),
+             _cell(r5.get("nonlinear_fraction") if r5 else None, "{:.3f}")),
             ("F. Dambre IPC  total / ceiling",
-             "n/a",
-             _cell(n6.get("ipc_total") if n6 else None, "{:.1f}") + " / " +
-             _cell(n6.get("bound") if n6 else None, "{:.0f}")),
+             _cell(r6.get("ipc_total") if r6 else None, "{:.1f}") + " / " +
+             _cell(r6.get("bound") if r6 else None, "{:.0f}")),
             ("F. IPC  nonlinear frac (deg≥2)",
-             "n/a",
-             _cell(n6.get("nonlinear_fraction") if n6 else None, "{:.3f}")),
+             _cell(r6.get("nonlinear_fraction") if r6 else None, "{:.3f}")),
             ("G. dim-expansion  PR / d99",
-             _cell(n7f.get("pr") if n7f else None, "{:.1f}") + " / " +
-             _cell(n7f.get("d99") if n7f else None, "{:.0f}"),
-             _cell(n7i.get("pr") if n7i else None, "{:.1f}") + " / " +
-             _cell(n7i.get("d99") if n7i else None, "{:.0f}")),
-            ("G. dim-expansion  plateau R²",
-             _cell(n7f.get("plateau_r2") if n7f else None, "{:.4f}"),
-             _cell(n7i.get("plateau_r2") if n7i else None, "{:.4f}")),
-            ("verdict",
-             "LINEAR" if (n1f and n1f.get("linear")) else "—",
-             "NONLINEAR" if (n1i and not n1i.get("linear")) else "—"),
+             _cell(r7.get("pr") if r7 else None, "{:.1f}") + " / " +
+             _cell(r7.get("d99") if r7 else None, "{:.0f}")),
+            ("G. dim-expansion  plateau R²", _cell(r7.get("plateau_r2") if r7 else None, "{:.4f}")),
+            ("verdict", "NONLINEAR" if (r1 and not r1.get("linear")) else
+                        "LINEAR" if (r1 and r1.get("linear")) else "—"),
         ]
 
         # 2×2 grid: stats table | D spectrum | E/F order bars | G expansion R²(k)
-        fig, ((ax_tbl, ax_sp), (ax_ord, ax_exp)) = plt.subplots(2, 2, figsize=(16, 7),
-                                                gridspec_kw={"width_ratios": [1.2, 1],
+        fig, ((ax_tbl, ax_sp), (ax_ord, ax_exp)) = plt.subplots(2, 2, figsize=(15, 7),
+                                                gridspec_kw={"width_ratios": [1.15, 1],
                                                              "height_ratios": [1, 1]})
         ax_tbl.axis("off")
-        tbl = ax_tbl.table(cellText=rows, colLabels=["nonlinearity metric", "field (E)", "readout |E|²"],
-                           colWidths=[0.55, 0.225, 0.225], loc="center", cellLoc="center")
-        tbl.auto_set_font_size(False); tbl.set_fontsize(7.5); tbl.scale(1, 1.35)
-        for c in (1, 2):                                   # colour the verdict row
-            cell = tbl[len(rows), c]
-            txt = cell.get_text().get_text()
-            cell.set_facecolor("#d6f5d6" if txt == "LINEAR" else "#f8d6d6" if txt == "NONLINEAR" else "white")
+        tbl = ax_tbl.table(cellText=rows, colLabels=["nonlinearity metric", col_label],
+                           colWidths=[0.62, 0.38], loc="center", cellLoc="center")
+        tbl.auto_set_font_size(False); tbl.set_fontsize(8); tbl.scale(1, 1.4)
+        cell = tbl[len(rows), 1]                            # colour the verdict cell
+        txt = cell.get_text().get_text()
+        cell.set_facecolor("#d6f5d6" if txt == "LINEAR" else "#f8d6d6" if txt == "NONLINEAR" else "white")
         ax_tbl.set_title(f"Nonlinearity — {os.path.basename(self.path)}", fontsize=10,
                          fontweight="bold")
 
@@ -186,41 +183,33 @@ class PlotValidator(cv.Validator):
         return fig
 
     def _plot_harmonic_spectrum(self, ax):
-        """D. Harmonic spectrum: power-by-order bars from n4.harmonic_specter() —
-        field (only order 1) vs |E|² (DC + harmonics + intermod at higher orders)."""
-        n4f = self.results.get("n4_field"); n4i = self.results.get("n4_intensity")
-        if n4f is None and n4i is None:
+        """D. Harmonic spectrum of the reservoir readout: fraction of output power by
+        harmonic order (0=DC, 1=fundamentals=linear, ≥2=nonlinear harmonics/intermod)."""
+        n4 = self._ro("n4")
+        if n4 is None:
             ax.text(0.5, 0.5, "no harmonics.npz\n(run n4 data gen)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=9, color="gray")
             ax.set_xticks([]); ax.set_yticks([]); return
-        orders = sorted(set(list((n4f or {}).get("power_by_order", {}).keys()) +
-                            list((n4i or {}).get("power_by_order", {}).keys())))
-        orders = [o for o in orders if o >= 0] or list(range(6))
-        x = np.arange(len(orders)); w = 0.35
-        def _norm(d, key):
-            po = d.get(key, {}) if d else {}
-            tot = sum(po.values()) or 1.0
-            return [po.get(o, 0.0) / tot for o in orders]
-        if n4f:
-            ax.bar(x - w/2, _norm(n4f, "power_by_order"), w, color="C0", label="field (E)")
-        if n4i:
-            ax.bar(x + w/2, _norm(n4i, "power_by_order"), w, color="C3", label="|E|²")
+        orders = [o for o in sorted(n4.get("power_by_order", {}).keys()) if o >= 0] or list(range(6))
+        po = n4.get("power_by_order", {}); tot = sum(po.values()) or 1.0
+        x = np.arange(len(orders))
+        vals = [po.get(o, 0.0) / tot for o in orders]
+        ax.bar(x, vals, 0.6, color="C0")
         ax.set_xticks(x); ax.set_xticklabels([str(o) for o in orders])
         ax.set_xlabel("harmonic order"); ax.set_ylabel("fraction of total power")
-        tones = list(map(int, (n4i or n4f).get("tones", [])))
-        thd_i = (n4i or {}).get("thd", 0); df_i = (n4i or {}).get("distortion_frac", 0)
-        ax.set_title(f"D. harmonic_specter — tones {tones}  |E|² THD={thd_i:.3f} distort={df_i:.3f}",
+        tones = list(map(int, n4.get("tones", [])))
+        ax.set_title(f"D. harmonic_specter — tones {tones}  "
+                     f"THD={n4.get('thd', 0):.3f} distort={n4.get('distortion_frac', 0):.3f}",
                      fontsize=10)
-        ax.legend(fontsize=8); ax.set_ylim(0, 1.05)
+        ax.set_ylim(0, 1.05)
 
     def _plot_order_spectrum(self, ax):
         """E. Volterra variance-explained by polynomial order + F. Dambre IPC capacity
         by degree — grouped bars vs order/degree. Reads from self.results (output of
         n5.volterra_series + n6.dambre_ipc). A pure |E|² system puts all the nonlinear
         weight at order/degree 2."""
-        R = self.results
-        n5 = R.get("n5_intensity") or R.get("n5")
-        n6 = R.get("n6")
+        n5 = self._ro("n5")
+        n6 = self.results.get("n6")
         if n5 is None and n6 is None:
             ax.text(0.5, 0.5, "no ipc.npz\n(run n5/n6 data gen)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=9, color="gray")
@@ -247,28 +236,20 @@ class PlotValidator(cv.Validator):
         """G. Dimension expansion: R²(k) — linear-fit held-out R² vs input dimension k
         (from n7.dimension_expansion). Field: R²→1 at k=K. |E|²: plateaus ≪1 + higher
         PCA effective rank."""
-        R = self.results
-        n7f = R.get("n7_field"); n7i = R.get("n7_intensity") or R.get("n7")
-        if n7f is None and n7i is None:
+        n7 = self._ro("n7")
+        if n7 is None:
             ax.text(0.5, 0.5, "no ipc.npz\n(run n7 data gen)", ha="center", va="center",
                     transform=ax.transAxes, fontsize=9, color="gray")
             ax.set_xticks([]); ax.set_yticks([]); return
-        ks = sorted((n7f or n7i)["r2_vs_k"].keys())
-        if n7f:
-            r2f = [n7f["r2_vs_k"][k] for k in ks]
-            ax.plot(ks, r2f, "C0o-", lw=2, ms=6, label="field R²(k)")
-            ax.axhline(1.0, color="C0", ls=":", lw=0.8)
-        if n7i:
-            r2i = [n7i["r2_vs_k"][k] for k in ks]
-            ax.plot(ks, r2i, "C3s--", lw=2, ms=6, label="|E|² R²(k)")
-        ax.set_xticks(ks); ax.set_xlabel("input dimension k"); ax.set_ylabel("R² (linear fit)")
-        txt = ""
-        if n7f: txt += f"field PR={n7f['pr']:.1f} d99={n7f['d99']}"
-        if n7i: txt += f"\n|E|² PR={n7i['pr']:.1f} d99={n7i['d99']}"
-        ax.text(0.95, 0.05, txt, transform=ax.transAxes, fontsize=7.5, va="bottom",
-                ha="right", bbox=dict(boxstyle="round,pad=0.3", fc="wheat", alpha=0.5))
+        ks = sorted(n7["r2_vs_k"].keys())
+        r2 = [n7["r2_vs_k"][k] for k in ks]
+        ax.plot(ks, r2, "C0o-", lw=2, ms=5, label="R²(k) linear fit")
+        ax.axhline(1.0, color="gray", ls=":", lw=0.8)
+        step = max(1, len(ks) // 12)                        # avoid tick overcrowding for many-input nets
+        ax.set_xticks(ks[::step]); ax.set_xlabel("input dimension k"); ax.set_ylabel("R² (linear fit)")
+        ax.text(0.95, 0.05, f"PR={n7['pr']:.1f}  d99={n7['d99']}", transform=ax.transAxes,
+                fontsize=8, va="bottom", ha="right",
+                bbox=dict(boxstyle="round,pad=0.3", fc="wheat", alpha=0.5))
         ax.set_title(f"G. dimension expansion  "
-                     f"{'LINEAR' if (n7f or {}).get('linear') else ''}"
-                     f"{' | NONLINEAR' if n7i and not n7i.get('linear') else ''}",
-                     fontsize=10)
+                     f"{'LINEAR' if n7.get('linear') else 'NONLINEAR'}", fontsize=10)
         ax.legend(fontsize=8); ax.set_ylim(-0.05, 1.15)
