@@ -116,11 +116,22 @@ def gen_amp_sweep(forward, n_strips, out, levels=(0.1, 0.3, 1, 3, 10), n_probes=
     print(f"[nn-amp] {len(lv)}×{n_probes} → {out}")
 
 
-def gen_harmonics(forward, n_strips, out, tones=(3, 5), n_t=64, seed=3):
-    chans = list(range(len(tones)))
+def gen_harmonics(forward, n_strips, out, tones=(3, 5), n_t=64, seed=3,
+                  spread=True, tone_amp=1.0):
+    # Drive each tone across a GROUP of inputs, not a single channel. Single-channel
+    # driving fails when that channel is a dead input (e.g. MNIST corner pixels are
+    # always 0), and barely moves the pre-activation of a many-input net → the
+    # nonlinearity never engages and linear/nonlinear look identical. Spreading tone k
+    # over 1/len(tones) of the inputs hits informative channels and drives the sigmoid
+    # into its nonlinear regime, so harmonics/intermod actually appear.
     U = np.zeros((len(tones), n_strips))
-    for k, s in enumerate(chans):
-        U[k, s] = 1.0
+    if spread and n_strips >= len(tones):
+        b = np.linspace(0, n_strips, len(tones) + 1).astype(int)
+        for k in range(len(tones)):
+            U[k, b[k]:b[k + 1]] = tone_amp
+    else:
+        for k in range(len(tones)):
+            U[k, k] = tone_amp
     t = 2.0 * np.pi * np.arange(n_t) / n_t
     outs = []
     for j in range(n_t):
