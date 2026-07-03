@@ -134,6 +134,28 @@ def gen_harmonics(forward, n_strips, out, tones=(3, 5), n_t=64, seed=3):
     print(f"[nn-harm] tones={list(tones)} n_t={n_t} → {out}")
 
 
+def build_forward_from_model(model_path, in_dim, hidden, act, out_dim=10):
+    """Load a TRAINED DenseNN checkpoint and return forward(x) = its HIDDEN-layer
+    activations (the reservoir state), so a real trained classifier can be run
+    through the same characterization suite. n_strips = the model's input dim."""
+    import torch, sys as _sys
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if _root not in _sys.path:
+        _sys.path.insert(0, _root)
+    from class_neural_network import DenseNN
+    net = DenseNN([in_dim, hidden, out_dim], activation=act, device="cpu")
+    net.load(model_path)
+    net.eval()
+    core = net.net[:-1]                                    # everything but the last Linear → hidden state
+
+    def forward(x):
+        xv = np.real(np.asarray(x)).ravel().astype(np.float32)
+        with torch.no_grad():
+            h = core(torch.from_numpy(xv)[None, :])
+        return h.numpy().ravel()
+    return forward, in_dim, float("nan")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--activation", required=True, choices=["linear", "sigmoid", "tanh"])
@@ -144,12 +166,20 @@ def main():
     ap.add_argument("--n_in", type=int, default=4, help="input channels (rank ≤ n_in)")
     ap.add_argument("--gain", type=float, default=1.0, help="pre-activation scale (stronger nonlinear mixing)")
     ap.add_argument("--depth", type=int, default=1, help="hidden layers (n_in>4 random net)")
+    ap.add_argument("--from_model", default=None, help="trained DenseNN .pt → use its hidden layer as state")
+    ap.add_argument("--model_in", type=int, default=196, help="trained model input dim (14×14 MNIST=196)")
     args = ap.parse_args()
 
-    forward, n_strips, acc = build_forward(args.activation, hidden=args.hidden, seed=args.seed,
-                                           n_in=args.n_in, gain=args.gain, depth=args.depth)
-    print(f"[nn] activation={args.activation} hidden={args.hidden} n_in={args.n_in} gain={args.gain} "
-          f"depth={args.depth} train-acc={acc:.3f} state_dim={args.hidden}", flush=True)
+    if args.from_model:
+        forward, n_strips, acc = build_forward_from_model(
+            args.from_model, args.model_in, args.hidden, args.activation)
+        print(f"[nn] from_model={args.from_model} act={args.activation} in={args.model_in} "
+              f"hidden={args.hidden} state_dim={args.hidden}", flush=True)
+    else:
+        forward, n_strips, acc = build_forward(args.activation, hidden=args.hidden, seed=args.seed,
+                                               n_in=args.n_in, gain=args.gain, depth=args.depth)
+        print(f"[nn] activation={args.activation} hidden={args.hidden} n_in={args.n_in} gain={args.gain} "
+              f"depth={args.depth} train-acc={acc:.3f} state_dim={args.hidden}", flush=True)
 
     ds = os.path.join(args.out_dir, "datasets"); os.makedirs(ds, exist_ok=True)
     gen_ipc(forward, n_strips, os.path.join(ds, "ipc.npz"), n=args.n_ipc)

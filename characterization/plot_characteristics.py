@@ -62,6 +62,8 @@ def main():
                     help="LOCAL output dir for the figures (default: "
                          "~/reservoir_figs/<design-name> on workbox)")
     ap.add_argument("--orion-root", default=ORION_DATA, help="Orion data root to resolve against")
+    ap.add_argument("--ipc", action="store_true",
+                    help="also compute the Dambre IPC (n6) — SLOW for many-input reservoirs")
     args = ap.parse_args()
 
     from class_validator_plot import PlotValidator
@@ -81,14 +83,23 @@ def main():
     print(f"[characteristics] data: {data_path}", flush=True)
     print(f"[characteristics] figures → {out}", flush=True)
 
-    # Ensure the stats exist. run_all() computes every analysis (modes + n1–n7) from
-    # the datasets and CACHES them to <path>/stats_data/; it's a fast no-op when the
-    # cache is already there, and skips any missing dataset gracefully. So if the raw
-    # data was generated but the stats weren't, this generates them before plotting.
-    if "m1_bla" not in v.results or "n6" not in v.results:
-        print("[characteristics] stats not loaded — running full analysis "
-              "(computes + caches to stats_data/) …", flush=True)
-        v.run_all()
+    # Ensure the stats the FIGURES need exist (compute + cache if missing). The two
+    # plots use MODES (capacity) + n1/n3/n4/n7 (nonlinearity spectra) — NOT the Dambre
+    # IPC (n6), which is intractably slow when the reservoir has many inputs (e.g. the
+    # 196-input MNIST nets: the polynomial target space explodes). So we skip n6 here
+    # by default; add --ipc to also compute it (only feasible for few-input reservoirs).
+    steps = [v.modes, v.superposition, v.linear_residual, v.amplitude,
+             v.harmonics, v.volterra, v.dimension_expansion]
+    if args.ipc:
+        steps.append(v.dambre)
+    if "m1_bla" not in v.results:
+        print("[characteristics] computing stats (skipping Dambre IPC — pass --ipc to include it) …",
+              flush=True)
+        for step in steps:
+            try:
+                step()
+            except Exception as e:
+                print(f"[characteristics] {step.__name__} skipped: {e}", flush=True)
 
     cap = v.plot_capacity(save=True)
     print(f"  capacity.png {'✓' if cap is not None else '— skipped (no field data)'}", flush=True)
