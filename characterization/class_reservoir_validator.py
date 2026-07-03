@@ -189,6 +189,20 @@ class Validator:
         d = self._load("ipc.npz")
         if d is None: return None
         di = self._to_intensity(d, ("outputs",)) if np.iscomplexobj(d["outputs"]) else d
+        # IPC needs a WELL-DETERMINED readout: if the raw state has more channels F
+        # than probes M, the linear fit reconstructs any target perfectly (spurious
+        # capacity) and the significance threshold (~2F/M) then rejects everything →
+        # IPC=0. The physical state is low-rank anyway, so PCA-reduce to K≪M leading
+        # components (independent readout channels) before the Dambre estimate.
+        X = np.asarray(di["outputs"]); M = X.shape[0]; Xf = X.reshape(M, -1)
+        F = Xf.shape[1]
+        if F >= M // 2:
+            Xc = Xf - Xf.mean(0, keepdims=True)
+            _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+            k = int(min(F, max(4, M // 4)))               # keep top-k, keep F < M/2
+            Xr = Xc @ Vt[:k].conj().T                      # (M, k) PCA scores
+            di = {**di, "outputs": Xr}
+            print(f"[validator] dambre: PCA-reduced state {F}→{k} channels (M={M} probes)", flush=True)
         self.results["n6"] = n6.dambre_ipc(di, max_degree=3)
         self._save_stats("n6", n6=self.results["n6"])
         return self.results["n6"]
