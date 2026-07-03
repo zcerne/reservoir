@@ -67,8 +67,9 @@ def main():
     from class_validator_plot import PlotValidator
 
     path = _resolve_path(args.path, args.orion_root)
-    name = os.path.basename(path.rstrip("/"))
-    out = args.out or os.path.join(os.path.expanduser("~"), "reservoir_figs", name)
+    # default: save into the design's OWN figures/ folder (reservoir_clasifications/
+    # <design>/figures) — i.e. next to the design (on Orion when resolved there).
+    out = args.out or os.path.join(path, "figures")
     out = os.path.abspath(os.path.expanduser(out))
     os.makedirs(out, exist_ok=True)
 
