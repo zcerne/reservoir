@@ -353,7 +353,47 @@ class Reservoir:
         return [mp.MultilevelAtom(sigma=SGMA, transitions=transitions,
                                   initial_populations=[N1_0, 0, N3_0, 0])]
 
-    def get_geometry_blocks(self):
+    def _uniform_director_medium(self, phi, theta, n_o_sq, n_e_sq, S, susc):
+        """If the director is uniform, return a STATIC anisotropic Medium (with the
+        STED susceptibilities attached). Returns None if the director varies.
+
+        MEEP silently DROPS E_susceptibilities passed through a per-point material
+        FUNCTION — only a static Medium on a geometric object carries them (that's
+        why the Photoisomerization resonator, which uses a static Block Medium,
+        works). So gain (MultilevelAtom) requires a uniform director → one static ε
+        tensor. Non-uniform LC + gain would need MEEP MaterialGrid (not implemented)."""
+        import meep as mp
+        phi = np.asarray(phi); theta = np.asarray(theta)
+        # headless: compare the director vector, not raw phi (φ and φ+π are the same)
+        nx = np.sin(theta) * np.cos(phi); ny = np.sin(theta) * np.sin(phi); nz = np.cos(theta)
+        uniform = (np.ptp(np.abs(nx)) < 1e-3 and np.ptp(np.abs(ny)) < 1e-3
+                   and np.ptp(np.abs(nz)) < 1e-3)
+        if not uniform:
+            print("[reservoir/STED] WARNING: director is NOT uniform — MEEP can't attach "
+                  "gain through a per-point material function. STED gain will be IGNORED. "
+                  "Use a uniform director (optimize a uniform design) or MaterialGrid.",
+                  flush=True)
+            return None
+        phi0 = float(phi.flat[0]); theta0 = float(theta.flat[0])
+        d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi0, theta0, S)
+        print(f"[reservoir/STED] uniform director (φ={phi0:.3f}, θ={theta0:.3f}) → static "
+              f"anisotropic Medium + {len(susc)} gain atom(s) on the reservoir Block.", flush=True)
+        return mp.Medium(epsilon_diag=d, epsilon_offdiag=od, E_susceptibilities=susc)
+
+    def get_geometry_blocks(self, blocks=None):
+        """Return the reservoir MEEP geometry.
+
+        Representation:
+          * material function (default) — ONE block, per-point LC ε. Fast, but MEEP
+            DROPS E_susceptibilities from a function, so it can't carry STED gain.
+          * static per-pixel blocks — ONE static Block PER LC PIXEL, each a static
+            anisotropic Medium (local ε) + the gain atom. MEEP honours susceptibilities
+            on static objects, so this is how STED gain runs on a NON-uniform director.
+
+        `blocks`: None (auto) → per-pixel blocks IFF STED is enabled (gain needs a
+        static representation); True → force per-pixel blocks; False → force the
+        material function. When STED is on AND the director is uniform, the tiling
+        collapses to a single static Block (equivalent, ~nx·ny× cheaper)."""
         import meep as mp
 
         cell = self._cell_size()
@@ -363,10 +403,26 @@ class Reservoir:
         S  = self.S
         cx = self._meep_center_x
         _sted_susc = self._build_sted_susceptibilities()   # [] unless reservoir.sted set
+        # sted → static blocks (auto). Explicit blocks=True/False overrides.
+        use_blocks = bool(_sted_susc) if blocks is None else bool(blocks)
+        is3d = len(self.dimensions) != 2
+        phi, theta, *_ = (self.get_results() if is3d else self.get_results_2d())
 
-        if len(self.dimensions) == 2:
+        if use_blocks:
+            # AUTO mode (blocks=None) collapses a uniform director to one static Block
+            # (equivalent, ~nx·ny× cheaper). Explicit blocks=True always tiles per-pixel.
+            if blocks is None:
+                _static = self._uniform_director_medium(phi, theta, n_o_sq, n_e_sq, S, _sted_susc)
+                if _static is not None:
+                    zsize = sz if is3d else mp.inf
+                    return [mp.Block(center=mp.Vector3(cx, 0, 0),
+                                     size=mp.Vector3(sx, sy, zsize), material=_static)]
+            return self._pixel_blocks(phi, theta, sx, sy, sz, cx, n_o_sq, n_e_sq, S,
+                                      _sted_susc, is3d)
+
+        # ---- material-function representation (no gain) ----
+        if not is3d:
             from scipy.interpolate import RectBivariateSpline
-            phi, theta, *_ = self.get_results_2d()
             nx_pts, ny_pts = phi.shape
             x_lc = np.linspace(-sx / 2, sx / 2, nx_pts)
             y_lc = np.linspace(-sy / 2, sy / 2, ny_pts)
@@ -378,20 +434,13 @@ class Reservoir:
                 phi_v   = float(np.asarray(phi_interp(lc_x, float(v.y))).flat[0])
                 theta_v = float(np.asarray(theta_interp(lc_x, float(v.y))).flat[0])
                 d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi_v, theta_v, S)
-                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od,
-                                 E_susceptibilities=_sted_susc)
+                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
 
-            return [mp.Block(
-                center=mp.Vector3(cx, 0, 0),
-                size=mp.Vector3(sx, sy, mp.inf),
-                material=lambda v: _mat(v),
-            )]
+            return [mp.Block(center=mp.Vector3(cx, 0, 0),
+                             size=mp.Vector3(sx, sy, mp.inf), material=lambda v: _mat(v))]
         else:
             from scipy.interpolate import RegularGridInterpolator
-            phi, theta, *_ = self.get_results()
-            nx_pts = int(phi.shape[0])  # type: ignore[index]
-            ny_pts = int(phi.shape[1])  # type: ignore[index]
-            nz_pts = int(phi.shape[2])  # type: ignore[index]
+            nx_pts, ny_pts, nz_pts = phi.shape  # type: ignore[misc]
             x_lc = np.linspace(-sx / 2, sx / 2, nx_pts)
             y_lc = np.linspace(-sy / 2, sy / 2, ny_pts)
             z_lc = np.linspace(-sz / 2, sz / 2, nz_pts)
@@ -405,14 +454,51 @@ class Reservoir:
                 phi_v   = float(phi_interp(pt)[0])
                 theta_v = float(theta_interp(pt)[0])
                 d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi_v, theta_v, S)
-                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od,
-                                 E_susceptibilities=_sted_susc)
+                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
 
-            return [mp.Block(
-                center=mp.Vector3(cx, 0, 0),
-                size=mp.Vector3(sx, sy, sz),
-                material=lambda v: _mat3(v),
-            )]
+            return [mp.Block(center=mp.Vector3(cx, 0, 0),
+                             size=mp.Vector3(sx, sy, sz), material=lambda v: _mat3(v))]
+
+    def _pixel_blocks(self, phi, theta, sx, sy, sz, cx, n_o_sq, n_e_sq, S, susc, is3d):
+        """Tile the reservoir into one STATIC Block per LC pixel (local ε + gain atom) —
+        the representation MEEP honours susceptibilities through for a NON-uniform
+        director."""
+        import meep as mp
+        phi = np.asarray(phi); theta = np.asarray(theta)
+        if not is3d:
+            nx_pts, ny_pts = phi.shape
+            x_lc = np.linspace(-sx / 2, sx / 2, nx_pts); y_lc = np.linspace(-sy / 2, sy / 2, ny_pts)
+            hx = sx / max(nx_pts - 1, 1); hy = sy / max(ny_pts - 1, 1)
+            out = []
+            for i in range(nx_pts):
+                xi = cx + float(x_lc[i])
+                for j in range(ny_pts):
+                    d, od = get_dielectric_3d(n_o_sq, n_e_sq, float(phi[i, j]), float(theta[i, j]), S)
+                    out.append(mp.Block(center=mp.Vector3(xi, float(y_lc[j]), 0),
+                                        size=mp.Vector3(hx, hy, mp.inf),
+                                        material=mp.Medium(epsilon_diag=d, epsilon_offdiag=od,
+                                                           E_susceptibilities=susc)))
+            print(f"[reservoir] tiled {len(out)} per-pixel blocks ({nx_pts}×{ny_pts})"
+                  + (" + gain atom" if susc else ""), flush=True)
+            return out
+        nx_pts, ny_pts, nz_pts = phi.shape
+        x_lc = np.linspace(-sx / 2, sx / 2, nx_pts); y_lc = np.linspace(-sy / 2, sy / 2, ny_pts)
+        z_lc = np.linspace(-sz / 2, sz / 2, nz_pts)
+        hx = sx / max(nx_pts - 1, 1); hy = sy / max(ny_pts - 1, 1); hz = sz / max(nz_pts - 1, 1)
+        out = []
+        for i in range(nx_pts):
+            xi = cx + float(x_lc[i])
+            for j in range(ny_pts):
+                yj = float(y_lc[j])
+                for k in range(nz_pts):
+                    d, od = get_dielectric_3d(n_o_sq, n_e_sq, float(phi[i, j, k]), float(theta[i, j, k]), S)
+                    out.append(mp.Block(center=mp.Vector3(xi, yj, float(z_lc[k])),
+                                        size=mp.Vector3(hx, hy, hz),
+                                        material=mp.Medium(epsilon_diag=d, epsilon_offdiag=od,
+                                                           E_susceptibilities=susc)))
+        print(f"[reservoir] tiled {len(out)} per-pixel blocks ({nx_pts}×{ny_pts}×{nz_pts})"
+              + (" + gain atom" if susc else ""), flush=True)
+        return out
 
     def get_results_2d(self, z_slice=None):
         """Returns (phi, theta, nx, ny, nz) for a single z-slice (default: middle)."""
