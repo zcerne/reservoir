@@ -1,0 +1,123 @@
+{
+  "dimention": 2,
+  "resolution": 40,
+  "use_cw": false,
+  "cw_init_time": 200,
+  "cw_tol": 1e-06,
+  "run_until": 150,
+  "snapshot_t1": 100,
+  "snapshot_t2": 140,
+  "snapshot_dt": 10,
+  "cell_size_y": 12.0,
+  "periodic": false,
+  "pml_size": 1.5,
+  "background_index": 1.0,
+  "object_order": [
+    "guide_1",
+    "reservoir",
+    "guide_2",
+    "source_1",
+    "output_sensor",
+    "reservoir_dft"
+  ],
+  "guide_1": {
+    "class": "guide",
+    "index": 1.0,
+    "sizes": [
+      0.5,
+      5.0
+    ]
+  },
+  "reservoir": {
+    "class": "voltage_reservoir",
+    "sizes": [
+      20.0,
+      5.0
+    ],
+    "resolution": 10,
+    "voltages_x_min": [],
+    "voltages_x_max": [],
+    "voltages_y_min": [
+      -1.67254297557289,
+      4.5037998624523805,
+      0.7331538758054013,
+      -7.870771453124151
+    ],
+    "voltages_y_max": [
+      -1.67254297557289,
+      4.5037998624523805,
+      0.7331538758054013,
+      -7.870771453124151
+    ],
+    "electrode_width_um": 1.0,
+    "lc_mode": "fwdbwd_relax",
+    "lc_gradient_scheme": "fwdbwd",
+    "lc_relax_maxeval": 1500,
+    "elastic_constants": {
+      "K1": 11.1,
+      "K2": 6.8,
+      "K3": 17.1,
+      "q0": 0.0,
+      "epsilon_a": 14.5
+    },
+    "n_o": 1.521,
+    "n_e": 1.746,
+    "eps_perp_dc": 5.1,
+    "eps_a_dc": 14.5
+  },
+  "guide_2": {
+    "class": "guide",
+    "index": 1.0,
+    "sizes": [
+      0.5,
+      5.0
+    ]
+  },
+  "source_1": {
+    "class": "source",
+    "position": {
+      "on_object": "guide_1",
+      "position": "left",
+      "size": [
+        5.0,
+        0.0
+      ]
+    },
+    "amplitude": 1.0,
+    "component": "Ey",
+    "source_type": "continuous",
+    "lam": 0.5,
+    "dlam": 0.0
+  },
+  "output_sensor": {
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_2",
+    "position": {
+      "position": "left",
+      "size": 5.0
+    },
+    "lam_range": [
+      0.5,
+      0.5
+    ],
+    "n_lam": 1
+  },
+  "reservoir_dft": {
+    "class": "monitor",
+    "type": "2Ddft",
+    "on_object": "reservoir",
+    "position": {
+      "position": "center",
+      "size": [
+        20.0,
+        5.0
+      ]
+    },
+    "lam_range": [
+      0.5,
+      0.5
+    ],
+    "n_lam": 1
+  }
+}

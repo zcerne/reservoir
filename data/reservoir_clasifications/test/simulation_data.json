@@ -38,7 +38,7 @@
     "boundary_conditions": [
       "free",
       "free",
-      "free"
+      "periodic"
     ],
     "face_phi": [
       0.0,
@@ -80,7 +80,7 @@
     "lc_param": "Q3D",
     "S_eq": 0.8,
     "sted": {
-      "enabled": true,
+      "enabled": false,
       "lbdA": 0.25,
       "gammaA": 0.2,
       "lbdE": 0.5,

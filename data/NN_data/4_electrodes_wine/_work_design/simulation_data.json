@@ -17,29 +17,55 @@
     "reservoir",
     "guide_2",
     "source_1",
-    "opt_sensor"
+    "output_sensor",
+    "reservoir_dft"
   ],
   "guide_1": {
     "class": "guide",
     "index": 1.0,
     "sizes": [
       0.5,
-      8.0
+      5.0
     ]
   },
   "reservoir": {
     "class": "voltage_reservoir",
     "sizes": [
-      10.0,
+      26.0,
       8.0
     ],
     "resolution": 10,
-    "n_electrodes": 4,
-    "electrode_voltages": [
-      3.0,
-      -3.0,
-      3.0,
-      -3.0
+    "voltages_x_min": [],
+    "voltages_x_max": [],
+    "voltages_y_min": [
+      6.315789473684216,
+      3.2806324110671916,
+      4.759358288770056,
+      4.329896907216497,
+      -4.347826086956522,
+      -2.6206896551724146,
+      -8.227848101265824,
+      6.226415094339622,
+      -4.069400630914826,
+      3.515358361774741,
+      -7.886178861788618,
+      -7.582417582417582,
+      -5.977175463623396
+    ],
+    "voltages_y_max": [
+      6.315789473684216,
+      3.2806324110671916,
+      4.759358288770056,
+      4.329896907216497,
+      -4.347826086956522,
+      -2.6206896551724146,
+      -8.227848101265824,
+      6.226415094339622,
+      -4.069400630914826,
+      3.515358361774741,
+      -7.886178861788618,
+      -7.582417582417582,
+      -5.977175463623396
     ],
     "electrode_width_um": 1.0,
     "lc_mode": "fwdbwd_relax",
@@ -62,7 +88,7 @@
     "index": 1.0,
     "sizes": [
       0.5,
-      8.0
+      5.0
     ]
   },
   "source_1": {
@@ -71,7 +97,7 @@
       "on_object": "guide_1",
       "position": "left",
       "size": [
-        8.0,
+        5.0,
         0.0
       ]
     },
@@ -81,13 +107,30 @@
     "lam": 0.5,
     "dlam": 0.0
   },
-  "opt_sensor": {
+  "output_sensor": {
     "class": "monitor",
     "type": "1Ddft",
     "on_object": "guide_2",
     "position": {
-      "position": "right",
-      "size": 8.0
+      "position": "left",
+      "size": 5.0
+    },
+    "lam_range": [
+      0.5,
+      0.5
+    ],
+    "n_lam": 1
+  },
+  "reservoir_dft": {
+    "class": "monitor",
+    "type": "2Ddft",
+    "on_object": "reservoir",
+    "position": {
+      "position": "center",
+      "size": [
+        26.0,
+        8.0
+      ]
     },
     "lam_range": [
       0.5,
