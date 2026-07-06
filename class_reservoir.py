@@ -209,21 +209,32 @@ class Reservoir:
                 phi_seed, theta_seed = r[:n].copy(), theta0.copy()
             else:
                 phi_seed, theta_seed = phi0.copy(), r[:n].copy()
+            # optimize_phi_theta[1]==False → constrain to the xy-plane (θ≡π/2) in the
+            # Q relax by pinning Qxz=Qyz=0 (the flag was previously ignored by Q3D).
             self._relax_qtensor(phi_seed, theta_seed, lb_phi, ub_phi,
-                                lb_theta, ub_theta, gshape, 1.0 / self.resolution)
+                                lb_theta, ub_theta, gshape, 1.0 / self.resolution,
+                                in_plane=(not opt_theta))
             return
 
         sim.setup()
         sim.minimize()
         self._sim = sim
 
-    def _relax_qtensor(self, phi0, theta0, lb_phi, ub_phi, lb_theta, ub_theta, gshape, dx):
+    def _relax_qtensor(self, phi0, theta0, lb_phi, ub_phi, lb_theta, ub_theta, gshape, dx,
+                       in_plane=False):
         """Q-tensor (LdG) relaxation using **BlockOpt's exact machinery** — the same
         `relax_qtensor_3d` + `ldg_constants_5cb` (real 5CB SI Landau coefficients,
         L=K_avg/2S², ξ=ε₀ε_a/S, SI units), so the reservoir relax is identical to
         the BlockOptimization LC stage. Boundary anchoring → Dirichlet boundary_mask.
         Note: physical 5CB defect-core ξ_n≈1.4nm is sub-grid, so S stays ≈S_eq
-        except a ~1-pixel core (set artificially soft A,B,C for fat melted cores)."""
+        except a ~1-pixel core (set artificially soft A,B,C for fat melted cores).
+
+        in_plane=True (from optimize_phi_theta[1]==False): constrain the director to
+        the xy-plane (θ≡π/2) by pinning the out-of-plane Q components Qxz(q5[2]) and
+        Qyz(q5[4]) to 0 everywhere and optimizing ONLY the in-plane Qxx,Qxy,Qyy. The
+        default full-Q relax leaves Qxz/Qyz free → spurious out-of-plane tilt (|n_z|
+        up to ~0.7 even for planar BC, since the flat optimize_phi_theta never reached
+        the Q-tensor path)."""
         import sys, os, time, numpy as _np, jax.numpy as jnp
         for _p in ("/home/ziga/Orion/BlockOptimization", "/home/cernez/BlockOptimization"):
             if os.path.isdir(_p) and _p not in sys.path:
@@ -242,10 +253,16 @@ class Reservoir:
         # Dirichlet pin on anchored faces (where phi or theta bound was pinned)
         pin = ((lb_phi == ub_phi) | (lb_theta == ub_theta)).reshape(gshape)
         t0 = time.time()
-        q5_star, info = relax_qtensor_3d(
-            q5_0, None, A=cst["A"], B=cst["B"], C=cst["C"], L=cst["L"], xi=cst["xi"],
-            spacings=spac, boundary_mask=jnp.asarray(pin), maxiter=int(self.maxeval))
-        print(f"[reservoir/Q3D BlockOpt-LdG] {int(info['niter'])} iters, "
+        if in_plane:
+            q5_star, info = self._relax_qtensor_inplane(
+                q5_0, pin, A=cst["A"], B=cst["B"], C=cst["C"], L=cst["L"], xi=cst["xi"],
+                spacings=spac, maxiter=int(self.maxeval))
+        else:
+            q5_star, info = relax_qtensor_3d(
+                q5_0, None, A=cst["A"], B=cst["B"], C=cst["C"], L=cst["L"], xi=cst["xi"],
+                spacings=spac, boundary_mask=jnp.asarray(pin), maxiter=int(self.maxeval))
+        print(f"[reservoir/Q3D BlockOpt-LdG{' IN-PLANE' if in_plane else ''}] "
+              f"{int(info['niter'])} iters, "
               f"f*={float(info['f_star']):.3e}, S_eq={S:.4f}, xi_n={cst['xi_n_nm']:.2f}nm, "
               f"wall={time.time()-t0:.1f}s")
         q5 = _np.asarray(q5_star)
@@ -255,6 +272,40 @@ class Reservoir:
         self._phi_cache = _np.arctan2(n_dir[1], n_dir[0]).reshape(gshape)
         self._theta_cache = _np.arccos(_np.clip(n_dir[2], -1.0, 1.0)).reshape(gshape)
         self._S_cache = _np.asarray(Sf).reshape(gshape)
+
+    def _relax_qtensor_inplane(self, q5_0, pin, *, A, B, C, L, xi, spacings, maxiter):
+        """In-plane-constrained LdG relax: optimise only the in-plane Q components
+        (Qxx=q5[0], Qxy=q5[1], Qyy=q5[3]) and pin the out-of-plane ones
+        (Qxz=q5[2], Qyz=q5[4]) to 0 everywhere → director stays in xy-plane (θ≡π/2).
+
+        Mirrors BlockOpt's `relax_qtensor_3d` (same energy + GPU_MMA solver) but with
+        the free-DOF set restricted to in-plane components, plus the usual Dirichlet
+        cell pinning on anchored faces. `q5_0` supplies the pinned face values (its
+        Qxz/Qyz are already 0 since the seed director is in-plane)."""
+        import jax, jax.numpy as jnp
+        from lc_stuff.qtensor_3d import energy_qtensor_3d
+        import lc_stuff.qtensor_3d as _qt          # module-level `gpumma` (GPU_MMA)
+        q5_0 = jnp.asarray(q5_0)
+        shape = q5_0.shape                          # (5, Nx, Ny, Nz)
+        # force out-of-plane components to exactly 0 in the base field
+        base = q5_0.at[2].set(0.0).at[4].set(0.0).reshape(-1)
+        # free = in-plane components (0,1,3) on non-pinned cells only
+        cell_free = ~jnp.asarray(pin)               # (Nx,Ny,Nz)
+        free = jnp.zeros(shape, dtype=bool)
+        free = free.at[jnp.array([0, 1, 3])].set(
+            jnp.broadcast_to(cell_free[None], (3,) + cell_free.shape))
+        free_ix = jnp.where(free.reshape(-1))[0]
+        x0 = base[free_ix]
+
+        def f_of_x(x):
+            full = base.at[free_ix].set(x).reshape(shape)
+            return energy_qtensor_3d(full, None, A, B, C, L, xi, spacings)
+
+        vg = jax.jit(jax.value_and_grad(f_of_x))
+        lo = jnp.full_like(x0, -1.0); hi = jnp.full_like(x0, 1.0)
+        x_star, info = _qt.gpumma.minimize(vg, x0, lo, hi, maxiter=maxiter)
+        q5_star = base.at[free_ix].set(x_star).reshape(shape)
+        return q5_star, info
 
     def load_fields(self):
         """Load pre-computed director field from lc_fields.npz (skips minimization)."""
