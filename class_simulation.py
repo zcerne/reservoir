@@ -224,6 +224,15 @@ class Simulation:
             for obj in self.objects
             for block in obj.get_geometry_blocks()
         ]
+        # Media that appear only inside a material function (e.g. the reservoir's
+        # STED MultilevelAtom) must be declared to mp.Simulation(extra_materials=...)
+        # or MEEP won't allocate their polarization fields → susceptibility ignored.
+        self.extra_materials = [
+            m
+            for obj in self.objects
+            if hasattr(obj, "get_extra_materials")
+            for m in obj.get_extra_materials()
+        ]
 
     def _set_pmls(self):
         self.pmls = [mp.PML(self.args["pml_size"], mp.X)] if self.args["periodic"] else [mp.PML(self.args["pml_size"])]
@@ -261,6 +270,7 @@ class Simulation:
             sources=self.sources,
             resolution=self.resolution,
             default_material=default_material,
+            extra_materials=getattr(self, "extra_materials", []),
             k_point=mp.Vector3(0, 0, 0) if self.args["periodic"] else False,
             force_complex_fields=use_cw,
         )
