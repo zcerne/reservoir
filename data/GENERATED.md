@@ -395,6 +395,12 @@ this manifest + the folder tree are what's versioned so you can see what exists.
 - ✓ `n5.npz`  (671B)
 - ✓ `n7.npz`  (4.7K)
 
+### `reservoir_clasifications/11_reluNN_mnist/datasets/`
+- ✓ `amp_sweep.npz`  (153.6K)
+- ✓ `harmonics.npz`  (164.0K)
+- ✓ `ipc.npz`  (507.3K)
+- ✓ `superposition.npz`  (185.1K)
+
 ### `source_mnist/figures/`
 - ✓ `boundary_conditions.png`  (1.0M)
 - ✓ `director.png`  (770.6K)

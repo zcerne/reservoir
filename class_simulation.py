@@ -55,11 +55,21 @@ class Simulation:
             raw   = [0.0, 0.0]
         if isinstance(raw, (int, float)):
             raw = [float(raw), 0.0]
-        sy = float(raw[0]) if raw[0] else cell_y
-        sz = float(raw[1]) if len(raw) > 1 else 0.0
+        # Source extent convention:
+        #   [y, z]      (len<=2)  → plane ⊥ propagation, x-extent 0 (legacy: source_1 etc.)
+        #   [x, y, z]   (len==3)  → full box; x-extent honored → AREA/VOLUME source
+        #                           (e.g. a pump filling the reservoir in the xy plane).
+        if len(raw) >= 3:
+            sx = float(raw[0])
+            sy = float(raw[1]) if raw[1] else cell_y
+            sz = float(raw[2])
+        else:
+            sx = 0.0
+            sy = float(raw[0]) if raw[0] else cell_y
+            sz = float(raw[1]) if len(raw) > 1 else 0.0
         x = {"left": on_edge_x, "right": on_edge_x + on_size_x}.get(
             label, on_edge_x + on_size_x / 2)
-        return mp.Vector3(x, 0, 0), mp.Vector3(0, sy, sz)
+        return mp.Vector3(x, 0, 0), mp.Vector3(sx, sy, sz)
 
     def _update_all_args(self):
         object_keys = self.args["object_order"]

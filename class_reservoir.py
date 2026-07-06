@@ -53,6 +53,10 @@ class Reservoir:
         self.n_e = float(cfg.get("n_e", 1.71))
         self.S   = float(cfg.get("S", 1.0))
         self.n_background = float(data.get("background_index", 1.0))
+        # STED / 4-level gain (nonlinear reservoir). Optional `reservoir.sted` block:
+        # pump (λ=lbdA) inverts the medium, signal (λ=lbdE) stimulates emission → gain.
+        # Same MultilevelAtom model as the Photoisomerization resonator project.
+        self.sted = cfg.get("sted", None)
         # LC model: "director" (Frank, XaLCS) or "Q3D" (Landau-de Gennes, fe_core_qtensor)
         self.lc_param = str(cfg.get("lc_param", "director"))
         self.S_eq  = float(cfg.get("S_eq", 0.80))
@@ -271,6 +275,33 @@ class Reservoir:
             raise RuntimeError("Run run_minimization() or load_fields() first.")
         return self._sim.get_results()
 
+    def _build_sted_susceptibilities(self):
+        """Build the 4-level MultilevelAtom gain susceptibility from `reservoir.sted`.
+
+        Identical model to the Photoisomerization resonator (class_resonator):
+          1→4  pump absorption   (freq 1/lbdA, gamma gammaA)
+          4→3  fast decay        (transition_rate)
+          3→2  emission/lasing   (freq 1/lbdE, gamma gammaE)  ← signal stimulates this
+          2→1  fast decay        (transition_rate)
+        Returns [] when no `sted` block, so the base LC medium is unchanged.
+        """
+        s = self.sted
+        if not s or not s.get("enabled", True):
+            return []
+        import meep as mp
+        lbdA = float(s["lbdA"]); gammaA = float(s["gammaA"])
+        lbdE = float(s["lbdE"]); gammaE = float(s["gammaE"])
+        SGMA = float(s["SGMA"]); N1_0 = float(s["N1_0"]); N3_0 = float(s.get("N3_0", 0.0))
+        r43 = float(s.get("rate_43", 10.0)); r21 = float(s.get("rate_21", 100.0))
+        transitions = [
+            mp.Transition(1, 4, frequency=1 / lbdA, gamma=gammaA, sigma_diag=mp.Vector3(1, 1, 1)),
+            mp.Transition(4, 3, transition_rate=r43),
+            mp.Transition(2, 3, frequency=1 / lbdE, gamma=gammaE, sigma_diag=mp.Vector3(1, 1, 1)),
+            mp.Transition(2, 1, transition_rate=r21),
+        ]
+        return [mp.MultilevelAtom(sigma=SGMA, transitions=transitions,
+                                  initial_populations=[N1_0, 0, N3_0, 0])]
+
     def get_geometry_blocks(self):
         import meep as mp
 
@@ -280,6 +311,7 @@ class Reservoir:
         n_e_sq = self.n_e ** 2
         S  = self.S
         cx = self._meep_center_x
+        _sted_susc = self._build_sted_susceptibilities()   # [] unless reservoir.sted set
 
         if len(self.dimensions) == 2:
             from scipy.interpolate import RectBivariateSpline
@@ -295,7 +327,8 @@ class Reservoir:
                 phi_v   = float(np.asarray(phi_interp(lc_x, float(v.y))).flat[0])
                 theta_v = float(np.asarray(theta_interp(lc_x, float(v.y))).flat[0])
                 d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi_v, theta_v, S)
-                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
+                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od,
+                                 E_susceptibilities=_sted_susc)
 
             return [mp.Block(
                 center=mp.Vector3(cx, 0, 0),
@@ -321,7 +354,8 @@ class Reservoir:
                 phi_v   = float(phi_interp(pt)[0])
                 theta_v = float(theta_interp(pt)[0])
                 d, od = get_dielectric_3d(n_o_sq, n_e_sq, phi_v, theta_v, S)
-                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od)
+                return mp.Medium(epsilon_diag=d, epsilon_offdiag=od,
+                                 E_susceptibilities=_sted_susc)
 
             return [mp.Block(
                 center=mp.Vector3(cx, 0, 0),

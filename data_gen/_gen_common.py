@@ -25,6 +25,30 @@ def open_reservoir(path, components):
     field over `components` (Ey[,Ex,Ez]). NOTE the source casts amplitude to real,
     so pass REAL amplitudes unless a tone's imaginary part is intended as a phase.
     """
+    # Engine selected by the design JSON top-level "solver": "meep" (default) |
+    # "gpumeep". Both expose an amplitude→(Ey,Ex,Ez)@monitor_2 basis run and the
+    # same npz schema, so 2D and 3D forward runs work on either engine.
+    import json as _json
+    with open(os.path.join(path, "simulation_data.json")) as _f:
+        solver = str(_json.load(_f).get("solver", "meep")).lower()
+
+    if solver in ("gpumeep", "gpu", "gpumma"):
+        from class_simulation_gpu import SimulationGPU
+        is_master = True                                     # single-process JAX engine
+        sim = SimulationGPU(folder_path=path)
+        sim._set_data(); sim._update_all_args()
+        src_key = next(o["_key"] for o in sim.objects_args
+                       if o.get("class") == "source" and o.get("_key") != "source_2")
+        amp0 = sim.args.get(src_key, {}).get("amplitude", [1.0])
+        n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
+
+        def forward(E):
+            Ey, Ex, Ez = sim.run_basis(list(E), source_key=src_key)
+            f = {"Ey": Ey, "Ex": Ex, "Ez": Ez}
+            return np.concatenate([np.asarray(f[c]).ravel() for c in components])
+
+        return forward, n_strips, is_master
+
     from class_simulation_T import SimulationT
     try:
         import meep as mp

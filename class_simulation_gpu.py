@@ -134,6 +134,10 @@ def _meep_to_grid_y_range(center_y, sy, cell_y, dx):
 class SimulationGPU:
     folder_path: str
     empty: bool = False     # if True, skip building reservoir/SLM materials
+    # Per-run amplitude override for the SIGNAL source (basis/forward runs).
+    # None → use the JSON amplitude. Set via {source_key: [amps]} to sweep inputs
+    # without rewriting the JSON (mirrors SimulationT._run_basis).
+    amp_override: dict | None = None
 
     args: dict = field(default_factory=dict)
     objects_args: list = field(default_factory=list)
@@ -352,6 +356,9 @@ class SimulationGPU:
             lam = float(obj["lam"])
             f0 = 1.0 / lam
             amp_raw = obj.get("amplitude", 1.0)
+            # per-run override (basis/forward sweeps) keyed by source object key
+            if self.amp_override and obj.get("_key") in self.amp_override:
+                amp_raw = self.amp_override[obj["_key"]]
             x_meep = obj["center_x_meep"]
             sy = obj["size_y_meep"]
             i_src = _meep_to_grid_x(x_meep, self.cell_x, self.dx)
@@ -448,6 +455,23 @@ class SimulationGPU:
         n_pml_cells = int(round(float(self.args.get("pml_size", 2.0)) / self.dx))
         self.pml = f2.make_cpml_2d(self.grid, self.dt,
                                     n_pml=(n_pml_cells, n_pml_cells))
+
+    def run_basis(self, amplitude_list, source_key=None):
+        """One forward run with a given SIGNAL amplitude → complex (Ey, Ex, Ez) at
+        monitor_2. GPUmeep analogue of SimulationT._run_basis so open_reservoir()
+        can dispatch to either engine. Works for 2D and 3D (run() saves monitor_2.npz
+        in the same MEEP-compatible schema; we read it back)."""
+        if source_key is None:
+            # first 'source' object whose component is NOT the STED pump (Ez area)
+            self._set_data(); self._update_all_args()
+            source_key = next(o["_key"] for o in self.objects_args
+                              if o.get("class") == "source"
+                              and o.get("_key") != "source_2")
+        self.amp_override = {source_key: list(amplitude_list)}
+        self.run()
+        m2 = np.load(os.path.join(self.paths["simulation"], "monitor_2.npz"))
+        Ey = m2["Ey"]; Ex = m2["Ex"]; Ez = m2["Ez"]
+        return np.asarray(Ey).ravel(), np.asarray(Ex).ravel(), np.asarray(Ez).ravel()
 
     def run(self):
         self._set_data()

@@ -169,7 +169,7 @@ def build_forward_from_model(model_path, in_dim, hidden, act, out_dim=10):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--activation", required=True, choices=["linear", "sigmoid", "tanh"])
+    ap.add_argument("--activation", required=True, choices=["linear", "sigmoid", "tanh", "relu"])
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--hidden", type=int, default=32)
     ap.add_argument("--n_ipc", type=int, default=200)
