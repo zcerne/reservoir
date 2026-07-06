@@ -5,10 +5,10 @@
 #
 # Usage (2 steps):
 #   1) find the number of work items N, submit the array 0..N-1:
-#        N=$(/home/cernez/miniconda3/envs/pmp/bin/python data_gen/generate_<gen>.py --path <design> [args] --count)
+#        N=$(/home/cernez/micromamba/envs/pmp/bin/python data_gen/generate_<gen>.py --path <design> [args] --count)
 #        sbatch --array=0-$((N-1))%<concurrency> slurm_char_array.sh <method> <design> [args]
 #   2) after the array finishes, assemble (quick, 1 rank):
-#        /home/cernez/miniconda3/envs/pmp/bin/python data_gen/generate_<gen>.py --path <design> [args] --assemble
+#        /home/cernez/micromamba/envs/pmp/bin/python data_gen/generate_<gen>.py --path <design> [args] --assemble
 #
 #   method = superposition | harmonics | ampsweep | ipc
 # Example:
@@ -34,8 +34,8 @@
 set -e
 
 BASE_DIR="/home/cernez/resevoir"
-PYTHON_MEEP=/home/cernez/miniconda3/envs/pmp/bin/python
-MPIRUN=/home/cernez/miniconda3/envs/pmp/bin/mpirun
+PYTHON_MEEP=/home/cernez/micromamba/envs/pmp/bin/python
+MPIRUN=/home/cernez/micromamba/envs/pmp/bin/mpirun
 N=96  # MPI ranks per forward run = full node (compute-bound sim; don't co-locate)
 
 METHOD=${1:?usage: sbatch --array=0-(N-1) slurm_char_array.sh <method> <design> [args]}
