@@ -3,7 +3,7 @@
   "use_cw": false,
   "cw_init_time": 200,
   "cw_tol": 1e-06,
-  "run_until": 500,
+  "run_until": 1600,
   "dimention": 2,
   "cell_size_y": 24.0,
   "periodic": false,
@@ -86,8 +86,8 @@
       "lbdE": 0.55,
       "gammaE": 0.13,
       "SGMA": 0.006,
-      "N1_0": 0.0,
-      "N3_0": 25.0,
+      "N1_0": 25.0,
+      "N3_0": 0.0,
       "rate_43": 10.0,
       "rate_21": 100.0,
       "_comment": "Fully-inverted 4-level (N3=25 upper emission level, N1=0): signal at emission line 550nm is amplified directly, no pump/inversion buildup needed. Other dye params article-exact (Vellaichamy Nat.Photon.2025): lbdE 0.55, gammaE 0.13, sigma 0.006, Gamma21 100."
@@ -116,9 +116,11 @@
       1.0
     ],
     "component": "Ey",
-    "source_type": "continuous",
+    "source_type": "pulsed",
     "lam": 0.55,
-    "dlam": 0.0
+    "dlam": 0.0,
+    "pulse_fwhm_fs": 1309.0,
+    "pulse_delay_fs": 200.0
   },
   "source_2": {
     "class": "source",
@@ -135,10 +137,12 @@
       30.0
     ],
     "component": "Ez",
-    "source_type": "continuous",
+    "source_type": "pulsed",
     "lam": 0.53,
     "dlam": 0.0,
-    "_comment": "STED PUMP: z-polarized (Ez, out-of-plane in 2D) area source filling the whole reservoir (30x20). lam=0.25=sted.lbdA inverts the 4-level gain medium (1->4). Orthogonal polarization to the Ey signal \u2014 couples to it ONLY through the gain atoms. Raise amplitude for stronger inversion."
+    "_comment": "STED PUMP: z-polarized (Ez, out-of-plane in 2D) area source filling the whole reservoir (30x20). lam=0.25=sted.lbdA inverts the 4-level gain medium (1->4). Orthogonal polarization to the Ey signal \u2014 couples to it ONLY through the gain atoms. Raise amplitude for stronger inversion.",
+    "pulse_fwhm_fs": 1309.0,
+    "pulse_delay_fs": 0.0
   },
   "flux_1": {
     "class": "monitor",

@@ -33,8 +33,23 @@ class Source:
         return [mp.Source(self.source, self.component, center=self.center, size=self.size,
                           amplitude=self.amplitude)]
 
+    # 1 Meep time unit = a/c0 = 1 µm / c0 = 3.33564 fs
+    _FS_PER_MEEP = 3.335640952
+
     def _set_source(self):
-        if self.source_type == "gaussian":
+        if self.source_type == "pulsed":
+            # Temporal Gaussian pulse (article STED pump/depletion): carrier at 1/lam
+            # under a Gaussian envelope of temporal FWHM `pulse_fwhm_fs`, delayed by
+            # `pulse_delay_fs` (e.g. pump→STED 2000 fs). MEEP GaussianSource `width` is
+            # the temporal std in Meep units → width = FWHM/(2.35482·fs_per_meep).
+            fwhm_fs  = float(self.args.get("pulse_fwhm_fs", 1309.0))
+            delay_fs = float(self.args.get("pulse_delay_fs", 0.0))
+            width = (fwhm_fs / self._FS_PER_MEEP) / 2.35482
+            kw = {"width": width}
+            if delay_fs > 0:
+                kw["start_time"] = delay_fs / self._FS_PER_MEEP
+            self.source = mp.GaussianSource(1/self.lam, **kw)
+        elif self.source_type == "gaussian":
             if self.fwidth is not None:
                 self.source = mp.GaussianSource(1/self.lam, fwidth=self.fwidth)
             else:
