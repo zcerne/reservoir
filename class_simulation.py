@@ -235,7 +235,13 @@ class Simulation:
         ]
 
     def _set_pmls(self):
-        self.pmls = [mp.PML(self.args["pml_size"], mp.X)] if self.args["periodic"] else [mp.PML(self.args["pml_size"])]
+        # pml_size == 0 → no absorbing layers at all; combined with
+        # periodic=True (k_point=(0,0,0)) the cell is Bloch-periodic on
+        # ALL sides ("boundary_layers can be zero or more PML objects").
+        if float(self.args.get("pml_size", 2.0)) == 0.0:
+            self.pmls = []
+        else:
+            self.pmls = [mp.PML(self.args["pml_size"], mp.X)] if self.args["periodic"] else [mp.PML(self.args["pml_size"])]
 
     def _add_snapshot(self, sim):
         assert self.cell is not None

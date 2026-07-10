@@ -21,6 +21,9 @@ BASE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 
 CONFIGS = {
     1: dict(lc=False, dye=False, mirrors=False, name="air"),
+    # 1.2: same as 1 but periodic BCs on ALL sides, no PML anywhere.
+    # Isolates the core Yee update from the PML implementation.
+    1.2: dict(lc=False, dye=False, mirrors=False, periodic=True, name="air_periodic"),
     2: dict(lc=True,  dye=False, mirrors=False, name="LC"),
     3: dict(lc=True,  dye=True,  mirrors=False, name="LC+dye"),
     4: dict(lc=False, dye=False, mirrors=True,  name="mirrors+air"),
@@ -33,13 +36,14 @@ def build_json(n):
     c = CONFIGS[n]
     lam_sig = float(os.environ.get("LADDER_SIG_LAM", LAM_SIG))
     res = int(os.environ.get("LADDER_RES", RES))
-    pml = float(os.environ.get("LADDER_PML", PML))
+    periodic = bool(c.get("periodic", False))
+    pml = 0.0 if periodic else float(os.environ.get("LADDER_PML", PML))
     cell_y = INT_Y + 2 * pml
     order = ["guide_1"]
     d = {
         "resolution": res, "use_cw": False,
         "run_until": int(os.environ.get("LADDER_RUN_UNTIL", "120")),
-        "dimention": 2, "cell_size_y": cell_y, "periodic": False,
+        "dimention": 2, "cell_size_y": cell_y, "periodic": periodic,
         "pml_size": pml, "background_index": 1.0,
         # snapshots disabled (window set beyond run_until)
         "snapshot_t1": 1e9, "snapshot_t2": 1e9, "snapshot_dt": 1.0,
@@ -157,12 +161,14 @@ def _load_sensor(p):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--config", type=int, required=True)
+    ap.add_argument("--config", type=float, required=True)
     ap.add_argument("--engine", choices=["meep", "gpumeep", "both"], default="both")
     args = ap.parse_args()
-    path = build_json(args.config)
-    print(f"config {args.config} ({CONFIGS[args.config]['name']}) → {path}")
-    if CONFIGS[args.config]["lc"]:
+    # integral configs stay int so existing paths (config_1_air, …) are unchanged
+    cfg = int(args.config) if args.config.is_integer() else args.config
+    path = build_json(cfg)
+    print(f"config {cfg} ({CONFIGS[cfg]['name']}) → {path}")
+    if CONFIGS[cfg]["lc"]:
         ensure_lc(path)
     sim_dir = os.path.join(path, "simulation")
 
