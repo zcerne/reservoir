@@ -273,6 +273,7 @@ class Simulation:
             extra_materials=getattr(self, "extra_materials", []),
             k_point=mp.Vector3(0, 0, 0) if self.args["periodic"] else False,
             force_complex_fields=use_cw,
+            eps_averaging=(not bool(os.environ.get("MEEP_NO_SUBPIXEL"))),
         )
 
     def _setup_sensors(self):

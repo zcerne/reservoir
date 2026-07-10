@@ -1,0 +1,230 @@
+{
+  "resolution": 40,
+  "use_cw": false,
+  "cw_init_time": 200,
+  "cw_tol": 1e-06,
+  "run_until": 250,
+  "dimention": 2,
+  "cell_size_y": 24.0,
+  "periodic": false,
+  "pml_size": 2.0,
+  "background_index": 1.0,
+  "object_order": [
+    "guide_1",
+    "reservoir",
+    "guide_2",
+    "source_1",
+    "source_2",
+    "flux_1",
+    "flux_2",
+    "monitor_1",
+    "monitor_2"
+  ],
+  "guide_1": {
+    "class": "guide",
+    "index": 1.0,
+    "sizes": [
+      2.0,
+      20.0
+    ]
+  },
+  "reservoir": {
+    "class": "reservoir",
+    "sizes": [
+      30,
+      20
+    ],
+    "resolution": 10,
+    "boundary_conditions": [
+      "free",
+      "free",
+      "periodic"
+    ],
+    "face_phi": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "face_theta": [
+      1.5708,
+      1.5708,
+      1.5708,
+      1.5708,
+      1.5708,
+      1.5708
+    ],
+    "elastic_constants": {
+      "K1": 11.1,
+      "K2": 2.0,
+      "K3": 17.1,
+      "q0": 0.0
+    },
+    "n_o": 1.52,
+    "n_e": 1.71,
+    "S": 1.0,
+    "maxeval": 5000,
+    "f_tolerance": 1e-06,
+    "optimize_phi_theta": [
+      true,
+      false
+    ],
+    "boundary_function": null,
+    "boundary_n_periods": 3,
+    "boundary_phase_shift": 3.14159,
+    "boundary_noise_level": 0.6,
+    "boundary_scale": 15.0,
+    "boundary_seed": null,
+    "lc_param": "Q3D",
+    "S_eq": 0.8,
+    "sted": {
+      "enabled": true,
+      "lbdA": 0.53,
+      "gammaA": 0.13,
+      "lbdE": 0.55,
+      "gammaE": 0.13,
+      "SGMA": 0.006,
+      "N1_0": 0.0,
+      "N3_0": 25.0,
+      "rate_43": 10.0,
+      "rate_21": 100.0,
+      "_comment": "Fully-inverted 4-level (N3=25 upper emission level, N1=0): signal at emission line 550nm is amplified directly, no pump/inversion buildup needed. Other dye params article-exact (Vellaichamy Nat.Photon.2025): lbdE 0.55, gammaE 0.13, sigma 0.006, Gamma21 100."
+    }
+  },
+  "guide_2": {
+    "class": "guide",
+    "index": 1.0,
+    "sizes": [
+      10.0,
+      20.0
+    ]
+  },
+  "source_1": {
+    "class": "source",
+    "position": {
+      "on_object": "guide_1",
+      "position": "center",
+      "size": [
+        20.0,
+        0.0,
+        0.0
+      ]
+    },
+    "amplitude": [
+      0.5,
+      0.8,
+      0.16,
+      0.9
+    ],
+    "component": "Ey",
+    "source_type": "pulsed",
+    "lam": 0.55,
+    "dlam": 0.0,
+    "pulse_fwhm_fs": 200.0,
+    "pulse_delay_fs": 30.0
+  },
+  "source_2": {
+    "class": "source",
+    "position": {
+      "on_object": "reservoir",
+      "position": "center",
+      "size": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    "amplitude": [
+      30.0
+    ],
+    "component": "Ez",
+    "source_type": "pulsed",
+    "lam": 0.53,
+    "dlam": 0.0,
+    "_comment": "STED PUMP: z-polarized (Ez, out-of-plane in 2D) area source filling the whole reservoir (30x20). lam=0.25=sted.lbdA inverts the 4-level gain medium (1->4). Orthogonal polarization to the Ey signal \u2014 couples to it ONLY through the gain atoms. Raise amplitude for stronger inversion.",
+    "pulse_fwhm_fs": 200.0,
+    "pulse_delay_fs": 0.0
+  },
+  "flux_1": {
+    "class": "monitor",
+    "type": "flux",
+    "on_object": "guide_1",
+    "position": {
+      "position": "right",
+      "size": 20.0
+    },
+    "lam_range": [
+      0.5,
+      0.6
+    ],
+    "n_lam": 51
+  },
+  "flux_2": {
+    "class": "monitor",
+    "type": "flux",
+    "on_object": "guide_2",
+    "position": {
+      "position": "right",
+      "size": 20.0
+    },
+    "lam_range": [
+      0.5,
+      0.6
+    ],
+    "n_lam": 51
+  },
+  "monitor_1": {
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_1",
+    "position": {
+      "position": "right",
+      "size": 20.0
+    },
+    "lam_range": [
+      0.5,
+      0.6
+    ],
+    "n_lam": 51
+  },
+  "monitor_2": {
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_2",
+    "position": {
+      "position": "left",
+      "size": 20.0
+    },
+    "lam_range": [
+      0.5,
+      0.6
+    ],
+    "n_lam": 51
+  },
+  "_options": {
+    "use_cw": "true = solve_cw() (stationary state, fast); false = time-domain run_until",
+    "cw_tol": "convergence tolerance for solve_cw (default 1e-6)",
+    "cw_maxiters": "max BiCGSTAB iterations (default 10000)",
+    "cw_L": "Krylov subspace size (default 10)",
+    "snapshot_t1/t2/dt": "windowed snapshots: record every dt from t1 to t2 (ignored when use_cw=true)",
+    "run_until": "time-domain only: MEEP time units to run (ignored when use_cw=true)",
+    "sizes": "2-element [sx, sy] = 2D LC; 3-element [sx, sy, sz] = 3D LC (also sets size_x for cell layout)",
+    "optimize_phi_theta": "[opt_phi, opt_theta] booleans \u2014 which angles are optimized (default [true, true])",
+    "boundary_conditions": "per-axis [x, y, z]: 'free' | 'periodic'",
+    "face_phi": "6-tuple (x_min, x_max, y_min, y_max, z_min, z_max): float (rad) = pin phi, null = free",
+    "face_theta": "6-tuple same order: float (rad) = pin theta, null = free. Omit \u2192 \u03c0/2 wherever face_phi is set",
+    "elastic_constants": "K1=splay, K2=twist, K3=bend (pN); q0=cholesteric wavevector (0 = nematic)",
+    "source_type": "'continuous' | 'gaussian' (needs dlam>0) | 'gaussian_flat' (needs w0) | 'flattop'",
+    "component": "'Ex' | 'Ey' | 'Ez' | 'Hx' | 'Hy' | 'Hz' (default 'Ez')",
+    "monitor_type": "'flux' | '0Ddft' | '1Ddft' | '2Ddft' | '3Ddft' | '0Dsnap' | '1Dsnap' | '2Dsnap' | '3Dsnap'",
+    "position": "'left' | 'center' | 'right'",
+    "boundary_function": "null=use face_phi/theta scalars | 'random'=random_2d_boundaries per pixel",
+    "boundary_seed": "integer seed for boundary_function (null=random each run)"
+  },
+  "snapshot_t1": 450,
+  "snapshot_t2": 480,
+  "snapshot_dt": 5,
+  "_comment": "02_2D_Q_tensor = IDENTICAL to 01_2D_director (same geometry 30x20 res10, same sinus_random_2d boundaries seed7, same K/n) \u2014 ONLY lc_param=Q3D (Q-tensor relax instead of director)."
+}

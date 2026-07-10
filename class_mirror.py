@@ -1,3 +1,4 @@
+import os
 import meep as mp
 import numpy as np
 from class_layer import Layer

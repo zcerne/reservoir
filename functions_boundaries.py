@@ -11,6 +11,46 @@ def _smooth_face(rng, shape, sigma):
     return (raw - lo) / (hi - lo + 1e-12)
 
 
+def _perlin_1d(rng, n, wavelength):
+    """1D Perlin (gradient) noise of length n, in [0,1]. `wavelength` = lattice
+    spacing in samples (larger = smoother). Gradient noise → C¹-smooth, no jaggies."""
+    L = max(2, int(round(wavelength)))
+    n_nodes = n // L + 2
+    grad = rng.uniform(-1.0, 1.0, n_nodes)          # random slope at each lattice node
+    x = np.arange(n) / L
+    i0 = np.floor(x).astype(int); t = x - i0
+    def fade(u):                                     # 6u⁵−15u⁴+10u³ (Perlin smootherstep)
+        return u * u * u * (u * (u * 6 - 15) + 10)
+    g0 = grad[i0]; g1 = grad[i0 + 1]
+    d0 = g0 * t; d1 = g1 * (t - 1.0)                 # dot(gradient, distance)
+    val = d0 + fade(t) * (d1 - d0)
+    lo, hi = val.min(), val.max()
+    return (val - lo) / (hi - lo + 1e-12)
+
+
+def perlin_2d_boundaries(resolution, dimensions, seed=None, ignore_faces=None, scale=3.0):
+    """Perlin-noise director anchoring on the 4 side faces of a 2D cell. Smooth,
+    continuous, random-but-not-noisy (gradient noise, correlation length `scale` µm).
+    Faces: x_min/x_max vary along y (length n_y); y_min/y_max vary along x (n_x)."""
+    rng = np.random.default_rng(seed)
+    sx, sy = float(dimensions[0]), float(dimensions[1])
+    n_x = int(sx * resolution) + 1
+    n_y = int(sy * resolution) + 1
+    ign = ignore_faces if ignore_faces is not None else [False] * 6
+    wl = scale * resolution                          # samples per Perlin lattice cell
+    keys = ("x_min", "x_max", "y_min", "y_max")
+    sizes = (n_y, n_y, n_x, n_x)
+    face_phi, face_theta = {}, {}
+    for key, sz, ignored in zip(keys, sizes, ign):
+        if ignored:
+            face_phi[key] = None; face_theta[key] = None
+        else:
+            face_phi[key] = _perlin_1d(rng, sz, wl) * np.pi
+            # θ anchored IN-PLANE (π/2) — 2D-planar convention; only φ is random.
+            face_theta[key] = np.full(sz, np.pi / 2)
+    return face_phi, face_theta
+
+
 def perlin_3d_boundaries(resolution, dimensions, seed=None, ignore_faces=None, scale=2.0,
                          same_opposite_faces=None):
     """Smooth (Perlin-like) boundary conditions on all 6 faces of a 3D LC cube.

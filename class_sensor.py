@@ -113,8 +113,13 @@ class Sensor:
             self._dft_freqs = list(
                 np.linspace(1.0 / lam_range[1], 1.0 / lam_range[0], n_lam)
             )
+            # MEEP default (yee_grid=False): the DFT field is interpolated to the
+            # centered grid. gpumeep's monitor reproduces this same interpolation,
+            # so the two sensors match without forcing MEEP into raw Yee mode.
+            _yee = bool(int(os.environ.get("GPUMEEP_YEE_GRID", "0")))
             self._monitor_handle = sim.add_dft_fields(
-                [mp.Ex, mp.Ey, mp.Ez], self._dft_freqs, center=self.center, size=self.size
+                [mp.Ex, mp.Ey, mp.Ez], self._dft_freqs,
+                center=self.center, size=self.size, yee_grid=_yee
             )
 
     def get_step_func(self) -> tuple[float, object] | None:

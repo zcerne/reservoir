@@ -91,7 +91,7 @@ class Reservoir:
             from functions_boundaries import (random_2d_boundaries, random_3d_boundaries,
                                               perlin_3d_boundaries, sinus_3d_boundaries,
                                               sinus_2d_boundaries, sinus_random_2d_boundaries,
-                                              smooth_random_2d_boundaries,
+                                              smooth_random_2d_boundaries, perlin_2d_boundaries,
                                               defect_2d_boundaries,
                                               competing_3d_boundaries)
             _fn_map = {"random": random_2d_boundaries, "random_3d": random_3d_boundaries,
@@ -99,13 +99,14 @@ class Reservoir:
                        "sinus_2d": sinus_2d_boundaries,
                        "sinus_random_2d": sinus_random_2d_boundaries,
                        "smooth_random_2d": smooth_random_2d_boundaries,
+                       "perlin_2d": perlin_2d_boundaries,
                        "defect_2d": defect_2d_boundaries,
                        "competing_3d": competing_3d_boundaries}
             fn = _fn_map[self.boundary_function]
             dims = self.dimensions if self.boundary_function in (
                 "random_3d", "perlin_3d", "sinus_3d", "competing_3d") else self.dimensions[:2]
             extra_kw = {}
-            if self.boundary_function in ("perlin_3d", "competing_3d", "smooth_random_2d"):
+            if self.boundary_function in ("perlin_3d", "competing_3d", "smooth_random_2d", "perlin_2d"):
                 extra_kw["scale"] = self.boundary_scale
             if self.boundary_function == "perlin_3d" and self.boundary_same_opposite is not None:
                 extra_kw["same_opposite_faces"] = self.boundary_same_opposite
@@ -445,7 +446,14 @@ class Reservoir:
         z = np.linspace(-sz / 2, sz / 2, nz)
         out = self.folder / "simulation"
         out.mkdir(exist_ok=True)
-        np.savez(out / "lc_fields.npz", phi=phi, theta=theta, x=x, y=y, z=z)
+        save = dict(phi=phi, theta=theta, x=x, y=y, z=z)
+        # Save the raw Q-tensor (q5 = Qxx,Qxy,Qxz,Qyy,Qyz) so ε can be built directly
+        # from Q (local S + biaxiality), not just the director+S=1 collapse.
+        q5 = getattr(self, "_Q_cache", None)
+        if q5 is not None:
+            q5 = np.asarray(q5).reshape(5, nx, ny, nz)
+            save.update(Qxx=q5[0], Qxy=q5[1], Qxz=q5[2], Qyy=q5[3], Qyz=q5[4])
+        np.savez(out / "lc_fields.npz", **save)
         self.plot_boundaries()
 
     def plot_boundaries(self):
