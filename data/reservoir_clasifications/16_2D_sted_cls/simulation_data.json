@@ -38,23 +38,23 @@
     "boundary_conditions": [
       "free",
       "free",
-      "periodic"
+      "free"
     ],
     "face_phi": [
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0,
-      0.0
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
     ],
     "face_theta": [
-      1.5708,
-      1.5708,
-      1.5708,
-      1.5708,
-      1.5708,
-      1.5708
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
     ],
     "elastic_constants": {
       "K1": 11.1,
@@ -71,12 +71,12 @@
       true,
       false
     ],
-    "boundary_function": null,
+    "boundary_function": "sinus_random_2d",
     "boundary_n_periods": 3,
     "boundary_phase_shift": 3.14159,
     "boundary_noise_level": 0.6,
     "boundary_scale": 15.0,
-    "boundary_seed": null,
+    "boundary_seed": 7,
     "lc_param": "Q3D",
     "S_eq": 0.8,
     "sted": {
@@ -137,7 +137,7 @@
       ]
     },
     "amplitude": [
-      30.0
+      300.0
     ],
     "component": "Ez",
     "source_type": "pulsed",
@@ -226,5 +226,5 @@
   "snapshot_t1": 450,
   "snapshot_t2": 480,
   "snapshot_dt": 5,
-  "_comment": "02_2D_Q_tensor = IDENTICAL to 01_2D_director (same geometry 30x20 res10, same sinus_random_2d boundaries seed7, same K/n) \u2014 ONLY lc_param=Q3D (Q-tensor relax instead of director)."
+  "_comment": "16_2D_sted_cls = SINGLE-PASS counterpart of 15_2D_sted_resonator. IDENTICAL params (res 40, pump 300, run_until 450, structured director sinus_random_2d seed7, Q3D in-plane, fixed source [0,20,0], STED N1=25/N3=0) \u2014 ONLY difference is NO mirrors. Clean single-pass vs cavity comparison at matched pump."
 }
