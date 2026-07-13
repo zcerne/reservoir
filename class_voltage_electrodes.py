@@ -80,6 +80,37 @@ class VoltageElectrodes:
         default_width = (min(pitches) / 2.0) if pitches else 1.0
         self.electrode_width_um = float(cfg.get("electrode_width_um", default_width))
 
+        # ---- JSON: graded far-field padding (variable outside resolution) ----
+        #   "domain_padding": {"enabled": true, "faces": ["y_min","y_max"],
+        #                      "n_pad": 20, "growth": 1.2, "w_max_um": 2.0,
+        #                      "eps_outside": 1.0}
+        # Adds geometrically-growing cells beyond the listed faces so the
+        # Neumann walls sit effectively at infinity; the Poisson solve runs on
+        # the padded grid and Poisson2D crops V/E back to the LC core grid.
+        dp = cfg.get("domain_padding", {}) or {}
+        self.pad_enabled = bool(dp.get("enabled", False))
+        self.pad_faces = list(dp.get("faces", ["y_min", "y_max"]))
+        self.pad_n = int(dp.get("n_pad", 20))
+        self.pad_growth = float(dp.get("growth", 1.2))
+        self.pad_wmax = dp.get("w_max_um", 2.0)
+        self.pad_wmax = None if self.pad_wmax in (None, 0) else float(self.pad_wmax)
+        self.eps_outside = float(dp.get("eps_outside", 1.0))
+
+        # ---- JSON: spline boundary-voltage electrode (2-electrode scheme) ----
+        #   "spline_electrode": {"enabled": true, "face": "x_min",
+        #                        "coeffs": [c1..cN], "span_um": [y_lo,y_hi]|null,
+        #                        "degree": 3, "ground_face": "x_max"}
+        # V(face coord) = Σ c_k B_k (clamped B-splines; partition of unity →
+        # coefficients ARE voltages). Overrides per-pad voltages on `face` and
+        # paints a full ground plane on `ground_face`.
+        se = cfg.get("spline_electrode", {}) or {}
+        self.spline_enabled = bool(se.get("enabled", False))
+        self.spline_face = str(se.get("face", "x_min"))
+        self.spline_coeffs = np.asarray(se.get("coeffs", []), dtype=np.float64)
+        self.spline_span = se.get("span_um", None)
+        self.spline_degree = int(se.get("degree", 3))
+        self.spline_ground = se.get("ground_face", "x_max")
+
         # Grid (LC grid — same resolution as reservoir, matches Poisson grid).
         self.nx = int(round(self.sx * self.resolution)) + 1
         self.ny = int(round(self.sy * self.resolution)) + 1
@@ -94,6 +125,49 @@ class VoltageElectrodes:
         self.spacings = (self.dx, self.dy, self.dz)
         self.gshape = (self.nx, self.ny, self.nz)
         self.n_total = self.nx * self.ny * self.nz
+
+        # Padded-grid geometry (identity when padding is off).
+        self._build_padding()
+
+    # ---------------- Graded padding geometry ----------------
+
+    def _build_padding(self):
+        """Per-axis width arrays + core offsets for the padded Poisson grid.
+        pad_lo/pad_hi[axis] = number of extra nodes below/above the core;
+        spacings_padded[axis] = scalar (uniform) or 1D width array (graded)."""
+        self.pad_lo = [0, 0, 0]
+        self.pad_hi = [0, 0, 0]
+        widths = [None, None, None]
+        if self.pad_enabled:
+            base = {0: self.dx, 1: self.dy}
+            for ax, (fmin, fmax, n_core) in enumerate(
+                    [("x_min", "x_max", self.nx), ("y_min", "y_max", self.ny)]):
+                lo = fmin in self.pad_faces
+                hi = fmax in self.pad_faces
+                if not (lo or hi):
+                    continue
+                w = base[ax]
+                ramp = w * self.pad_growth ** np.arange(1, self.pad_n + 1)
+                if self.pad_wmax is not None:
+                    ramp = np.minimum(ramp, self.pad_wmax)
+                parts = []
+                if lo:
+                    parts.append(ramp[::-1])
+                    self.pad_lo[ax] = self.pad_n
+                parts.append(np.full(n_core, w))
+                if hi:
+                    parts.append(ramp)
+                    self.pad_hi[ax] = self.pad_n
+                widths[ax] = np.concatenate(parts)
+        self.spacings_padded = tuple(
+            widths[ax] if widths[ax] is not None else self.spacings[ax]
+            for ax in range(3))
+        self.gshape_padded = tuple(
+            self.gshape[ax] + self.pad_lo[ax] + self.pad_hi[ax]
+            for ax in range(3))
+        self.core_slices = tuple(
+            slice(self.pad_lo[ax], self.pad_lo[ax] + self.gshape[ax])
+            for ax in range(3))
 
     # ---------------- Dirichlet mask + values ----------------
 
@@ -110,11 +184,70 @@ class VoltageElectrodes:
         """
         if voltages is None:
             voltages = self.voltages
-        mask = np.zeros(self.gshape, dtype=bool)
-        Vdir = np.zeros(self.gshape, dtype=np.float64)
+        mask_c = np.zeros(self.gshape, dtype=bool)
+        Vdir_c = np.zeros(self.gshape, dtype=np.float64)
         for fn in _FACE_NAMES:
-            self._paint_face(mask, Vdir, fn, voltages[fn])
+            if self.spline_enabled and fn in (self.spline_face, self.spline_ground):
+                continue                    # spline scheme owns these faces
+            self._paint_face(mask_c, Vdir_c, fn, voltages[fn])
+        if self.spline_enabled:
+            self._paint_spline(mask_c, Vdir_c, voltages)
+        if not self.pad_enabled:
+            return mask_c, Vdir_c
+        # embed the core Dirichlet into the padded grid (electrodes stay on
+        # the physical cell faces; the padding carries no Dirichlet at all)
+        mask = np.zeros(self.gshape_padded, dtype=bool)
+        Vdir = np.zeros(self.gshape_padded, dtype=np.float64)
+        mask[self.core_slices] = mask_c
+        Vdir[self.core_slices] = Vdir_c
         return mask, Vdir
+
+    def _paint_spline(self, mask: np.ndarray, Vdir: np.ndarray,
+                      voltages: dict | None = None) -> None:
+        """Paint the spline-voltage electrode on `spline_face` and a full
+        ground plane on `spline_ground`. Coefficients may be overridden at
+        call time via voltages={"spline": array} (reservoir-computer input)."""
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.join(_os.path.dirname(
+            _os.path.abspath(__file__)), "..", "BlockOptimization", "E_field_stuff"))
+        try:
+            from spline_voltage import bspline_basis
+        except ImportError:
+            from E_field_stuff.spline_voltage import bspline_basis  # type: ignore
+        coeffs = self.spline_coeffs
+        if voltages and "spline" in voltages:
+            coeffs = np.asarray(voltages["spline"], dtype=np.float64)
+        if coeffs.size == 0:
+            raise ValueError("spline_electrode.enabled but no coeffs given")
+        face = self.spline_face
+        if face.startswith("x"):
+            fc = (np.arange(self.ny) * self.dy) - self.sy / 2.0
+            span = self.spline_span or [-self.sy / 2.0, self.sy / 2.0]
+        else:
+            fc = (np.arange(self.nx) * self.dx) - self.sx / 2.0
+            span = self.spline_span or [-self.sx / 2.0, self.sx / 2.0]
+        B = np.asarray(bspline_basis(fc, float(span[0]), float(span[1]),
+                                     n_ctrl=coeffs.size, degree=self.spline_degree))
+        prof = B @ coeffs
+        sup = B.sum(axis=1) > 1e-12
+        if face == "x_min":
+            mask[0, sup, :] = True;  Vdir[0, sup, :] = prof[sup, None]
+        elif face == "x_max":
+            mask[-1, sup, :] = True; Vdir[-1, sup, :] = prof[sup, None]
+        elif face == "y_min":
+            mask[sup, 0, :] = True;  Vdir[sup, 0, :] = prof[sup, None]
+        else:
+            mask[sup, -1, :] = True; Vdir[sup, -1, :] = prof[sup, None]
+        g = self.spline_ground
+        if g:
+            if g == "x_min":
+                mask[0, :, :] = True;  Vdir[0, :, :] = 0.0
+            elif g == "x_max":
+                mask[-1, :, :] = True; Vdir[-1, :, :] = 0.0
+            elif g == "y_min":
+                mask[:, 0, :] = True;  Vdir[:, 0, :] = 0.0
+            else:
+                mask[:, -1, :] = True; Vdir[:, -1, :] = 0.0
 
     def _paint_face(self, mask: np.ndarray, Vdir: np.ndarray,
                     face: FaceName, vs: np.ndarray) -> None:

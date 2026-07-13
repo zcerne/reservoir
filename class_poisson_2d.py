@@ -74,17 +74,40 @@ class Poisson2D:
         assert theta.shape == gshape, f"theta shape {theta.shape} != gshape {gshape}"
 
         mask, Vdir = self.electrodes.build_dirichlet(voltages)
-        eps_diag = esj.build_eps_diag_jax(
-            jnp.asarray(phi, dtype=jnp.float64),
-            jnp.asarray(theta, dtype=jnp.float64),
-            self.eps_perp, self.eps_a)
+        el = self.electrodes
+        padded = getattr(el, "pad_enabled", False)
+        spacings = el.spacings_padded if padded else el.spacings
+        if padded:
+            # Embed the LC-core director into the padded grid; the padding
+            # region is an isotropic dielectric (reservoir.domain_padding.
+            # eps_outside, default vacuum) — director angles there are unused
+            # because eps is overwritten below.
+            phi_p = np.zeros(el.gshape_padded); theta_p = np.full(el.gshape_padded, np.pi / 2)
+            phi_p[el.core_slices] = phi
+            theta_p[el.core_slices] = theta
+            eps_diag = esj.build_eps_diag_jax(
+                jnp.asarray(phi_p, dtype=jnp.float64),
+                jnp.asarray(theta_p, dtype=jnp.float64),
+                self.eps_perp, self.eps_a)
+            outside = np.ones(el.gshape_padded, dtype=bool)
+            outside[el.core_slices] = False
+            eps_diag = jnp.where(jnp.asarray(outside)[None], el.eps_outside, eps_diag)
+        else:
+            eps_diag = esj.build_eps_diag_jax(
+                jnp.asarray(phi, dtype=jnp.float64),
+                jnp.asarray(theta, dtype=jnp.float64),
+                self.eps_perp, self.eps_a)
         V_3d = esj.solve_poisson_jax(
             eps_diag,
-            self.electrodes.spacings,
+            spacings,
             jnp.asarray(mask),
             jnp.asarray(Vdir, dtype=jnp.float64),
             rtol=self.rtol, maxiter=self.maxiter)
-        E_3d = esj.gradient_V_jax(V_3d, self.electrodes.spacings)
+        E_3d = esj.gradient_V_jax(V_3d, spacings)
+        if padded:
+            # crop back to the LC core grid → downstream (LC relax) unchanged
+            V_3d = V_3d[el.core_slices]
+            E_3d = E_3d[(slice(None),) + el.core_slices]
         self.V = np.asarray(V_3d)
         self.E = np.asarray(E_3d)
         return self.V, self.E
