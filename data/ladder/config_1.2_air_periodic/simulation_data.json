@@ -3,9 +3,9 @@
   "use_cw": false,
   "run_until": 120,
   "dimention": 2,
-  "cell_size_y": 9.0,
-  "periodic": false,
-  "pml_size": 1.5,
+  "cell_size_y": 6.0,
+  "periodic": true,
+  "pml_size": 0.0,
   "background_index": 1.0,
   "snapshot_t1": 1000000000.0,
   "snapshot_t2": 1000000000.0,
@@ -18,16 +18,6 @@
       6.0
     ]
   },
-  "mirror_1": {
-    "class": "mirror",
-    "lam": 0.55,
-    "n_indexes": [
-      1.46,
-      2.4
-    ],
-    "transmission": 0.1,
-    "size_y": 6.0
-  },
   "guide_res": {
     "class": "guide",
     "index": 1.0,
@@ -35,16 +25,6 @@
       5.0,
       6.0
     ]
-  },
-  "mirror_2": {
-    "class": "mirror",
-    "lam": 0.55,
-    "n_indexes": [
-      1.46,
-      2.4
-    ],
-    "transmission": 0.1,
-    "size_y": 6.0
   },
   "guide_2": {
     "class": "guide",
@@ -84,33 +64,16 @@
       "size": 6.0
     },
     "lam_range": [
-      0.42,
-      0.65
+      0.5,
+      0.5
     ],
-    "n_lam": 15
-  },
-  "monitor_3": {
-    "class": "monitor",
-    "type": "flux",
-    "on_object": "guide_2",
-    "position": {
-      "position": "center",
-      "size": 6.0
-    },
-    "lam_range": [
-      0.42,
-      0.65
-    ],
-    "n_lam": 15
+    "n_lam": 1
   },
   "object_order": [
     "guide_1",
-    "mirror_1",
     "guide_res",
-    "mirror_2",
     "guide_2",
     "source_1",
-    "monitor_2",
-    "monitor_3"
+    "monitor_2"
   ]
 }

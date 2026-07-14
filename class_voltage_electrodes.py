@@ -79,6 +79,10 @@ class VoltageElectrodes:
                 pitches.append(face_len / n)
         default_width = (min(pitches) / 2.0) if pitches else 1.0
         self.electrode_width_um = float(cfg.get("electrode_width_um", default_width))
+        # Optional per-face width override: "electrode_widths": {"x_max": 3.0}
+        # (e.g. finger comb on one face + full-coverage ground plane opposite).
+        self.electrode_widths = {str(k): float(v) for k, v in
+                                 (cfg.get("electrode_widths", {}) or {}).items()}
 
         # ---- JSON: graded far-field padding (variable outside resolution) ----
         #   "domain_padding": {"enabled": true, "faces": ["y_min","y_max"],
@@ -255,14 +259,19 @@ class VoltageElectrodes:
         if vs.size == 0:
             return
         n_e = vs.size
+        width = self.electrode_widths.get(face, self.electrode_width_um)
+        # NaN entry = NO electrode at that slot (floating wall, no Dirichlet) —
+        # used by the discrete electrode-position optimization.
         if face.startswith("y"):
             # Electrodes span x direction
             pitch = self.sx / n_e
             j_idx = 0 if face == "y_min" else self.ny - 1
             for k in range(n_e):
+                if not np.isfinite(vs[k]):
+                    continue
                 xc = -self.sx / 2.0 + (k + 0.5) * pitch
-                i_lo = int(round((xc - self.electrode_width_um / 2.0 + self.sx / 2.0) / self.dx))
-                i_hi = int(round((xc + self.electrode_width_um / 2.0 + self.sx / 2.0) / self.dx)) + 1
+                i_lo = int(round((xc - width / 2.0 + self.sx / 2.0) / self.dx))
+                i_hi = int(round((xc + width / 2.0 + self.sx / 2.0) / self.dx)) + 1
                 i_lo = max(0, i_lo); i_hi = min(self.nx, i_hi)
                 mask[i_lo:i_hi, j_idx, :] = True
                 Vdir[i_lo:i_hi, j_idx, :] = vs[k]
@@ -271,9 +280,11 @@ class VoltageElectrodes:
             pitch = self.sy / n_e
             i_idx = 0 if face == "x_min" else self.nx - 1
             for k in range(n_e):
+                if not np.isfinite(vs[k]):
+                    continue
                 yc = -self.sy / 2.0 + (k + 0.5) * pitch
-                j_lo = int(round((yc - self.electrode_width_um / 2.0 + self.sy / 2.0) / self.dy))
-                j_hi = int(round((yc + self.electrode_width_um / 2.0 + self.sy / 2.0) / self.dy)) + 1
+                j_lo = int(round((yc - width / 2.0 + self.sy / 2.0) / self.dy))
+                j_hi = int(round((yc + width / 2.0 + self.sy / 2.0) / self.dy)) + 1
                 j_lo = max(0, j_lo); j_hi = min(self.ny, j_hi)
                 mask[i_idx, j_lo:j_hi, :] = True
                 Vdir[i_idx, j_lo:j_hi, :] = vs[k]
@@ -285,6 +296,11 @@ class VoltageElectrodes:
         Example: ve.set_voltages(y_max=[1,2,3,4], y_min=[0,0,0,0])
         """
         for fn, vs in per_face.items():
+            if fn == "spline":
+                # spline-electrode control points (the 2-electrode scheme's
+                # input vector) — consumed by _paint_spline at build time
+                self.spline_coeffs = np.asarray(vs, dtype=np.float64).flatten()
+                continue
             if fn not in self.voltages:
                 raise KeyError(f"unknown face {fn!r}; expected one of {_FACE_NAMES}")
             self.voltages[fn] = np.asarray(vs, dtype=np.float64).flatten()

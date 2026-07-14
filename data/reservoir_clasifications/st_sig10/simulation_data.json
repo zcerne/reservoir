@@ -226,5 +226,6 @@
   "snapshot_t1": 450,
   "snapshot_t2": 480,
   "snapshot_dt": 5,
-  "_comment": "02_2D_Q_tensor = IDENTICAL to 01_2D_director (same geometry 30x20 res10, same sinus_random_2d boundaries seed7, same K/n) \u2014 ONLY lc_param=Q3D (Q-tensor relax instead of director)."
+  "_comment": "02_2D_Q_tensor = IDENTICAL to 01_2D_director (same geometry 30x20 res10, same sinus_random_2d boundaries seed7, same K/n) \u2014 ONLY lc_param=Q3D (Q-tensor relax instead of director).",
+  "solver": "gpumeep"
 }

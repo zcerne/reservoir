@@ -38,6 +38,18 @@ class LCFromField:
                 f"or 'qtensor_mma3d', got {self.mode!r}")
         self.relax_maxeval = int(cfg.get("lc_relax_maxeval", 2000))
         self.relax_xtol    = float(cfg.get("lc_relax_xtol", 1e-6))
+        # Face anchoring: "face_phi": [x_min, x_max, y_min, y_max, z_min, z_max]
+        # entries in RADIANS or null (free). Honored by fwdbwd_relax via
+        # bound-equality pinning of the boundary-plane phi dofs (strong
+        # anchoring). shortcut mode cannot honor anchoring — error out there.
+        fp = cfg.get("face_phi", [None] * 6)
+        self.face_phi = list(fp) + [None] * (6 - len(fp))
+        # SOFT anchoring: "face_anchor_W" (same 6-slot layout) = Rapini-Papoular
+        # surface strength W [pN/µm] per face; adds (W/2)·sin²(φ−φ₀)·dA on that
+        # boundary plane instead of pinning it (extrapolation length L = K1/W).
+        # null/0 with face_phi set keeps the hard pin.
+        fw = cfg.get("face_anchor_W", [None] * 6)
+        self.face_anchor_W = list(fw) + [None] * (6 - len(fw))
 
         # Q-tensor (Landau–de Gennes) constants — derived from the same Frank
         # constants + S_eq, so no new config keys are required. Reuses eps_a for
@@ -278,9 +290,30 @@ class LCFromField:
         constants_5 = self.K
         E_j = jnp.asarray(E)
 
+        # Soft (Rapini-Papoular) anchoring terms: (W/2)·sin²(φ−φ₀)·dA summed
+        # over each soft-anchored boundary plane. Hard-pinned faces (face_phi
+        # set, W null) are handled below via bound equality instead.
+        _face_slices = [(0, slice(None), slice(None)),
+                        (-1, slice(None), slice(None)),
+                        (slice(None), 0, slice(None)),
+                        (slice(None), -1, slice(None)),
+                        (slice(None), slice(None), 0),
+                        (slice(None), slice(None), -1)]
+        _dA = [spacings[1] * spacings[2], spacings[1] * spacings[2],
+               spacings[0] * spacings[2], spacings[0] * spacings[2],
+               spacings[0] * spacings[1], spacings[0] * spacings[1]]
+        soft = [(sl, float(self.face_phi[k]), float(self.face_anchor_W[k]), _dA[k])
+                for k, sl in enumerate(_face_slices)
+                if self.face_phi[k] is not None and self.face_anchor_W[k]]
+
         def energy(phi_flat):
             nv = n_sph(phi_flat, theta_flat).reshape((3,) + gshape)
-            return fe_core_director_fwdbwd(nv, constants_5, spacings, fields_=E_j)
+            F = fe_core_director_fwdbwd(nv, constants_5, spacings, fields_=E_j)
+            if soft:
+                phi3 = phi_flat.reshape(gshape)
+                for sl, phi0, W, dA in soft:
+                    F = F + 0.5 * W * dA * jnp.sum(jnp.sin(phi3[sl] - phi0) ** 2)
+            return F
 
         E_jit = jax.jit(energy)
         g_jit = jax.jit(jax.grad(energy))
@@ -303,8 +336,22 @@ class LCFromField:
         opt.set_xtol_rel(self.relax_xtol)
         # Generous bounds — director is angle, +8π gives plenty of room.
         bound = 8.0 * np.pi
-        opt.set_lower_bounds(np.full(n_total, -bound))
-        opt.set_upper_bounds(np.full(n_total,  bound))
+        lb = np.full(n_total, -bound)
+        ub = np.full(n_total,  bound)
+        # Strong anchoring: pin boundary-plane phi via bound equality (only
+        # faces WITHOUT a soft W — those are already in the energy).
+        if any(v is not None for v in self.face_phi):
+            pin = np.full(gshape, np.nan)
+            for k, sl in enumerate(_face_slices):
+                if self.face_phi[k] is not None and not self.face_anchor_W[k]:
+                    pin[sl] = float(self.face_phi[k])
+            pinf = pin.flatten()
+            fixed = ~np.isnan(pinf)
+            lb[fixed] = pinf[fixed]
+            ub[fixed] = pinf[fixed]
+            x0[fixed] = pinf[fixed]
+        opt.set_lower_bounds(lb)
+        opt.set_upper_bounds(ub)
         try:
             phi_star = opt.optimize(x0)
         except (nlopt.RoundoffLimited, RuntimeError) as e:

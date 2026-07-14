@@ -1,28 +1,30 @@
 {
-  "resolution": 40,
+  "resolution": 20,
   "use_cw": false,
-  "run_until": 120,
-  "dimention": 2,
-  "cell_size_y": 9.0,
+  "run_until": 60,
+  "dimention": 3,
+  "cell_size_y": 5.0,
   "periodic": false,
-  "pml_size": 1.5,
+  "pml_size": 1.0,
   "background_index": 1.0,
   "snapshot_t1": 1000000000.0,
   "snapshot_t2": 1000000000.0,
   "snapshot_dt": 1.0,
+  "cell_size_z": 3.5,
   "guide_1": {
     "class": "guide",
     "index": 1.0,
     "sizes": [
       0.5,
-      6.0
+      3.0
     ]
   },
   "reservoir": {
     "class": "reservoir",
     "sizes": [
-      5.0,
-      6.0
+      2.5,
+      3.0,
+      1.5
     ],
     "resolution": 10,
     "boundary_conditions": [
@@ -61,33 +63,21 @@
       true,
       false
     ],
-    "boundary_function": "sinus_random_2d",
+    "boundary_function": "sinus_3d",
     "boundary_n_periods": 3,
     "boundary_phase_shift": 3.14159,
     "boundary_noise_level": 0.6,
     "boundary_scale": 15.0,
     "boundary_seed": 7,
     "lc_param": "Q3D",
-    "S_eq": 0.8,
-    "sted": {
-      "enabled": true,
-      "lbdA": 0.53,
-      "gammaA": 0.13,
-      "lbdE": 0.55,
-      "gammaE": 0.13,
-      "SGMA": 0.006,
-      "N1_0": 0.0,
-      "N3_0": 25.0,
-      "rate_43": 10.0,
-      "rate_21": 100.0
-    }
+    "S_eq": 0.8
   },
   "guide_2": {
     "class": "guide",
     "index": 1.0,
     "sizes": [
-      5.0,
-      6.0
+      2.5,
+      3.0
     ]
   },
   "source_1": {
@@ -97,8 +87,8 @@
       "position": "center",
       "size": [
         0.0,
-        6.0,
-        0.0
+        3.0,
+        1.5
       ]
     },
     "amplitude": [
@@ -106,43 +96,22 @@
     ],
     "component": "Ey",
     "source_type": "pulsed",
-    "lam": 0.6,
+    "lam": 0.5,
     "dlam": 0.0,
     "pulse_fwhm_fs": 20.0,
     "pulse_delay_fs": 0.0
   },
-  "source_2": {
-    "class": "source",
-    "position": {
-      "on_object": "reservoir",
-      "position": "center",
-      "size": [
-        5.0,
-        6.0,
-        0.0
-      ]
-    },
-    "amplitude": [
-      300.0
-    ],
-    "component": "Ez",
-    "source_type": "pulsed",
-    "lam": 0.53,
-    "dlam": 0.0,
-    "pulse_fwhm_fs": 200.0,
-    "pulse_delay_fs": 0.0
-  },
   "monitor_2": {
     "class": "monitor",
-    "type": "1Ddft",
+    "type": "2Ddft",
     "on_object": "guide_2",
     "position": {
       "position": "center",
-      "size": 6.0
+      "size": 3.0
     },
     "lam_range": [
-      0.6,
-      0.6
+      0.5,
+      0.5
     ],
     "n_lam": 1
   },
@@ -151,7 +120,6 @@
     "reservoir",
     "guide_2",
     "source_1",
-    "source_2",
     "monitor_2"
   ]
 }

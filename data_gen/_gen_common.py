@@ -31,9 +31,24 @@ def open_reservoir(path, components):
     import json as _json
     with open(os.path.join(path, "simulation_data.json")) as _f:
         solver = str(_json.load(_f).get("solver", "meep")).lower()
+    # Env override: the same design JSON can run MEEP on Orion (CPU/MPI) and
+    # GPUmeep on smaug without editing the file.
+    solver = os.environ.get("RESERVOIR_SOLVER", solver).lower()
 
     if solver in ("gpumeep", "gpu", "gpumma"):
-        from class_simulation_gpu import SimulationGPU
+        # Import the CANONICAL GPUmeep driver (GPUMEEP_PATH), not the stale
+        # resevoir-local copy that shadows it on sys.path (same guard as
+        # ladder.run_gpumeep).
+        import sys as _sys, importlib as _importlib
+        _gpu_src = os.environ.get("GPUMEEP_PATH")
+        if _gpu_src:
+            _sys.path.insert(0, _gpu_src)
+            _sys.modules.pop("class_simulation_gpu", None)
+            _csg = _importlib.import_module("class_simulation_gpu")
+            assert os.path.dirname(_csg.__file__) == _gpu_src, _csg.__file__
+            SimulationGPU = _csg.SimulationGPU
+        else:
+            from class_simulation_gpu import SimulationGPU
         is_master = True                                     # single-process JAX engine
         sim = SimulationGPU(folder_path=path)
         sim._set_data(); sim._update_all_args()

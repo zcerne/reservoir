@@ -5,8 +5,8 @@ such real input vectors, one forward run each. Work item m runs U[m]; each → p
 (incremental). --assemble → <out>.npz {inputs, outputs} for n6_dambre.dambre_ipc.
 Also serves n2 (residual) and n5 (Volterra). Need M ≫ #output features.
 
-`--readout intensity` (default) saves |E|² (IPC uses the nonlinear readout state);
-`--readout field` saves the complex field.
+Parts ALWAYS store the raw complex field (lossless); `--readout intensity` applies
+|E|² at ASSEMBLE time only — regenerate nothing to switch readouts.
 
   N=$(python data_gen/generate_ipc_data.py --path data/reservoir_clasifications/01_2D_director --n 400 --count)
   sbatch --array=0-$((N-1)) slurm_char_array.sh ipc data/reservoir_clasifications/01_2D_director --n 400 --readout intensity
@@ -26,7 +26,8 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--n", type=int, default=400)
     ap.add_argument("--readout", default="field", choices=["field", "intensity"],
-                    help="save complex FIELD (default, lossless — analysis derives |E|²) or |E|² directly")
+                    help="applied at ASSEMBLE only: raw complex field (default) or |E|²; "
+                         "parts always store the field")
     gc.add_common_args(ap)
     args = ap.parse_args()
 
@@ -48,13 +49,14 @@ def main():
             if os.path.exists(part):
                 return
         v = forward(U[m].astype(complex))
-        out = (np.abs(v) ** 2) if args.readout == "intensity" else v
-        gc.save_part(out_path, m, is_master, output=out, inp=U[m])
+        gc.save_part(out_path, m, is_master, output=v, inp=U[m])
 
     def assemble():
         parts = gc.load_parts(out_path)
         inputs = np.stack([p["inp"] for p in parts])
         outputs = np.stack([p["output"] for p in parts])
+        if args.readout == "intensity":
+            outputs = np.abs(outputs) ** 2
         np.savez(out_path, inputs=inputs, outputs=outputs,
                  readout=np.asarray(args.readout), components=np.asarray(comps))
         print(f"[ipcdata] assembled → {out_path}  ({len(parts)} probes, readout={args.readout})", flush=True)

@@ -1,21 +1,22 @@
 {
-  "resolution": 40,
+  "resolution": 20,
   "use_cw": false,
-  "run_until": 120,
-  "dimention": 2,
-  "cell_size_y": 9.0,
+  "run_until": 60,
+  "dimention": 3,
+  "cell_size_y": 5.0,
   "periodic": false,
-  "pml_size": 1.5,
+  "pml_size": 1.0,
   "background_index": 1.0,
   "snapshot_t1": 1000000000.0,
   "snapshot_t2": 1000000000.0,
   "snapshot_dt": 1.0,
+  "cell_size_z": 3.5,
   "guide_1": {
     "class": "guide",
     "index": 1.0,
     "sizes": [
       0.5,
-      6.0
+      3.0
     ]
   },
   "mirror_1": {
@@ -26,14 +27,14 @@
       2.4
     ],
     "transmission": 0.1,
-    "size_y": 6.0
+    "size_y": 3.0
   },
   "guide_res": {
     "class": "guide",
     "index": 1.0,
     "sizes": [
-      5.0,
-      6.0
+      2.5,
+      3.0
     ]
   },
   "mirror_2": {
@@ -44,14 +45,14 @@
       2.4
     ],
     "transmission": 0.1,
-    "size_y": 6.0
+    "size_y": 3.0
   },
   "guide_2": {
     "class": "guide",
     "index": 1.0,
     "sizes": [
-      5.0,
-      6.0
+      2.5,
+      3.0
     ]
   },
   "source_1": {
@@ -61,8 +62,8 @@
       "position": "center",
       "size": [
         0.0,
-        6.0,
-        0.0
+        3.0,
+        1.5
       ]
     },
     "amplitude": [
@@ -77,11 +78,11 @@
   },
   "monitor_2": {
     "class": "monitor",
-    "type": "1Ddft",
+    "type": "2Ddft",
     "on_object": "guide_2",
     "position": {
       "position": "center",
-      "size": 6.0
+      "size": 3.0
     },
     "lam_range": [
       0.42,
@@ -95,7 +96,7 @@
     "on_object": "guide_2",
     "position": {
       "position": "center",
-      "size": 6.0
+      "size": 3.0
     },
     "lam_range": [
       0.42,
