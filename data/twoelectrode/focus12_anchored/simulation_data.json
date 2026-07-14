@@ -1,0 +1,139 @@
+{
+  "resolution": 40,
+  "use_cw": false,
+  "run_until": 60,
+  "dimention": 2,
+  "cell_size_y": 27.0,
+  "periodic": false,
+  "pml_size": 1.5,
+  "background_index": 1.0,
+  "snapshot_t1": 1000000000.0,
+  "snapshot_t2": 1000000000.0,
+  "snapshot_dt": 1.0,
+  "solver": "gpumeep",
+  "guide_1": {
+    "class": "guide",
+    "index": 1.0,
+    "sizes": [
+      0.5,
+      24.0
+    ]
+  },
+  "reservoir": {
+    "class": "voltage_reservoir",
+    "sizes": [
+      12.0,
+      24.0
+    ],
+    "resolution": 4,
+    "n_o": 1.52,
+    "n_e": 1.71,
+    "boundary_conditions": [
+      "free",
+      "free",
+      "free"
+    ],
+    "lc_mode": "fwdbwd_relax",
+    "lc_relax_maxeval": 600,
+    "face_phi": [
+      null,
+      null,
+      1.5707963,
+      1.5707963,
+      null,
+      null
+    ],
+    "elastic_constants": {
+      "K1": 11.1,
+      "K2": 2.0,
+      "K3": 17.1,
+      "q0": 0.0
+    },
+    "eps_perp_dc": 5.0,
+    "eps_a_dc": 10.0,
+    "poisson_rtol": 1e-07,
+    "poisson_maxiter": 20000,
+    "domain_padding": {
+      "enabled": true,
+      "faces": [
+        "y_min",
+        "y_max"
+      ],
+      "n_pad": 20,
+      "growth": 1.2,
+      "w_max_um": 2.0,
+      "eps_outside": 1.0
+    },
+    "spline_electrode": {
+      "enabled": true,
+      "face": "x_min",
+      "coeffs": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "span_um": null,
+      "degree": 3,
+      "ground_face": "x_max"
+    }
+  },
+  "guide_2": {
+    "class": "guide",
+    "index": 1.0,
+    "sizes": [
+      5.0,
+      24.0
+    ]
+  },
+  "source_1": {
+    "class": "source",
+    "position": {
+      "on_object": "guide_1",
+      "position": "center",
+      "size": [
+        0.0,
+        24.0,
+        0.0
+      ]
+    },
+    "amplitude": [
+      1.0
+    ],
+    "component": "Ey",
+    "source_type": "pulsed",
+    "lam": 0.5,
+    "dlam": 0.0,
+    "pulse_fwhm_fs": 20.0,
+    "pulse_delay_fs": 0.0
+  },
+  "monitor_2": {
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_2",
+    "position": {
+      "position": "right",
+      "size": 24.0
+    },
+    "lam_range": [
+      0.5,
+      0.5
+    ],
+    "n_lam": 1
+  },
+  "object_order": [
+    "guide_1",
+    "reservoir",
+    "guide_2",
+    "source_1",
+    "monitor_2"
+  ]
+}
