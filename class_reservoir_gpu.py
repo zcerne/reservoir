@@ -30,13 +30,13 @@ class ReservoirGPU:
         # isotropic: true → uniform n medium (+ optional sted dye); skip the
         # LC relax / lc_fields.npz machinery entirely.
         self.isotropic = bool(args.get("isotropic", False))
-        self._susc = self._sted_susceptibilities()
         if self.isotropic:
             self.res = None
             sizes = args["sizes"]
             self.sx, self.sy = float(sizes[0]), float(sizes[1])
             self.sz = float(sizes[2]) if len(sizes) > 2 else 0.0
             self.n_iso = float(args.get("n", args.get("n_o", 1.5)))
+            self._susc = self._sted_susceptibilities()
             return
         from class_reservoir import Reservoir
         self.res = Reservoir(folder_path)
@@ -51,6 +51,8 @@ class ReservoirGPU:
         self.n_o_sq = self.res.n_o ** 2
         self.n_e_sq = self.res.n_e ** 2
         self.S = self.res.S
+        # AFTER the director is available (sted.anisotropic reads it)
+        self._susc = self._sted_susceptibilities()
 
     def _sted_susceptibilities(self):
         s = self.args.get("sted")
@@ -62,11 +64,46 @@ class ReservoirGPU:
             gm.Transition(2, 3, frequency=1 / float(s["lbdE"]), gamma=float(s["gammaE"])),
             gm.Transition(2, 1, transition_rate=float(s.get("rate_21", 100.0))),
         ]
+        # sted.anisotropic=true -> dye transition dipole follows the LC
+        # director: orientation callable u(X,Y,Z) from the SAME phi/theta
+        # interpolators the eps-tensor uses; sigma-bar(x) = SGMA*[(1-S)/3*I
+        # + S*u(x)(x)u(x)] with S = sted.order (dye order parameter).
+        orientation = None
+        if s.get("anisotropic", False):
+            if self.isotropic or self.res is None:
+                raise ValueError("sted.anisotropic requires an LC reservoir "
+                                 "(director field), not isotropic:true")
+            orientation = self._director_callable()
         atom = gm.MultilevelAtom(
             sigma=float(s["SGMA"]), transitions=trans,
             initial_populations=[float(s["N1_0"]), 0.0,
-                                 float(s.get("N3_0", 0.0)), 0.0])
+                                 float(s.get("N3_0", 0.0)), 0.0],
+            orientation=orientation,
+            order=float(s.get("order", 1.0)))
         return (atom,)
+
+    def _director_callable(self):
+        """u(X, Y, Z) -> (3, *shape) director components at arbitrary MEEP
+        coordinates (2D: mid-z slice splines, Z ignored)."""
+        from scipy.interpolate import RectBivariateSpline
+        assert self.res is not None
+        phi, theta, *_ = self.res.get_results_2d()
+        x_lc = np.linspace(-self.sx / 2, self.sx / 2, phi.shape[0])
+        y_lc = np.linspace(-self.sy / 2, self.sy / 2, phi.shape[1])
+        phi_i = RectBivariateSpline(x_lc, y_lc, phi)
+        theta_i = RectBivariateSpline(x_lc, y_lc, theta)
+        cx = self.center_x
+
+        def u(X, Y, Z=None):
+            xq = np.clip(np.asarray(X) - cx, x_lc[0], x_lc[-1])
+            yq = np.clip(np.asarray(Y), y_lc[0], y_lc[-1])
+            p = phi_i(xq.ravel(), yq.ravel(), grid=False).reshape(xq.shape)
+            t = theta_i(xq.ravel(), yq.ravel(), grid=False).reshape(xq.shape)
+            return np.stack([np.sin(t) * np.cos(p),
+                             np.sin(t) * np.sin(p),
+                             np.cos(t)])
+
+        return u
 
     def save_fields(self):
         if self.res is not None:
