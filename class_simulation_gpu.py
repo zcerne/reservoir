@@ -46,16 +46,6 @@ from class_source_gpu import SourceGPU
 from class_sensor_gpu import SensorGPU
 from class_reservoir_gpu import ReservoirGPU
 
-# Engine-support symbols gpumeep.py imports from "class_simulation_gpu":
-# re-export GPUmeep's own copies so external `from class_simulation_gpu
-# import _STEDSource` keeps working against this module.
-import sys as _sys
-
-_engine = _sys.modules["_gpumeep_engine_csg"]
-_STEDSource = _engine._STEDSource
-_src_overlap_weights = _engine._src_overlap_weights
-_src_delta_weights = _engine._src_delta_weights
-
 # ---------------------------------------------------------------------------
 # The simulation orchestrator — method-for-method twin of
 # class_simulation.Simulation.
