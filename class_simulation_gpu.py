@@ -12,6 +12,9 @@ layout:
     class_reservoir_gpu.ReservoirGPU
     gpumeep_setup                   (locates GPUmeep, imports gm)
 
+The engine extensions this class relies on (vectorized tensor6_vec material
+functions, add_dft_fields_box full-box 2D DFT) live upstream in gpumeep.py.
+
     python class_simulation_gpu.py --path data/test2D [--empty]
 
 Engine deltas vs the retired in-file engine (intentional upgrades):
@@ -36,7 +39,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from gpumeep_setup import gm, JDTYPE as _JDTYPE, FS_PER_MEEP as _FS_PER_MEEP
+from gpumeep_setup import gm
 from class_guide_gpu import GuideGPU
 from class_mirror_gpu import MirrorGPU
 from class_source_gpu import SourceGPU
@@ -53,74 +56,6 @@ _STEDSource = _engine._STEDSource
 _src_overlap_weights = _engine._src_overlap_weights
 _src_delta_weights = _engine._src_delta_weights
 
-import jax.numpy as jnp  # noqa: E402
-
-
-class _SimGPU(gm.Simulation):
-    """gm.Simulation + two additive extensions:
-    (1) vectorized callable materials (material fn with .tensor6_vec) — the
-        per-point python loop is unusable for LC reservoirs at res 40;
-    (2) full-box 2D DFT monitors (the reservoir '2Ddft' sensor type)."""
-
-    def _eps_at(self, X, Y, Z=None):
-        t0 = self.default_material.tensor6()
-        comps = [np.full(X.shape, t0[k], dtype=np.float64) for k in range(6)]
-        for blk in self.geometry:
-            m = self._block_mask(blk, X, Y, Z)
-            mat = blk.material
-            if callable(mat) and hasattr(mat, "tensor6_vec"):
-                t = mat.tensor6_vec(X, Y, Z)          # (6, *X.shape)
-                for k in range(6):
-                    comps[k][m] = t[k][m]
-            elif callable(mat):
-                for idx in np.argwhere(m):
-                    p = (gm.Vector3(X[tuple(idx)], Y[tuple(idx)])
-                         if Z is None else
-                         gm.Vector3(X[tuple(idx)], Y[tuple(idx)], Z[tuple(idx)]))
-                    t = mat(p).tensor6()
-                    for k in range(6):
-                        comps[k][tuple(idx)] = t[k]
-            else:
-                t = mat.tensor6()
-                for k in range(6):
-                    comps[k][m] = t[k]
-        return comps
-
-    def add_dft_fields_box(self, fcen, i_lo, i_hi, j_lo, j_hi):
-        """Full-grid single-frequency DFT of (Ex, Ey, Ez, Hz); cropped to the
-        [i_lo:i_hi, j_lo:j_hi] box at save time. 2D only."""
-        self._require_init()
-        if self.dim != 2:
-            raise NotImplementedError("2Ddft box monitor: 2D only")
-        omega = 2.0 * np.pi * float(fcen)
-        dt = self.dt
-        z = jnp.zeros((self.Nx, self.Ny), dtype=_JDTYPE)
-
-        def updater(m, f, t, step):
-            rEx, iEx, rEy, iEy, rEz, iEz, rHz, iHz = m
-            c = jnp.cos(omega * t); s = jnp.sin(omega * t)
-            cH = jnp.cos(omega * (t - 0.5 * dt)); sH = jnp.sin(omega * (t - 0.5 * dt))
-            return (rEx + c * f.Ex, iEx + s * f.Ex,
-                    rEy + c * f.Ey, iEy + s * f.Ey,
-                    rEz + c * f.Ez, iEz + s * f.Ez,
-                    rHz + cH * f.Hz, iHz + sH * f.Hz)
-
-        mon = {"kind": "dft2dbox", "freqs": np.array([float(fcen)]), "decim": 1,
-               "i_lo": i_lo, "i_hi": i_hi, "j_lo": j_lo, "j_hi": j_hi,
-               "updater": updater, "state": (z,) * 8}
-        self._monitors.append(mon)
-        return mon
-
-    def get_dft_box(self, mon, component):
-        """Complex full-grid array for a dft2dbox monitor, MEEP dt/√2π scale,
-        cropped to the monitor box."""
-        scl = self.dt / np.sqrt(2.0 * np.pi)
-        idx = {"Ex": 0, "Ey": 2, "Ez": 4, "Hz": 6}[component]
-        re, im = mon["state"][idx], mon["state"][idx + 1]
-        arr = (np.asarray(re) + 1j * np.asarray(im)) * scl
-        return arr[mon["i_lo"]:mon["i_hi"], mon["j_lo"]:mon["j_hi"]]
-
-
 # ---------------------------------------------------------------------------
 # The simulation orchestrator — method-for-method twin of
 # class_simulation.Simulation.
@@ -132,7 +67,7 @@ class SimulationGPU:
     # Per-run amplitude override for the SIGNAL source (basis/forward runs),
     # {source_key: [amps]} — mirrors SimulationT._run_basis.
     amp_override: dict | None = None
-    run_until_override: object = None
+    run_until_override: float | None = None
     # Legacy flag: the gpumeep engine is ALWAYS full-vector MEEP-exact now.
     force_fullvector: bool = False
 
@@ -143,7 +78,7 @@ class SimulationGPU:
     sources: list = field(default_factory=list)
     sensors: list = field(default_factory=list)
     resolution: int = 40
-    simulation: object = None
+    simulation: gm.Simulation | None = None
 
     # ---------------- setup (mirrors class_simulation) ----------------
 
@@ -319,7 +254,7 @@ class SimulationGPU:
 
     def _set_simulation(self):
         bg = float(self.args.get("background_index", 1.0))
-        self.simulation = _SimGPU(
+        self.simulation = gm.Simulation(
             cell_size=self.cell,
             resolution=self.resolution,
             geometry=self.geometry,
@@ -353,6 +288,7 @@ class SimulationGPU:
                           else self.args.get("run_until", 200))
         decay = float(self.args.get("source_off_decay", 50.0))
         sim = self.simulation
+        assert sim is not None
         stepped = [s for s in self.sensors if s.stepped]
         t0 = time.time()
         if stepped:

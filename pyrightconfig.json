@@ -1,7 +1,7 @@
 {
-  "venvPath": "/home/ziga/miniconda3/envs/mp/bin/python",
-  "venv": "mp",
-  "pythonVersion": "3.11",
+  "venvPath": "/home/ziga/miniforge3/envs",
+  "venv": "pmp",
+  "pythonVersion": "3.13",
   "typeCheckingMode": "strict",
   "reportMissingImports": false,
   "reportMissingTypeStubs": false,
@@ -43,5 +43,9 @@
   "reportInconsistentConstructor": false,
   "reportOverlappingOverloads": false,
   "reportMissingModuleSource": false,
-  "reportInvalidTypeForm": false
+  "reportInvalidTypeForm": false,
+  "extraPaths": [
+    "/home/ziga/Nextcloud/Doktorski/Projects/GPUmeep/gitcode/src",
+    "."
+  ]
 }

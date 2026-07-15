@@ -1,7 +1,7 @@
 {
   "resolution": 40,
   "use_cw": false,
-  "run_until": 120,
+  "run_until": 200,
   "dimention": 2,
   "cell_size_y": 9.0,
   "periodic": false,
@@ -64,31 +64,16 @@
       "size": 6.0
     },
     "lam_range": [
-      0.42,
-      0.65
+      0.5,
+      0.5
     ],
-    "n_lam": 15
-  },
-  "monitor_3": {
-    "class": "monitor",
-    "type": "flux",
-    "on_object": "guide_2",
-    "position": {
-      "position": "center",
-      "size": 6.0
-    },
-    "lam_range": [
-      0.42,
-      0.65
-    ],
-    "n_lam": 15
+    "n_lam": 1
   },
   "object_order": [
     "guide_1",
     "guide_res",
     "guide_2",
     "source_1",
-    "monitor_2",
-    "monitor_3"
+    "monitor_2"
   ]
 }

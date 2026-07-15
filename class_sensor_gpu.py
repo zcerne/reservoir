@@ -89,9 +89,9 @@ class SensorGPU:
             self.snaps.append(np.asarray(N, dtype=np.float32))
             self.snap_times.append(t_units * FS_PER_MEEP)
         else:                                   # field snapshot over the box
-            if self._box is None:
-                self._box = self._grid_box(sim)
-            i_lo, i_hi, j_lo, j_hi = self._box
+            box = self._box if self._box is not None else self._grid_box(sim)
+            self._box = box
+            i_lo, i_hi, j_lo, j_hi = box
             self.snaps.append(tuple(
                 np.asarray(sim.get_array(c))[i_lo:i_hi, j_lo:j_hi]
                 .astype(np.float32) for c in (gm.Ex, gm.Ey, gm.Ez)))
@@ -151,10 +151,11 @@ class SensorGPU:
             print(f"Saved {out}: {len(self.snaps)} snapshots "
                   f"{self.snaps[0][0].shape if self.snaps else ()}")
         elif t == "2Ddft" and sim.dim == 2:
-            Ex = sim.get_dft_box(self._handle, "Ex")[None]
-            Ey = sim.get_dft_box(self._handle, "Ey")[None]
-            Ez = sim.get_dft_box(self._handle, "Ez")[None]
             m = self._handle
+            assert m is not None
+            Ex = sim.get_dft_box(m, "Ex")[None]
+            Ey = sim.get_dft_box(m, "Ey")[None]
+            Ez = sim.get_dft_box(m, "Ez")[None]
             np.savez(out, Ex=Ex, Ey=Ey, Ez=Ez, freqs=self._freqs,
                      i_lo=m["i_lo"], i_hi=m["i_hi"],
                      j_lo=m["j_lo"], j_hi=m["j_hi"])

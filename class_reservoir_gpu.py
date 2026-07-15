@@ -11,6 +11,18 @@ import numpy as np
 from gpumeep_setup import gm
 
 
+class _VecMaterial:
+    """Callable material function carrying a vectorized tensor6_vec — the
+    form gpumeep's _eps_at consumes to avoid the per-point python loop."""
+
+    def __init__(self, fn, vec):
+        self._fn = fn
+        self.tensor6_vec = vec
+
+    def __call__(self, v):
+        return self._fn(v)
+
+
 class ReservoirGPU:
     def __init__(self, folder_path, args, cell_y, cell_z):
         self.args = args
@@ -57,7 +69,7 @@ class ReservoirGPU:
         return (atom,)
 
     def save_fields(self):
-        if not self.isotropic:
+        if self.res is not None:
             self.res.save_fields()
 
     def get_isotropic_block(self):
@@ -84,6 +96,7 @@ class ReservoirGPU:
 
     def _material_2d(self):
         from scipy.interpolate import RectBivariateSpline
+        assert self.res is not None
         phi, theta, *_ = self.res.get_results_2d()
         x_lc = np.linspace(-self.sx / 2, self.sx / 2, phi.shape[0])
         y_lc = np.linspace(-self.sy / 2, self.sy / 2, phi.shape[1])
@@ -106,18 +119,23 @@ class ReservoirGPU:
             t = theta_i(xq.ravel(), yq.ravel(), grid=False).reshape(X.shape)
             return np.stack(tensor(p, t))
 
-        mat.tensor6_vec = tensor6_vec
-        return mat
+        return _VecMaterial(mat, tensor6_vec)
 
     def _material_3d(self):
         from scipy.interpolate import RegularGridInterpolator
+        assert self.res is not None
         phi, theta, *_ = self.res.get_results()
         x_lc = np.linspace(-self.sx / 2, self.sx / 2, phi.shape[0])
         y_lc = np.linspace(-self.sy / 2, self.sy / 2, phi.shape[1])
         z_lc = np.linspace(-self.sz / 2, self.sz / 2, phi.shape[2])
-        kw = dict(bounds_error=False, fill_value=None)
-        phi_i = RegularGridInterpolator((x_lc, y_lc, z_lc), phi, **kw)
-        theta_i = RegularGridInterpolator((x_lc, y_lc, z_lc), theta, **kw)
+        # fill_value=None → extrapolate at the block edge (scipy's sentinel;
+        # its stub types it float, hence the ignores)
+        phi_i = RegularGridInterpolator(
+            (x_lc, y_lc, z_lc), phi, bounds_error=False,
+            fill_value=None)  # type: ignore[arg-type]
+        theta_i = RegularGridInterpolator(
+            (x_lc, y_lc, z_lc), theta, bounds_error=False,
+            fill_value=None)  # type: ignore[arg-type]
         cx, susc = self.center_x, self._susc
         tensor = self._tensor_from_angles
 
@@ -134,12 +152,12 @@ class ReservoirGPU:
             p = phi_i(pts); t = theta_i(pts)
             return np.stack(tensor(p, t))
 
-        mat.tensor6_vec = tensor6_vec
-        return mat
+        return _VecMaterial(mat, tensor6_vec)
 
     def get_geometry_blocks(self):
         if self.isotropic:
             return self.get_isotropic_block()
+        assert self.res is not None
         mat = (self._material_2d()
                if self.sz == 0 or len(self.res.dimensions) == 2
                else self._material_3d())
