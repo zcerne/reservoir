@@ -22,7 +22,14 @@ class Reservoir:
             data = json.load(f)
         cfg = data["reservoir"]
 
-        ec = cfg["elastic_constants"]
+        # isotropic: true → plain n medium (+ optional sted dye); no LC
+        # constants, no relaxation, no lc_fields.npz.
+        self.isotropic = bool(cfg.get("isotropic", False))
+        ec = cfg.get("elastic_constants",
+                     {"K1": 1.0, "K2": 1.0, "K3": 1.0, "q0": 0.0}
+                     if self.isotropic else None)
+        if ec is None:
+            ec = cfg["elastic_constants"]
         self.dimensions = tuple(cfg["sizes"])
         self.resolution = cfg["resolution"]
         # Back-compat for voltage_reservoir JSON which doesn't carry these keys.
@@ -49,8 +56,9 @@ class Reservoir:
         self.ignore_faces            = cfg.get("ignore_faces", None)
         self.maxeval = cfg.get("maxeval", 2000)
         self.f_tolerance = cfg.get("f_tolerance", 1e-6)
-        self.n_o = float(cfg.get("n_o", 1.52))
-        self.n_e = float(cfg.get("n_e", 1.71))
+        self.n_o = float(cfg.get("n_o", cfg.get("n", 1.52)))
+        self.n_e = float(cfg.get("n_e", cfg.get("n", 1.71)))
+        self.n_iso = float(cfg.get("n", self.n_o))
         self.S   = float(cfg.get("S", 1.0))
         self.n_background = float(data.get("background_index", 1.0))
         # STED / 4-level gain (nonlinear reservoir). Optional `reservoir.sted` block:
@@ -75,6 +83,8 @@ class Reservoir:
         return (float(sx), float(sy), float(sz))
 
     def run_minimization(self):
+        if self.isotropic:
+            return          # no director to relax — material is uniform n
         cell = self._cell_size()
         sim = XaLCS(cell_size=cell, resolution=self.resolution,
                     elastic_constants=self.elastic_constants,
@@ -310,6 +320,8 @@ class Reservoir:
 
     def load_fields(self):
         """Load pre-computed director field from lc_fields.npz (skips minimization)."""
+        if self.isotropic:
+            return          # no lc_fields.npz for a uniform medium
         npz = self.folder / "simulation" / "lc_fields.npz"
         data = np.load(npz)
         self._phi_cache   = data["phi"]
@@ -371,8 +383,23 @@ class Reservoir:
         susc = self._sted_susceptibilities()
         return [mp.Medium(E_susceptibilities=susc)] if susc else []
 
+    def get_isotropic_block(self):
+        """Uniform isotropic block (index n_iso) + optional sted dye —
+        the `isotropic: true` fast path, no director/interpolation at all."""
+        import meep as mp
+        cell = self._cell_size()
+        sx, sy, sz = float(cell[0]), float(cell[1]), float(cell[2])
+        size_z = sz if len(self.dimensions) == 3 else mp.inf
+        med = mp.Medium(index=self.n_iso,
+                        E_susceptibilities=self._sted_susceptibilities())
+        return [mp.Block(center=mp.Vector3(self._meep_center_x, 0, 0),
+                         size=mp.Vector3(sx, sy, size_z), material=med)]
+
     def get_geometry_blocks(self):
         import meep as mp
+
+        if self.isotropic:
+            return self.get_isotropic_block()
 
         cell = self._cell_size()
         sx, sy, sz = float(cell[0]), float(cell[1]), float(cell[2])
@@ -432,6 +459,8 @@ class Reservoir:
 
     def save_fields(self):
         """Save director field arrays + grid coordinates to lc_fields.npz."""
+        if self.isotropic:
+            return          # nothing to save for a uniform medium
         try:
             import meep as mp
             if not mp.am_master():
