@@ -23,6 +23,7 @@ BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
 GAP, SPAN, NCTRL = 12.0, 24.0, 12
 VMAX = float(os.environ.get("VMAX", "3.5"))
 SIGMA_DEG = float(os.environ.get("SIGMA_DEG", "3.0"))
+THETA0_DEG = float(os.environ.get("THETA0_DEG", "0.0"))   # target center (steering)
 ANNEAL = [12.0, 8.0, 5.0, 3.0]
 R_FAR, N_TH, TH_MAX = 2000.0, 361, np.deg2rad(45.0)
 # FF_ANCHOR=soft → Rapini-Papoular soft anchoring phi0=pi/2 on the y walls,
@@ -161,7 +162,8 @@ def evaluate(coeffs, sigma_deg):
     Ex_f, Ey_f, Hz_f = _far_field(os.path.join(BASE, "simulation", "monitor_2.npz"))
     I = np.abs(Ex_f) ** 2 + np.abs(Ey_f) ** 2
     sig = np.deg2rad(sigma_deg)
-    G = np.exp(-THETAS ** 2 / (2.0 * sig ** 2))
+    th0 = np.deg2rad(THETA0_DEG)
+    G = np.exp(-(THETAS - th0) ** 2 / (2.0 * sig ** 2))
     frac = float((I * G).sum() / max(I.sum(), 1e-300))
     ovl = float(np.abs((Ey_f * G).sum()) ** 2)
     return frac, ovl, I, Ey_f
