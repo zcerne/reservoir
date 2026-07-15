@@ -739,6 +739,15 @@ class SimulationGPU:
                 mon["state"] = f2.make_dft_state_2d(self.grid, axis=0)
                 print(f"Monitor {obj['_key']}: x=i_mon={i_mon}, y∈[{j_lo},{j_hi}], "
                       f"type={mtype}, f0={f0}")
+            # concentration monitor: snap N(t) over the full reservoir box
+            if mtype == "concentration":
+                snap_fs = float(obj.get("snap_interval_fs", 10.0))
+                mon["snap_fs"] = snap_fs
+                mon["is_conc"] = True
+                # snap_interval_steps and n_snaps computed in _run_2d_sted once
+                # n_total is known; pre-alloc jnp.zeros((n_snaps, n_levels, Nx, Ny))
+                print(f"Monitor {obj['_key']} (concentration): "
+                      f"snap every {snap_fs} fs, reservoir-only")
             self.monitors.append(mon)
 
     # ---------------- STED gain (full-vector 2D) ----------------
@@ -913,6 +922,22 @@ class SimulationGPU:
         n_total = int((run_until + decay) / self.dt)
         print(f"run_until = {run_until} + decay {decay}, n_total = {n_total} steps")
 
+        # --- concentration monitors: pre-allocate snap arrays ---
+        _FS_conc = 3.335640952
+        _conc_ints = []           # snap intervals in steps
+        _conc_n_snaps = []        # number of snaps per monitor
+        _conc_snap_arrays = []    # host arrays to fill after run (or carry in JIT)
+        for _m in self.monitors:
+            if _m.get("is_conc"):
+                _ival = max(1, int(round(_m["snap_fs"] / _FS_conc / self.dt)))
+                _n_snaps = n_total // _ival + 1
+                _m["snap_interval"] = _ival
+                _m["n_snaps"] = _n_snaps
+                _conc_ints.append(_ival)
+                _conc_n_snaps.append(_n_snaps)
+                print(f"Conc monitor '{_m['key']}': {_n_snaps} snaps every "
+                      f"{_ival} steps ({_m['snap_fs']} fs)")
+
         grid = self.grid; dt = self.dt; material = self.material; ezz = self.eps_inv_zz
         sources = self.sources
         has_gain = self.gain is not None
@@ -945,14 +970,16 @@ class SimulationGPU:
                         rHz + cH * fields.Hz, iHz + sH * fields.Hz)
             return updaters_1d[idx](mon_state, fields, t)
 
+        _n_conc = len(_conc_ints)
         @jax.jit
-        def run_loop(D, fields, pml_state, ml_state, mon_states, n_steps):
-            # MEEP D-form leapfrog per step:
-            #   (1) P^{n+1} from Eⁿ (gain), (2) D^{n+1}=Dⁿ+dt·∇×H − dt·J (source
-            #   current already folded into D), (3) E^{n+1}=ε⁻¹(D^{n+1}−ΣP^{n+1}),
-            #   (4) H^{n+3/2}. D is the primary integrated field; E is derived.
+        def run_loop(D, fields, pml_state, ml_state, mon_states, conc_array, n_steps):
+            # conc_array: (total_snaps, n_levels, Nx, Ny) — concatenated snapshots
+            # for all conc monitors; _conc_offsets gives start index per monitor.
+            _conc_offsets = tuple(
+                sum(_conc_n_snaps[:k]) for k in range(_n_conc + 1)
+            )
             def body(i, state):
-                D, f, p, ml, ms = state
+                D, f, p, ml, ms, ca = state
                 t = i * dt
                 D = apply_sources_D(D, t)
                 if _nogain:
@@ -960,14 +987,23 @@ class SimulationGPU:
                 else:
                     D, f, p, ml = f2.step_2d_full_gain_dform(
                         D, f, grid, dt, p, material, ml, coeffs)
-                # DFT time-labeling: after the step, f holds E^{n+1}, which MEEP
-                # references at (n+1)·dt (step.cpp does `t += 1` THEN update_dfts()).
-                # Label it t+dt to match MEEP; the H stagger inside picks up
-                # (t+dt)−0.5·dt = t+0.5·dt (H^{n+1/2}). Paired with the D-source
-                # current at time()+0.5·dt, this reproduces MEEP's phase.
                 ms = [_update_one_mon(k, m, f, t + dt) for k, m in enumerate(ms)]
-                return (D, f, p, ml, ms)
-            return jax.lax.fori_loop(0, n_steps, body, (D, fields, pml_state, ml_state, mon_states))
+                # concentration snapshots: write N at snap intervals
+                if _n_conc > 0 and has_gain:
+                    _Nf = ml.N.astype(jnp.float32)
+                    for _ci in range(_n_conc):
+                        _ival = _conc_ints[_ci]
+                        _snap_idx = i // _ival
+                        _is_snap = (i % _ival) == 0
+                        _dest = _conc_offsets[_ci] + _snap_idx
+                        ca = jax.lax.cond(
+                            _is_snap,
+                            lambda _a: _a.at[_dest].set(_Nf),
+                            lambda _a: _a,
+                            ca)
+                return (D, f, p, ml, ms, ca)
+            return jax.lax.fori_loop(0, n_steps, body,
+                (D, fields, pml_state, ml_state, mon_states, conc_array))
 
         fields = f2.zero_fields_full(self.grid)
         D_state = f2.zero_D_full(self.grid)
@@ -975,11 +1011,36 @@ class SimulationGPU:
         ml_state = self.gain["state"] if has_gain else jnp.zeros(())
         mon_states = [m["state"] for m in self.monitors]
 
+        # pre-allocate concatenated conc snapshot array
+        _total_conc_snaps = sum(_conc_n_snaps) if _conc_n_snaps else 0
+        _conc_array = jnp.zeros((_total_conc_snaps, 4, self.Nx, self.Ny), dtype=jnp.float32) if _total_conc_snaps > 0 else jnp.zeros(())
+
         t0 = time.time()
-        D_state, fields, pml_state, ml_state, mon_states = run_loop(
-            D_state, fields, pml_state, ml_state, mon_states, n_total)
+        result = run_loop(
+            D_state, fields, pml_state, ml_state, mon_states, _conc_array, n_total)
+        if _total_conc_snaps > 0:
+            D_state, fields, pml_state, ml_state, mon_states, _conc_out = result
+        else:
+            D_state, fields, pml_state, ml_state, mon_states = result
         fields.Ey.block_until_ready()
         print(f"STED run finished in {time.time()-t0:.1f} s ({n_total} steps)")
+
+        # save concentration monitor snapshots
+        _FS_save = 3.335640952
+        _conc_idx = 0
+        for _m in self.monitors:
+            if not _m.get("is_conc"):
+                continue
+            _n = _m["n_snaps"]
+            _snaps = np.asarray(_conc_out[_conc_idx:_conc_idx + _n])
+            _times = np.arange(_n) * _m["snap_interval"] * self.dt * _FS_save
+            out_path = os.path.join(self.paths["simulation"], f"{_m['key']}.npz")
+            np.savez(out_path, N=_snaps, times=_times,
+                     levels=["N1", "N2", "N3", "N4"],
+                     snap_interval_fs=_m["snap_fs"])
+            print(f"Saved {out_path}: N shape {_snaps.shape}, "
+                  f"range N3={_snaps[:,2].mean(axis=(1,2)).min():.2f}–{_snaps[:,2].mean(axis=(1,2)).max():.2f}")
+            _conc_idx += _n
 
         if os.environ.get("GPUMEEP_DIAG") and has_gain:
             Nf = np.asarray(ml_state.N)                 # (n_levels, Nx, Ny)
