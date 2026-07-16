@@ -9,6 +9,7 @@
   "run_until": 300.0,
   "source_off_decay": 50.0,
   "courant": 0.5,
+  "fp": "fp64",
   "solver": "gpumeep",
   "object_order": [
     "guide_1",
