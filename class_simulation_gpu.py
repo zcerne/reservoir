@@ -306,13 +306,23 @@ class SimulationGPU:
             for s in stepped:
                 s.record(sim, 0.0)
                 nexts[id(s)] += s.step_interval()
-            for _ in range(n_chunks):
+            next_pct = 10.0
+            for ic in range(n_chunks):
                 sim.run(until=chunk_t)
                 t = sim._t_steps * sim.dt
                 for s in stepped:
                     if t + 1e-9 >= nexts[id(s)]:
                         s.record(sim, t)
                         nexts[id(s)] += s.step_interval()
+                # driver-side progress (sensor chunks are too small to
+                # trigger gm's own chunked progress printing)
+                pct = 100.0 * (ic + 1) / n_chunks
+                if pct + 1e-9 >= next_pct:
+                    el = time.time() - t0
+                    eta = el * (n_chunks - ic - 1) / (ic + 1)
+                    print(f"[sim] {pct:5.1f}% done (t={t:.1f}/{run_until:.1f}) "
+                          f"{el:.1f}s elapsed, ~{eta:.1f}s to go", flush=True)
+                    next_pct += 10.0
         else:
             sim.run(until=run_until)
         # source-off ring-down, mirroring class_simulation (DFT keeps accumulating)
