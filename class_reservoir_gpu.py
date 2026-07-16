@@ -58,10 +58,18 @@ class ReservoirGPU:
         s = self.args.get("sted")
         if not s or not s.get("enabled", True):
             return ()
+        # per-transition order overrides: absorption (pump 1->4) and emission
+        # (2->3) dipole tensors need not match — S_em < S_abs from rotational
+        # depolarization during the excited-state lifetime; sted.order is the
+        # shared default.
+        o_abs = s.get("order_absorption")
+        o_em = s.get("order_emission")
         trans = [
-            gm.Transition(1, 4, frequency=1 / float(s["lbdA"]), gamma=float(s["gammaA"])),
+            gm.Transition(1, 4, frequency=1 / float(s["lbdA"]), gamma=float(s["gammaA"]),
+                          order=None if o_abs is None else float(o_abs)),
             gm.Transition(4, 3, transition_rate=float(s.get("rate_43", 10.0))),
-            gm.Transition(2, 3, frequency=1 / float(s["lbdE"]), gamma=float(s["gammaE"])),
+            gm.Transition(2, 3, frequency=1 / float(s["lbdE"]), gamma=float(s["gammaE"]),
+                          order=None if o_em is None else float(o_em)),
             gm.Transition(2, 1, transition_rate=float(s.get("rate_21", 100.0))),
         ]
         # sted.anisotropic=true -> dye transition dipole follows the LC
