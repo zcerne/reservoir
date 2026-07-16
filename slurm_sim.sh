@@ -9,6 +9,8 @@
 #   --lcrelax   LC relaxation (class_reservoir) -> simulation/lc_fields.npz
 #   --gpumeep   gpumeep engine forward (class_simulation_gpu, single rank)
 #   --meep      MEEP forward (class_simulation, full-node MPI)
+#   --empty     ALSO run the empty (air reference) variant for each selected
+#               engine -> simulation_empty/ (transmission normalisation)
 #
 # All stage flags optional; NO stage flags -> --meep is the default.
 # Stages run in the order lcrelax -> gpumeep -> meep (any subset; e.g.
@@ -51,13 +53,14 @@ fi
 
 # ---- parse flags ------------------------------------------------------
 DESIGN=""
-DO_LCRELAX=""; DO_GPUMEEP=""; DO_MEEP=""
+DO_LCRELAX=""; DO_GPUMEEP=""; DO_MEEP=""; DO_EMPTY=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --path)     DESIGN="$2"; shift 2 ;;
         --lcrelax)  DO_LCRELAX=1; shift ;;
         --gpumeep)  DO_GPUMEEP=1; shift ;;
         --meep)     DO_MEEP=1; shift ;;
+        --empty)    DO_EMPTY=1; shift ;;
         *) echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done
@@ -80,10 +83,15 @@ if [ -n "$DO_LCRELAX" ]; then
     $PY class_reservoir.py --path "$DESIGN" 2>&1 | tee -a "$SIM_DIR/lcrelax.log"
 fi
 
-# ---- 2) gpumeep forward (single rank; jax CPU on orion nodes) ----------
+# ---- 2) gpumeep forward (single rank; GPU when present) -----------------
 if [ -n "$DO_GPUMEEP" ]; then
     echo "=== gpumeep run: $DESIGN ===" | tee "$SIM_DIR/gpumeep.log"
     $PY class_simulation_gpu.py --path "$DESIGN" 2>&1 | tee -a "$SIM_DIR/gpumeep.log"
+    if [ -n "$DO_EMPTY" ]; then
+        echo "=== gpumeep EMPTY run: $DESIGN ===" | tee "$SIM_DIR/gpumeep_empty.log"
+        $PY class_simulation_gpu.py --path "$DESIGN" --empty \
+            2>&1 | tee -a "$SIM_DIR/gpumeep_empty.log"
+    fi
 fi
 
 # ---- 3) MEEP forward (full-node MPI) -----------------------------------
@@ -91,6 +99,11 @@ if [ -n "$DO_MEEP" ]; then
     echo "=== MEEP run: $DESIGN ($N ranks) ===" | tee "$SIM_DIR/meep.log"
     $MPIRUN -np $N $PY class_simulation.py --path "$DESIGN" --lc-only \
         2>&1 | tee -a "$SIM_DIR/meep.log"
+    if [ -n "$DO_EMPTY" ]; then
+        echo "=== MEEP EMPTY run: $DESIGN ($N ranks) ===" | tee "$SIM_DIR/meep_empty.log"
+        $MPIRUN -np $N $PY class_simulation.py --path "$DESIGN" --empty-only \
+            2>&1 | tee -a "$SIM_DIR/meep_empty.log"
+    fi
 fi
 
 echo "=== slurm_sim done: $DESIGN ==="
