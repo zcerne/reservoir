@@ -15,6 +15,11 @@
 #   sbatch slurm_sim.sh --path data/lasing_testing/01_basic_test --lcrelax --gpumeep
 # ). Isotropic designs (reservoir.isotropic=true) don't need --lcrelax.
 #
+# Precision: JSON top-level "fp": "fp32"|"fp64" (default fp64) — read by
+# class_simulation_gpu before jax import. Runs as-is on smaug too
+# (./slurm_sim.sh ...): #SBATCH lines are ignored, N=nproc adapts, and the
+# 4090 is used automatically for --gpumeep/--lcrelax when present.
+#
 # Logs: <design>/simulation/{lcrelax,gpumeep,meep}.log  (tee'd, absolute paths —
 # never rely on #SBATCH --output with relative paths: Slurm kills the job
 # silently if the dir doesn't exist at submission).
@@ -33,9 +38,16 @@ BASE_DIR="/home/cernez/resevoir"
 PMP="/home/cernez/micromamba/envs/pmp/bin"
 PY="$PMP/python"
 MPIRUN="$PMP/mpirun"
-N=96                                    # MEEP ranks = full node (compute-bound)
+N=$(nproc)                              # MEEP ranks = all cores of THIS host
 export GPUMEEP_PATH="/home/cernez/GPUmeep/src"
-export JAX_PLATFORMS=cpu                # orion nodes: CPU jax (no GPU grab)
+# HOST-AWARE jax platform: use the GPU when one exists (smaug 4090 via
+# ./slurm_sim.sh), CPU otherwise (orion nodes via sbatch). Applies to the
+# --gpumeep stage and the jax-based LC relax.
+if nvidia-smi -L >/dev/null 2>&1; then
+    export JAX_PLATFORMS=cuda,cpu
+else
+    export JAX_PLATFORMS=cpu
+fi
 
 # ---- parse flags ------------------------------------------------------
 DESIGN=""

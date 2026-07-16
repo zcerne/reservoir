@@ -34,10 +34,25 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 
 import numpy as np
+
+# Precision must be fixed BEFORE gpumeep imports jax. JSON top-level
+# "fp": "fp32" | "fp64" (default fp64); read here when invoked with --path
+# (CLI / slurm_sim.sh). Programmatic users can set GPUMEEP_PRECISION
+# themselves before importing this module.
+if "GPUMEEP_PRECISION" not in os.environ and "--path" in sys.argv:
+    try:
+        _p = sys.argv[sys.argv.index("--path") + 1]
+        with open(os.path.join(_p, "simulation_data.json")) as _f:
+            _fp = str(json.load(_f).get("fp", "fp64")).lower()
+        if _fp in ("fp32", "fp64"):
+            os.environ["GPUMEEP_PRECISION"] = _fp
+    except (OSError, ValueError, IndexError):
+        pass
 
 from gpumeep_setup import gm
 from class_guide_gpu import GuideGPU
