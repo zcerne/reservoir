@@ -76,8 +76,12 @@ class SensorGPU:
                 or self.sensor_type.endswith("snap"))
 
     def step_interval(self):
-        """Interval in MEEP time units between records."""
+        """Interval in MEEP time units between records. Concentration sensors
+        use `snap_interval` (MEEP units, consistent with run_until/dt);
+        legacy `snap_interval_fs` still accepted (converted)."""
         if self.sensor_type == "concentration":
+            if "snap_interval" in self.args:
+                return float(self.args["snap_interval"])
             return float(self.args.get("snap_interval_fs", 10.0)) / FS_PER_MEEP
         return float(self.args.get("dt", 10.0))
 
@@ -87,7 +91,7 @@ class SensorGPU:
             if N is None:
                 raise ValueError("concentration monitor requires reservoir.sted")
             self.snaps.append(np.asarray(N, dtype=np.float32))
-            self.snap_times.append(t_units * FS_PER_MEEP)
+            self.snap_times.append(t_units)          # MEEP time units
         else:                                   # field snapshot over the box
             box = self._box if self._box is not None else self._grid_box(sim)
             self._box = box
@@ -140,7 +144,7 @@ class SensorGPU:
             N = np.array(self.snaps, dtype=np.float32)
             np.savez(out, N=N, times=np.array(self.snap_times),
                      levels=["N1", "N2", "N3", "N4"],
-                     snap_interval_fs=float(self.args.get("snap_interval_fs", 10.0)))
+                     snap_interval=self.step_interval())    # all MEEP units
             print(f"Saved {out}: N shape {N.shape}")
         elif t.endswith("snap"):
             np.savez(out,
