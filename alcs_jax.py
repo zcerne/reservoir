@@ -6,10 +6,9 @@ numerically identical for the shared ones). This thin shim rebinds the bare
 top-level name to LCrelax's module so existing `import alcs_jax.py` / `from alcs_jax.py import …`
 call sites keep working unchanged.
 """
-import os as _os, sys as _sys
-for _p in ("/home/ziga/Orion", "/home/cernez"):        # dir CONTAINING LCrelax pkg
-    if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in _sys.path:
-        _sys.path.append(_p)
+import sys as _sys
+import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
+
 from LCrelax.lc_stuff.alcs_jax import *          # noqa: F401,F403
 import importlib as _il
 _sys.modules[__name__] = _il.import_module("LCrelax.lc_stuff.alcs_jax")

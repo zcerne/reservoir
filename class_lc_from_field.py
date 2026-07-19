@@ -126,11 +126,7 @@ class LCFromField:
 
         Bounds: ±8π for both phi and theta (angles, generous).
         """
-        import sys
-        import os as _os
-        for _p in ("/home/ziga/Orion", "/home/cernez"):      # dir CONTAINING LCrelax pkg
-            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in sys.path:
-                sys.path.append(_p)                          # append: never shadow own modules
+        import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
         from LCrelax.mma_engine import minimize as gpumma_minimize, MMAParams
 
         nx, ny, nz = gshape
@@ -198,11 +194,8 @@ class LCFromField:
         Init: uniaxial Q from phi_init (or planar phi=0) at S=S_eq — i.e. the same
         starting director as the Frank path, lifted into Q-space.
         """
-        import sys, time
-        import os as _os
-        for _p in ("/home/ziga/Orion", "/home/cernez"):      # dir CONTAINING LCrelax pkg
-            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in sys.path:
-                sys.path.append(_p)                          # append: never shadow own modules
+        import time
+        import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
         from LCrelax.mma_engine import minimize as gpumma_minimize, MMAParams
 
         nx, ny, nz = gshape

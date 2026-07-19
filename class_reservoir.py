@@ -246,10 +246,8 @@ class Reservoir:
         default full-Q relax leaves Qxz/Qyz free → spurious out-of-plane tilt (|n_z|
         up to ~0.7 even for planar BC, since the flat optimize_phi_theta never reached
         the Q-tensor path)."""
-        import sys, os, time, numpy as _np, jax.numpy as jnp
-        for _p in ("/home/ziga/Orion", "/home/cernez"):     # dir CONTAINING LCrelax pkg
-            if os.path.isdir(os.path.join(_p, "LCrelax")) and _p not in sys.path:
-                sys.path.append(_p)                          # append: never shadow own modules
+        import time, numpy as _np, jax.numpy as jnp
+        import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
         from LCrelax.lc_stuff.qtensor_3d import (relax_qtensor_3d, ldg_constants_5cb,
                                                  q5_from_director, director_and_S)
         from alcs_jax import n_sph
@@ -293,10 +291,8 @@ class Reservoir:
         the free-DOF set restricted to in-plane components, plus the usual Dirichlet
         cell pinning on anchored faces. `q5_0` supplies the pinned face values (its
         Qxz/Qyz are already 0 since the seed director is in-plane)."""
-        import os as _os, sys as _sys, jax, jax.numpy as jnp
-        for _p in ("/home/ziga/Orion", "/home/cernez"):     # dir CONTAINING LCrelax pkg
-            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in _sys.path:
-                _sys.path.append(_p)
+        import jax, jax.numpy as jnp
+        import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
         from LCrelax.lc_stuff.qtensor_3d import energy_qtensor_3d
         import LCrelax.lc_stuff.qtensor_3d as _qt   # module-level `gpumma` (vendored MMA)
         q5_0 = jnp.asarray(q5_0)

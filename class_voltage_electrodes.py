@@ -211,10 +211,7 @@ class VoltageElectrodes:
         """Paint the spline-voltage electrode on `spline_face` and a full
         ground plane on `spline_ground`. Coefficients may be overridden at
         call time via voltages={"spline": array} (reservoir-computer input)."""
-        import sys as _sys, os as _os
-        for _p in ("/home/ziga/Orion", "/home/cernez"):      # dir CONTAINING LCrelax pkg
-            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in _sys.path:
-                _sys.path.append(_p)                         # append: never shadow own modules
+        import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
         from LCrelax.E_field_stuff.spline_voltage import bspline_basis
         coeffs = self.spline_coeffs
         if voltages and "spline" in voltages:

@@ -11,13 +11,9 @@ Rewired 2026-07-19 (Reservoir → import from LCrelax). Public API:
     solve_poisson_jax, gradient_V_jax
 """
 import importlib
-import os
 import sys
 
-# Add the directory CONTAINING the LCrelax package (Orion mount == smaug, shared).
-for _p in ("/home/ziga/Orion", "/home/cernez"):
-    if os.path.isdir(os.path.join(_p, "LCrelax")) and _p not in sys.path:
-        sys.path.append(_p)
+import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
 
 # Replace THIS module object with LCrelax's real one so `esj.<anything>` (public
 # or private) resolves to the single canonical implementation.
