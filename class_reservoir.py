@@ -247,11 +247,11 @@ class Reservoir:
         up to ~0.7 even for planar BC, since the flat optimize_phi_theta never reached
         the Q-tensor path)."""
         import sys, os, time, numpy as _np, jax.numpy as jnp
-        for _p in ("/home/ziga/Orion/BlockOptimization", "/home/cernez/BlockOptimization"):
-            if os.path.isdir(_p) and _p not in sys.path:
-                sys.path.insert(0, _p)
-        from lc_stuff.qtensor_3d import (relax_qtensor_3d, ldg_constants_5cb,
-                                         q5_from_director, director_and_S)
+        for _p in ("/home/ziga/Orion", "/home/cernez"):     # dir CONTAINING LCrelax pkg
+            if os.path.isdir(os.path.join(_p, "LCrelax")) and _p not in sys.path:
+                sys.path.append(_p)                          # append: never shadow own modules
+        from LCrelax.lc_stuff.qtensor_3d import (relax_qtensor_3d, ldg_constants_5cb,
+                                                 q5_from_director, director_and_S)
         from alcs_jax import n_sph
         ec = self.elastic_constants                                    # (K1,K2,K3,q0)
         eps_a = self.n_e ** 2 - self.n_o ** 2
@@ -293,9 +293,12 @@ class Reservoir:
         the free-DOF set restricted to in-plane components, plus the usual Dirichlet
         cell pinning on anchored faces. `q5_0` supplies the pinned face values (its
         Qxz/Qyz are already 0 since the seed director is in-plane)."""
-        import jax, jax.numpy as jnp
-        from lc_stuff.qtensor_3d import energy_qtensor_3d
-        import lc_stuff.qtensor_3d as _qt          # module-level `gpumma` (GPU_MMA)
+        import os as _os, sys as _sys, jax, jax.numpy as jnp
+        for _p in ("/home/ziga/Orion", "/home/cernez"):     # dir CONTAINING LCrelax pkg
+            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in _sys.path:
+                _sys.path.append(_p)
+        from LCrelax.lc_stuff.qtensor_3d import energy_qtensor_3d
+        import LCrelax.lc_stuff.qtensor_3d as _qt   # module-level `gpumma` (vendored MMA)
         q5_0 = jnp.asarray(q5_0)
         shape = q5_0.shape                          # (5, Nx, Ny, Nz)
         # force out-of-plane components to exactly 0 in the base field

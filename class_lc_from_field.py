@@ -127,8 +127,11 @@ class LCFromField:
         Bounds: ±8π for both phi and theta (angles, generous).
         """
         import sys
-        sys.path.insert(0, "/home/ziga/Orion/GPU_MMA/src")
-        from mma import minimize as gpumma_minimize, MMAParams
+        import os as _os
+        for _p in ("/home/ziga/Orion", "/home/cernez"):      # dir CONTAINING LCrelax pkg
+            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in sys.path:
+                sys.path.append(_p)                          # append: never shadow own modules
+        from LCrelax.mma_engine import minimize as gpumma_minimize, MMAParams
 
         nx, ny, nz = gshape
         n_total = nx * ny * nz
@@ -196,8 +199,11 @@ class LCFromField:
         starting director as the Frank path, lifted into Q-space.
         """
         import sys, time
-        sys.path.insert(0, "/home/ziga/Orion/GPU_MMA/src")
-        from mma import minimize as gpumma_minimize, MMAParams
+        import os as _os
+        for _p in ("/home/ziga/Orion", "/home/cernez"):      # dir CONTAINING LCrelax pkg
+            if _os.path.isdir(_os.path.join(_p, "LCrelax")) and _p not in sys.path:
+                sys.path.append(_p)                          # append: never shadow own modules
+        from LCrelax.mma_engine import minimize as gpumma_minimize, MMAParams
 
         nx, ny, nz = gshape
         n_total = nx * ny * nz
