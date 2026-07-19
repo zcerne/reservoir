@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from a_best_linear_approx import best_linear_approx
+from m1_best_linear_approx import best_linear_approx
 from c_covariance_PCA import covariance_pca
 
 RES = os.path.expanduser("~/Orion/resevoir/data")
