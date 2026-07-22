@@ -65,7 +65,7 @@
     "focus": [6.0, 0.0],
     "kdir": [1.0, 0.0, 0.0],
     "exact2d": true,
-    "lam": 0.5,
+    "lam": 0.55,
     "dlam": 0.05
   },
   "monitor_1": {
