@@ -5,7 +5,7 @@
   "cell_size_y": 20.0,
   "periodic": false,
   "pml_size": 2.0,
-  "background_index": 1.0,
+  "background_index": 1.5,
   "run_until": 300.0,
   "source_off_decay": 50.0,
   "courant": 0.5,

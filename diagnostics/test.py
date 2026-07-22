@@ -48,7 +48,7 @@ for i in range(4):
     axs[i].set_ylabel("y [µm]")
 fig.tight_layout()
 savefig_workbox("conc_snapshot.png")
-plt.show()
+# plt.show()
 
 sums = np.sum(N, axis=(2, 3)).T
 
@@ -60,7 +60,7 @@ plt.ylabel("total population (summed over grid)")
 plt.legend()
 plt.yscale("log")
 savefig_workbox("conc_totals.png")
-plt.show()
+# plt.show()
 
 snapshot_1_data = np.load(os.path.join(data_path, "simulation_gpumeep/snapshot_1.npz"))
 print(snapshot_1_data)
@@ -96,7 +96,7 @@ for i in range(n_snaps, len(axs)):
     axs[i].axis("off")
 fig.tight_layout()
 savefig_workbox("snapshot_intensity.png")
-plt.show()
+# plt.show()
 
 monitor_1_data = np.load(os.path.join(data_path, "simulation_gpumeep/monitor_1.npz"))
 monitor_2_data = np.load(os.path.join(data_path, "simulation_gpumeep/monitor_2.npz"))
@@ -119,7 +119,7 @@ plt.ylabel("Σ|E|² along monitor line")
 plt.legend()
 plt.yscale("log")
 savefig_workbox("monitor_spectra.png")
-plt.show()
+# plt.show()
 
 # Spatial |E(y)|² profile at the source wavelength (500nm) — input vs output.
 plt.figure()
@@ -135,4 +135,4 @@ plt.xlabel("y [µm]")
 plt.ylabel("|E|² at λ=500nm")
 plt.legend()
 savefig_workbox("monitor_profiles.png")
-plt.show()
+# plt.show()
