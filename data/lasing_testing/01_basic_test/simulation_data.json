@@ -94,13 +94,6 @@
     "lam_range": [0.4, 0.6],
     "n_lam": 61
   },
-  "conc_monitor": {
-    "_comment": "Atom-level sensor: saves N(t) for all 4 dye levels over the reservoir; snap_interval in MEEP time units (1 unit = 3.336 fs)",
-    "class": "monitor",
-    "type": "concentration",
-    "on_object": "reservoir",
-    "snap_interval": 3.0
-  },
   "snapshot_1": {
     "_comment": "Sparse field snapshots over the reservoir: every dt=50 MEEP units (~167 fs) -> ~7 snaps x ~8 MB, keeps the npz well under 100 MB",
     "class": "monitor",
