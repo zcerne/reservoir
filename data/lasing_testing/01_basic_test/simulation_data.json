@@ -2,6 +2,7 @@
   "_comment": "Lasing basic test: 1um n=1.5 guide -> 10um ISOTROPIC dye-doped n=1.5 reservoir -> 1um n=1.5 guide. Gaussian pulse at 500nm from the left of guide_1; input/output 1Ddft sensors mid-guide; atom-level (concentration) sensor across the reservoir.",
   "resolution": 40,
   "dimention": 2,
+  "cell_size_y": 20.0,
   "periodic": false,
   "pml_size": 2.0,
   "background_index": 1.0,
@@ -30,11 +31,11 @@
     "class": "reservoir",
     "isotropic": true,
     "n": 1.5,
-    "sizes": [10, 10],
+    "sizes": [20, 10],
     "resolution": 10,
     "sted": {
       "_comment": "Pre-inverted 4-level dye (N3=25 upper, N1=0 lower) — signal sees gain directly, no pump needed",
-      "enabled": true,
+      "enabled": false,
       "lbdA": 0.45,
       "gammaA": 0.1,
       "lbdE": 0.55,
@@ -56,7 +57,8 @@
     "class": "source",
     "position": {
       "on_object": "guide_1",
-      "position": "left"
+      "position": "center",
+      "size": [10.0, 0.0]
     },
     "amplitude": 1.0,
     "component": "Ey",
