@@ -16,7 +16,7 @@ class MirrorGPU:
         self.direction = args.get("orientation", 1)
         self.size_y = float(args.get("size_y", 0.0)) or gm.inf
 
-    def get_geometry_blocks(self):
+    def get_geometry_blocks(self, mp_module=None):
         blocks, x = [], self.x_start
         for i in range(self.n_layers):
             n = float(self.indices[i % 2])

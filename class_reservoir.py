@@ -248,8 +248,9 @@ class Reservoir:
         the Q-tensor path)."""
         import time, numpy as _np, jax.numpy as jnp
         import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
-        from LCrelax.lc_stuff.qtensor_3d import (relax_qtensor_3d, ldg_constants_5cb,
-                                                 q5_from_director, director_and_S)
+        from LCrelax.src.qtensor_3d import (ldg_constants_5cb,
+                                            q5_from_director, director_and_S)
+        from LCrelax.src.molecular_field import relax_qtensor_field
         from alcs_jax import n_sph
         ec = self.elastic_constants                                    # (K1,K2,K3,q0)
         eps_a = self.n_e ** 2 - self.n_o ** 2
@@ -267,12 +268,20 @@ class Reservoir:
                 q5_0, pin, A=cst["A"], B=cst["B"], C=cst["C"], L=cst["L"], xi=cst["xi"],
                 spacings=spac, maxiter=int(self.maxeval))
         else:
-            q5_star, info = relax_qtensor_3d(
+            # 2026-07-22: LCrelax's own gpumma/MMA box-constrained minimizer
+            # was removed upstream (documented as physically incorrect for
+            # LdG relaxation on µm grids — see src/qtensor_3d.py's
+            # make_differentiable_relax_qtensor3d docstring); relax_qtensor_field
+            # (FIRE) is the canonical replacement, drop-in for this call shape.
+            q5_star, info = relax_qtensor_field(
                 q5_0, None, A=cst["A"], B=cst["B"], C=cst["C"], L=cst["L"], xi=cst["xi"],
                 spacings=spac, boundary_mask=jnp.asarray(pin), maxiter=int(self.maxeval))
+        niter = info.get("n_iter", info.get("niter"))
+        f_star = info.get("f_star")
+        f_star_str = f"f*={f_star:.3e}, " if f_star is not None else ""
         print(f"[reservoir/Q3D BlockOpt-LdG{' IN-PLANE' if in_plane else ''}] "
-              f"{int(info['niter'])} iters, "
-              f"f*={float(info['f_star']):.3e}, S_eq={S:.4f}, xi_n={cst['xi_n_nm']:.2f}nm, "
+              f"{niter} iters, "
+              f"{f_star_str}S_eq={S:.4f}, xi_n={cst['xi_n_nm']:.2f}nm, "
               f"wall={time.time()-t0:.1f}s")
         q5 = _np.asarray(q5_star)
         self._Q_cache = q5                       # raw q5 → direct ε(Q) (biaxiality/core preserved)
@@ -287,14 +296,21 @@ class Reservoir:
         (Qxx=q5[0], Qxy=q5[1], Qyy=q5[3]) and pin the out-of-plane ones
         (Qxz=q5[2], Qyz=q5[4]) to 0 everywhere → director stays in xy-plane (θ≡π/2).
 
-        Mirrors BlockOpt's `relax_qtensor_3d` (same energy + GPU_MMA solver) but with
-        the free-DOF set restricted to in-plane components, plus the usual Dirichlet
-        cell pinning on anchored faces. `q5_0` supplies the pinned face values (its
-        Qxz/Qyz are already 0 since the seed director is in-plane)."""
+        2026-07-22: solver switched from GPU_MMA to damped Newton-CG
+        (LCrelax.src.qtensor_3d._newton_solve_q) — gpumma was removed upstream,
+        documented as physically incorrect for LdG relaxation on µm grids (the
+        bulk term is ~1e5× stiffer than the elastic term, so the separable-
+        Hessian box minimizer is blind to collective rotation modes and freezes
+        the director at its seed orientation). Newton-CG is the same solver
+        LCrelax's own canonical LCblock now uses for the general (non-in-plane)
+        case — this just restricts its free-DOF set to the in-plane components
+        instead of using boundary_mask's per-cell (all-component) restriction.
+        Dirichlet cell pinning on anchored faces still applies. `q5_0` supplies
+        the pinned face values (its Qxz/Qyz are already 0 since the seed
+        director is in-plane)."""
         import jax, jax.numpy as jnp
         import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
-        from LCrelax.lc_stuff.qtensor_3d import energy_qtensor_3d
-        import LCrelax.lc_stuff.qtensor_3d as _qt   # module-level `gpumma` (vendored MMA)
+        from LCrelax.src.qtensor_3d import energy_qtensor_3d, _newton_solve_q
         q5_0 = jnp.asarray(q5_0)
         shape = q5_0.shape                          # (5, Nx, Ny, Nz)
         # force out-of-plane components to exactly 0 in the base field
@@ -307,14 +323,18 @@ class Reservoir:
         free_ix = jnp.where(free.reshape(-1))[0]
         x0 = base[free_ix]
 
-        def f_of_x(x):
-            full = base.at[free_ix].set(x).reshape(shape)
-            return energy_qtensor_3d(full, None, A, B, C, L, xi, spacings)
+        def scatter(x):
+            return base.at[free_ix].set(x).reshape(shape)
 
-        vg = jax.jit(jax.value_and_grad(f_of_x))
-        lo = jnp.full_like(x0, -1.0); hi = jnp.full_like(x0, 1.0)
-        x_star, info = _qt.gpumma.minimize(vg, x0, lo, hi, maxiter=maxiter)
-        q5_star = base.at[free_ix].set(x_star).reshape(shape)
+        def energy_of_free(x, _e_field):
+            return energy_qtensor_3d(scatter(x), None, A, B, C, L, xi, spacings)
+
+        grad_free = jax.grad(energy_of_free, argnums=0)
+        x_star = _newton_solve_q(energy_of_free, grad_free, x0, None,
+                                 n_outer=int(maxiter))
+        q5_star = scatter(x_star)
+        gnorm = float(jnp.linalg.norm(grad_free(x_star, None)))
+        info = {"converged": gnorm < 1e-9, "max_force": gnorm}
         return q5_star, info
 
     def load_fields(self):
@@ -394,7 +414,7 @@ class Reservoir:
         return [mp.Block(center=mp.Vector3(self._meep_center_x, 0, 0),
                          size=mp.Vector3(sx, sy, size_z), material=med)]
 
-    def get_geometry_blocks(self):
+    def get_geometry_blocks(self, mp_module=None):
         import meep as mp
 
         if self.isotropic:

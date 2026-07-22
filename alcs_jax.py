@@ -5,10 +5,14 @@ Rewired 2026-07-19: this LC module now lives in the standalone LCrelax project
 numerically identical for the shared ones). This thin shim rebinds the bare
 top-level name to LCrelax's module so existing `import alcs_jax.py` / `from alcs_jax.py import …`
 call sites keep working unchanged.
+
+Re-pointed 2026-07-22: LCrelax's canonicalization moved this module from
+`lc_stuff/alcs_jax.py` (now empty) to `src/alcs_jax.py` — pre-existing
+breakage found while validating the SimpleSim refactor, unrelated to it.
 """
 import sys as _sys
 import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
 
-from LCrelax.lc_stuff.alcs_jax import *          # noqa: F401,F403
+from LCrelax.src.alcs_jax import *          # noqa: F401,F403
 import importlib as _il
-_sys.modules[__name__] = _il.import_module("LCrelax.lc_stuff.alcs_jax")
+_sys.modules[__name__] = _il.import_module("LCrelax.src.alcs_jax")

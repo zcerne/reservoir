@@ -78,5 +78,5 @@ class Mirror:
     def get_layer_blocks(self):
         return [layer.get_geometry_block() for layer in self.layers]
 
-    def get_geometry_blocks(self):
+    def get_geometry_blocks(self, mp_module=None):
         return self.get_layer_blocks()

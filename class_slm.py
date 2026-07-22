@@ -102,7 +102,7 @@ class SLM:
     # Geometry
     # ------------------------------------------------------------------
 
-    def get_geometry_blocks(self):
+    def get_geometry_blocks(self, mp_module=None):
         """One MEEP Block per area, each with a pre-computed fixed LC medium."""
         return [
             mp.Block(center=area["center"], size=area["size"], material=area["material"])

@@ -199,7 +199,7 @@ class ReservoirGPU:
 
         return _VecMaterial(mat, tensor6_vec)
 
-    def get_geometry_blocks(self):
+    def get_geometry_blocks(self, mp_module=None):
         if self.isotropic:
             return self.get_isotropic_block()
         assert self.res is not None
