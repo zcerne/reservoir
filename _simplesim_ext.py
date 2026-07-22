@@ -59,13 +59,23 @@ class PulsedFsSource(_SSSource):
 class ConcentrationSensor(_SSSensor):
     """STED gain-medium population monitor. Stepped like a *snap sensor
     (driven by an at_every step func from backend_fdtd.py) rather than
-    registered as engine DFT/flux state — reads sim.gain_populations(),
-    which only exists when the reservoir's `sted` block is enabled."""
+    registered as engine DFT/flux state — reads sim.gain_populations().
+
+    gain_populations() returns the population array over gpumeep's ENTIRE
+    simulation grid (its state is allocated domain-wide — an intentional
+    MEEP-compatibility choice, see multilevel.py::init_state_full's "N = N0
+    at EVERY center" docstring — not just where the gain medium actually
+    couples to the field). This sensor crops that down to its own area:
+    the on-object's bounding box (x-width from `on_object_size_x`, y-height
+    from `on_object_size_y` — both set by SimulationData._layout()) by
+    default, or an explicit JSON `position.size` if given, same convention
+    every other Sensor subclass uses."""
 
     def __init__(self, args: dict, mp_mod) -> None:
         super().__init__(args, mp_mod)
         self._snaps: list = []
         self._times: list = []
+        self._box: tuple[int, int, int, int] | None = None   # (i_lo,i_hi,j_lo,j_hi)
 
     def add_to_simulation(self, sim) -> None:
         pass  # stepped — nothing to register on the engine
@@ -85,20 +95,49 @@ class ConcentrationSensor(_SSSensor):
             return None
         return self._step_interval(), self._record
 
+    def _crop_box_um(self) -> tuple[float, float, float]:
+        """(center_x, size_x, size_y) in µm — the on-object's own footprint
+        by default (objects are always y-centered at 0 in this convention),
+        or an explicit JSON position.size override."""
+        req_sx, req_sy, _ = self._parse_size()
+        obj_sx = float(self.args.get("on_object_size_x", 0.0))
+        obj_sy = float(self.args.get("on_object_size_y", 0.0))
+        sx = req_sx if req_sx > 0 else (obj_sx if obj_sx > 0 else float(self.args.get("cell_x", 0.0)))
+        sy = req_sy if req_sy > 0 else (obj_sy if obj_sy > 0 else float(self.args.get("cell_y", 0.0)))
+        return self.center_x, sx, sy
+
+    def _grid_box(self, sim) -> tuple[int, int, int, int]:
+        cx_um, sx, sy = self._crop_box_um()
+        dx = float(sim.dx)
+        i_lo = max(0, int(round((cx_um - sx / 2 + sim.cx) / dx)))
+        i_hi = min(sim.Nx, int(round((cx_um + sx / 2 + sim.cx) / dx)))
+        j_lo = max(0, int(round((-sy / 2 + sim.cy) / dx)))
+        j_hi = min(sim.Ny, int(round((sy / 2 + sim.cy) / dx)))
+        return i_lo, i_hi, j_lo, j_hi
+
     def _record(self, sim) -> None:
         N = sim.gain_populations()
         if N is None:
             raise ValueError("concentration monitor requires reservoir.sted")
-        self._snaps.append(np.asarray(N, dtype=np.float32))
+        if self._box is None:
+            self._box = self._grid_box(sim)
+        i_lo, i_hi, j_lo, j_hi = self._box
+        self._snaps.append(np.asarray(N[:, i_lo:i_hi, j_lo:j_hi], dtype=np.float32))
         self._times.append(sim.meep_time())
 
     def save(self, sim, path: str, prefix: str = "") -> None:
         os.makedirs(path, exist_ok=True)
         out = os.path.join(path, f"{prefix}{self.key}.npz")
         N = np.array(self._snaps, dtype=np.float32)
+        extra = {}
+        if self._box is not None:
+            i_lo, i_hi, j_lo, j_hi = self._box
+            dx = float(sim.dx)
+            extra["x"] = np.arange(i_lo, i_hi) * dx - sim.cx
+            extra["y"] = np.arange(j_lo, j_hi) * dx - sim.cy
         np.savez(out, N=N, times=np.array(self._times),
                  levels=["N1", "N2", "N3", "N4"],
-                 snap_interval=self._step_interval())
+                 snap_interval=self._step_interval(), **extra)
 
 
 # ---------------------------------------------------------------------------

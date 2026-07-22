@@ -2,7 +2,7 @@ import json
 import numpy as np
 import os
 
-data_path = "data/lasing_testing/01_basic_test/"
+data_path = "/home/ziga/Orion/resevoir/data/lasing_testing/01_basic_test/"
 
 concentration_data = np.load(os.path.join(data_path, "simulation_gpumeep/conc_monitor.npz"))
 
