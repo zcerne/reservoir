@@ -52,16 +52,19 @@
     "sizes": [1.0, 10.0]
   },
   "source_1": {
-    "_comment": "Gaussian pulse at 500 nm, injected at the LEFT edge of guide_1",
+    "_comment": "Focused Gaussian beam PULSE at 500nm (w0=3um waist, focused 6um downstream at the reservoir center) injected at the LEFT edge of guide_1 — replaces the old flat plane-wave launch, which excited the guide/reservoir's full multimode superposition (visible as an X-shaped interference/beating pattern in the concentration data) with a genuinely single-lobed beam.",
     "class": "source",
     "position": {
       "on_object": "guide_1",
-      "position": "left",
-      "size": [0.0, 10.0, 0.0]
+      "position": "left"
     },
     "amplitude": 1.0,
     "component": "Ey",
-    "source_type": "gaussian",
+    "source_type": "gaussianbeam",
+    "w0": 3.0,
+    "focus": [6.0, 0.0],
+    "kdir": [1.0, 0.0, 0.0],
+    "exact2d": true,
     "lam": 0.5,
     "dlam": 0.05
   },
