@@ -6,7 +6,7 @@
   "periodic": false,
   "pml_size": 2.0,
   "background_index": 1.5,
-  "run_until": 300.0,
+  "run_until": 100.0,
   "source_off_decay": 50.0,
   "courant": 0.5,
   "fp": "fp64",
@@ -42,7 +42,7 @@
       "gammaE": 0.1,
       "SGMA": 0.006,
       "N1_0": 0.0,
-      "N3_0": 0.0,
+      "N3_0": 30.0,
       "rate_43": 10.0,
       "rate_21": 100.0
     }
