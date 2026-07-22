@@ -33,7 +33,10 @@ extent = [-cell_x / 2, cell_x / 2, -cell_y / 2, cell_y / 2]
 
 import matplotlib.pyplot as plt
 
-snap_id = 110
+# Auto-pick the time index where the pulse's effect is largest (max N1 —
+# population only accumulates there once the pulse has actually acted),
+# rather than a hardcoded index that breaks whenever run timing changes.
+snap_id = int(np.argmax(np.sum(N[:, 0], axis=(1, 2))))
 
 fig, axs = plt.subplots(2, 2, figsize=(9, 9))
 axs = axs.flatten()
