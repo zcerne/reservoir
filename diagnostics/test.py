@@ -3,6 +3,16 @@ import numpy as np
 import os
 
 data_path = "/home/ziga/Orion/resevoir/data/lasing_testing/01_basic_test/"
+# Data is read from Orion (data_path); figures are saved locally on this
+# machine ("workbox") only — the Nextcloud-synced git checkout, not the
+# Orion sshfs mount.
+workboxdatapath = "/home/ziga/Nextcloud/Doktorski/Projects/Reservoir/gitcode/data/lasing_testing/01_basic_test/"
+os.makedirs(os.path.join(workboxdatapath, "figures"), exist_ok=True)
+
+
+def savefig_workbox(name: str) -> None:
+    import matplotlib.pyplot as plt
+    plt.savefig(os.path.join(workboxdatapath, "figures", name), dpi=140)
 
 concentration_data = np.load(os.path.join(data_path, "simulation_gpumeep/conc_monitor.npz"))
 
@@ -37,7 +47,7 @@ for i in range(4):
     axs[i].set_xlabel("x [µm]")
     axs[i].set_ylabel("y [µm]")
 fig.tight_layout()
-plt.savefig(os.path.join(data_path, "figures/conc_snapshot.png"), dpi=140)
+savefig_workbox("conc_snapshot.png")
 plt.show()
 
 sums = np.sum(N, axis=(2, 3)).T
@@ -49,7 +59,7 @@ plt.xlabel("t [MEEP units]")
 plt.ylabel("total population (summed over grid)")
 plt.legend()
 plt.yscale("log")
-plt.savefig(os.path.join(data_path, "figures/conc_totals.png"), dpi=140)
+savefig_workbox("conc_totals.png")
 plt.show()
 
 snapshot_1_data = np.load(os.path.join(data_path, "simulation_gpumeep/snapshot_1.npz"))
@@ -85,7 +95,7 @@ for i in range(n_snaps):
 for i in range(n_snaps, len(axs)):
     axs[i].axis("off")
 fig.tight_layout()
-plt.savefig(os.path.join(data_path, "figures/snapshot_intensity.png"), dpi=140)
+savefig_workbox("snapshot_intensity.png")
 plt.show()
 
 monitor_1_data = np.load(os.path.join(data_path, "simulation_gpumeep/monitor_1.npz"))
@@ -108,7 +118,7 @@ plt.xlabel("λ [µm]")
 plt.ylabel("Σ|E|² along monitor line")
 plt.legend()
 plt.yscale("log")
-plt.savefig(os.path.join(data_path, "figures/monitor_spectra.png"), dpi=140)
+savefig_workbox("monitor_spectra.png")
 plt.show()
 
 # Spatial |E(y)|² profile at the source wavelength (500nm) — input vs output.
@@ -124,5 +134,5 @@ for label, mon in (("monitor_1 (input, guide_1)", monitor_1_data),
 plt.xlabel("y [µm]")
 plt.ylabel("|E|² at λ=500nm")
 plt.legend()
-plt.savefig(os.path.join(data_path, "figures/monitor_profiles.png"), dpi=140)
+savefig_workbox("monitor_profiles.png")
 plt.show()
