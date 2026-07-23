@@ -125,9 +125,9 @@ class ConcentrationSensor(_SSSensor):
         self._snaps.append(np.asarray(N[:, i_lo:i_hi, j_lo:j_hi], dtype=np.float32))
         self._times.append(sim.meep_time())
 
-    def save(self, sim, path: str, prefix: str = "") -> None:
+    def save(self, sim, path: str, suffix: str = "") -> None:
         os.makedirs(path, exist_ok=True)
-        out = os.path.join(path, f"{prefix}{self.key}.npz")
+        out = os.path.join(path, f"{self.key}_{suffix}.npz")
         N = np.array(self._snaps, dtype=np.float32)
         extra = {}
         if self._box is not None:

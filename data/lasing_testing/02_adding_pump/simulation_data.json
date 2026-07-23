@@ -16,6 +16,7 @@
     "reservoir",
     "guide_2",
     "source_1",
+    "source_pump",
     "monitor_1",
     "monitor_2",
     "conc_monitor",
@@ -69,6 +70,20 @@
     "exact2d": true,
     "lam": 0.55,
     "dlam": 0.2
+  },
+  "source_pump": {
+    "_comment": "Uniform 2D-area CW pump filling the reservoir's own footprint (not a guided line source like source_1) at the dye's absorption line lbdA=0.45 -- Ez polarization, orthogonal to source_1's guided Ey signal at the emission line lbdE=0.55, so pump and probe don't directly interfere in the FDTD fields. Drives real N1->N3 population transfer instead of relying on the reservoir's pre-inverted initial condition (N3_0=30, N1_0=0).",
+    "class": "source",
+    "position": {
+      "on_object": "reservoir",
+      "position": "center",
+      "size": [20.0, 10.0, 0.0]
+    },
+    "amplitude": 1.0,
+    "component": "Ez",
+    "source_type": "continuous",
+    "lam": 0.45,
+    "dlam": 0.0
   },
   "monitor_1": {
     "_comment": "input sensor, middle of guide_1",

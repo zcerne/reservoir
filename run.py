@@ -8,10 +8,10 @@ sensor/legacy-pulse-source support — see class_simulation.py / _simplesim_ext.
     python run.py data/test2D --backend meep      # MEEP instead of GPUmeep
     python run.py data/test2D --relax-only        # LC relaxation only
     python run.py data/test2D --plot              # figures from saved npz
-    python run.py data/test2D --prefix v30_        # tag every saved/found
+    python run.py data/test2D --suffix v30_        # tag every saved/found
                                                    # file so a design folder
                                                    # can hold multiple runs
-                                                   # (e.g. --prefix v0_ / v30_)
+                                                   # (e.g. --suffix v0_ / v30_)
                                                    # side by side
 """
 from __future__ import annotations
@@ -29,8 +29,8 @@ def main() -> None:
     ap.add_argument("--force-relax", action="store_true")
     ap.add_argument("--empty", action="store_true")
     ap.add_argument("--plot", action="store_true")
-    ap.add_argument("--prefix", default="",
-                    help="prepended to every saved/searched output filename "
+    ap.add_argument("--suffix", default="",
+                    help="appended to every saved/searched output filename "
                          "(sensor npz + figures), so a design folder can hold "
                          "multiple parameter variants side by side")
     a = ap.parse_args()
@@ -40,7 +40,7 @@ def main() -> None:
     from class_simulation import ReservoirSimulation
 
     sim = ReservoirSimulation(a.design, backend=a.backend, precision=a.precision,
-                              prefix=a.prefix)
+                              suffix=a.suffix)
     if a.plot:
         sim.plot()
         return

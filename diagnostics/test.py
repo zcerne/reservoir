@@ -58,10 +58,14 @@ sums = np.sum(N, axis=(2, 3)).T
 plt.figure()
 for i in range(4):
     plt.plot(times, sums[i], label=str(levels[i]))
+
+# plt.plot(times, sums[2], label=str(levels[2]))
+plt.plot(times, np.sum(sums, axis = 0), label = "sum")
 plt.xlabel("t [MEEP units]")
 plt.ylabel("total population (summed over grid)")
+
 plt.legend()
-plt.yscale("log")
+# plt.yscale("log")
 savefig_workbox("conc_totals.png")
 # plt.show()
 
@@ -120,7 +124,7 @@ for label, mon in (("monitor_1 (input, guide_1)", monitor_1_data),
 plt.xlabel("λ [µm]")
 plt.ylabel("Σ|E|² along monitor line")
 plt.legend()
-plt.yscale("log")
+# plt.yscale("log")
 savefig_workbox("monitor_spectra.png")
 # plt.show()
 
