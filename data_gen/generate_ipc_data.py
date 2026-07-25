@@ -28,6 +28,12 @@ def main():
     ap.add_argument("--readout", default="field", choices=["field", "intensity"],
                     help="applied at ASSEMBLE only: raw complex field (default) or |E|²; "
                          "parts always store the field")
+    ap.add_argument("--scale", type=float, default=1.0,
+                    help="physical amplitude = scale*u; u itself (Uniform[-1,1], what the "
+                         "Legendre polynomial basis is evaluated on) is unaffected and is "
+                         "what gets saved as 'inputs' -- lets the device operate at any real "
+                         "drive level without breaking the [-1,1] orthonormality the capacity "
+                         "decomposition (n6_dambre) assumes.")
     gc.add_common_args(ap)
     args = ap.parse_args()
 
@@ -48,7 +54,7 @@ def main():
             part = os.path.join(gc._parts_dir(out_path), f"part_{int(m):06d}.npz")
             if os.path.exists(part):
                 return
-        v = forward(U[m].astype(complex))
+        v = forward((args.scale * U[m]).astype(complex))
         gc.save_part(out_path, m, is_master, output=v, inp=U[m])
 
     def assemble():
@@ -57,7 +63,7 @@ def main():
         outputs = np.stack([p["output"] for p in parts])
         if args.readout == "intensity":
             outputs = np.abs(outputs) ** 2
-        np.savez(out_path, inputs=inputs, outputs=outputs,
+        np.savez(out_path, inputs=inputs, outputs=outputs, scale=args.scale,
                  readout=np.asarray(args.readout), components=np.asarray(comps))
         print(f"[ipcdata] assembled → {out_path}  ({len(parts)} probes, readout={args.readout})", flush=True)
 
