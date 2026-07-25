@@ -24,62 +24,61 @@ def open_reservoir(path, components):
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
     field over `components` (Ey[,Ex,Ez]). NOTE the source casts amplitude to real,
     so pass REAL amplitudes unless a tone's imaginary part is intended as a phase.
+
+    Runs through SimpleSim's ReservoirSimulation (class_simulation.py) — the
+    current, actively-maintained engine (same one the interactive run()/plot()
+    workflow uses) — for BOTH backends. The old standalone class_simulation_gpu.py
+    run_basis()/_run_2d_sted() path and the (stale, broken since the SimpleSim
+    migration) class_simulation_T.py path are no longer used here: they're a
+    separate, unsynced reimplementation that was never validated against
+    ReservoirSimulation and gave measurably wrong gain for STED designs
+    (2026-07-25: ~2.5x vs SimpleSim's ~4.1x at the same amplitude/pump).
     """
-    # Engine selected by the design JSON top-level "solver": "meep" (default) |
-    # "gpumeep". Both expose an amplitude→(Ey,Ex,Ez)@monitor_2 basis run and the
-    # same npz schema, so 2D and 3D forward runs work on either engine.
     import json as _json
     with open(os.path.join(path, "simulation_data.json")) as _f:
-        solver = str(_json.load(_f).get("solver", "meep")).lower()
+        cfg = _json.load(_f)
+    backend = str(cfg.get("solver", "meep")).lower()
     # Env override: the same design JSON can run MEEP on Orion (CPU/MPI) and
     # GPUmeep on smaug without editing the file.
-    solver = os.environ.get("RESERVOIR_SOLVER", solver).lower()
+    backend = os.environ.get("RESERVOIR_SOLVER", backend).lower()
+    backend = "gpumeep" if backend in ("gpumeep", "gpu", "gpumma") else "meep"
 
-    if solver in ("gpumeep", "gpu", "gpumma"):
-        # Import the CANONICAL GPUmeep driver (GPUMEEP_PATH), not the stale
-        # resevoir-local copy that shadows it on sys.path (same guard as
-        # ladder.run_gpumeep).
-        import sys as _sys, importlib as _importlib
-        _gpu_src = os.environ.get("GPUMEEP_PATH")
-        if _gpu_src:
-            _sys.path.insert(0, _gpu_src)
-            _sys.modules.pop("class_simulation_gpu", None)
-            _csg = _importlib.import_module("class_simulation_gpu")
-            assert os.path.dirname(_csg.__file__) == _gpu_src, _csg.__file__
-            SimulationGPU = _csg.SimulationGPU
-        else:
-            from class_simulation_gpu import SimulationGPU
-        is_master = True                                     # single-process JAX engine
-        sim = SimulationGPU(folder_path=path)
-        sim._set_data(); sim._update_all_args()
-        src_key = next(o["_key"] for o in sim.objects_args
-                       if o.get("class") == "source" and o.get("_key") != "source_2")
-        amp0 = sim.args.get(src_key, {}).get("amplitude", [1.0])
-        n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
+    from class_simulation import ReservoirSimulation
 
-        def forward(E):
-            Ey, Ex, Ez = sim.run_basis(list(E), source_key=src_key)
-            f = {"Ey": Ey, "Ex": Ex, "Ez": Ez}
-            return np.concatenate([np.asarray(f[c]).ravel() for c in components])
-
-        return forward, n_strips, is_master
-
-    from class_simulation_T import SimulationT
-    try:
-        import meep as mp
-        is_master = bool(mp.am_master())
-    except Exception:
-        is_master = True
-    sim = SimulationT(path)                                   # design DIR, not the json
-    sim._set_data()
-    src_key = sim._source_key(sim.args)
-    amp0 = sim.args[src_key].get("amplitude", [1.0])
+    # First source in JSON key order that isn't "source_2" (same convention the
+    # old pipeline used) -- for 02_adding_pump this is source_1 (signal), not
+    # source_pump (fixed CW pump, comes later in the JSON).
+    src_key = next(k for k, v in cfg.items()
+                   if isinstance(v, dict) and v.get("class") == "source"
+                   and k != "source_2")
+    amp0 = cfg[src_key].get("amplitude", [1.0])
     n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
 
+    # Per-process scratch tag (matches the old GPUMEEP_SCRATCH_TAG use): two
+    # concurrent characterization batches (e.g. split across smaug1/smaug2)
+    # must not share one suffix, or they'd race on the same output npz.
+    suffix = os.environ.get("SIMPLESIM_SCRATCH_TAG", "fwd")
+    out_dir = os.path.join(path, f"simulation_{backend}")
+
+    from simplesim.simulation import resolve_engine
+    _mp = resolve_engine(backend)
+    is_master = bool(_mp.am_master()) if hasattr(_mp, "am_master") else True
+
     def forward(E):
-        Ey, Ex, Ez = sim._run_basis(list(E))
-        f = {"Ey": Ey, "Ex": Ex, "Ez": Ez}
-        return np.concatenate([np.asarray(f[c]).ravel() for c in components])
+        sim = ReservoirSimulation(path, backend=backend, suffix=suffix,
+                                  overrides={src_key: {"amplitude": list(E)}})
+        sim.relax()
+        sim.run(empty=False)
+        m2 = np.load(os.path.join(out_dir, f"monitor_2_{suffix}.npz"))
+        zeros = None
+        vals = []
+        for c in components:
+            if c in m2.files:
+                v = np.asarray(m2[c])
+                zeros = np.zeros_like(v)
+            vals.append(m2[c] if c in m2.files else None)
+        vals = [v if v is not None else zeros for v in vals]
+        return np.concatenate([np.asarray(v).ravel() for v in vals])
 
     return forward, n_strips, is_master
 
