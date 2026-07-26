@@ -56,14 +56,14 @@
     "sizes": [1.0, 10.0]
   },
   "source_1": {
-    "_comment": "Plain (non-beam) Gaussian-envelope PULSE at 500nm injected at the LEFT edge of guide_1 -- switched 2026-07-24 from a focused gaussianbeam(exact2d=true) because that beam type's amplitude is a NO-OP by design (confirmed against real MEEP's own GaussianBeam2DSource.get_fields: it normalizes by dividing by a norm computed from the SAME amplitude-scaled field, canceling |E0| entirely -- only phase/direction survive), which silently broke the amplitude sweep. This plain source_type genuinely scales with amplitude. start_time=100.0 delays the pulse so it arrives AFTER the continuous pump (source_pump) has already built up substantial population inversion, to probe the actual gain rather than launching signal and pump simultaneously from a cold, uninverted medium. amplitude switched to a 2-element list 2026-07-25 (per user request) -- return_quadrosource/_strip_sources splits the size.y=10.0 extent into n_strips=2 equal 5.0-unit-tall independent-amplitude point sources, giving data_gen/generate_amplitude_sweep_data.py a real multi-channel input for capacity/nonlinearity characterization instead of the degenerate n_strips=1 scalar case.",
+    "_comment": "Plain (non-beam) Gaussian-envelope PULSE at 500nm injected at the LEFT edge of guide_1 -- switched 2026-07-24 from a focused gaussianbeam(exact2d=true) because that beam type's amplitude is a NO-OP by design (confirmed against real MEEP's own GaussianBeam2DSource.get_fields: it normalizes by dividing by a norm computed from the SAME amplitude-scaled field, canceling |E0| entirely -- only phase/direction survive), which silently broke the amplitude sweep. This plain source_type genuinely scales with amplitude. start_time=100.0 delays the pulse so it arrives AFTER the continuous pump (source_pump) has already built up substantial population inversion, to probe the actual gain rather than launching signal and pump simultaneously from a cold, uninverted medium. amplitude switched to a 4-element list 2026-07-26 (per user request, for a richer IPC/capacity polynomial target basis than 2 channels gives) -- return_quadrosource/_strip_sources splits the size.y=10.0 extent into n_strips=4 equal 2.5-unit-tall independent-amplitude point sources. 2-strip results are preserved under datasets/2strip_backup/.",
     "class": "source",
     "position": {
       "on_object": "guide_1",
       "position": "left",
       "size": [10.0, 0.0]
     },
-    "amplitude": [10.0, 10.0],
+    "amplitude": [10.0, 10.0, 10.0, 10.0],
     "component": "Ey",
     "source_type": "gaussian",
     "lam": 0.55,
