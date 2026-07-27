@@ -150,15 +150,8 @@ def evaluate(coeffs, sigma_deg):
              x=np.linspace(-el.sx/2, el.sx/2, el.nx),
              y=np.linspace(-el.sy/2, el.sy/2, el.ny),
              z=np.linspace(0, el.dz*(el.nz-1), el.nz))
-    import importlib
-    gpu_src = os.environ.get("GPUMEEP_PATH", "/home/cernez/GPUmeep/src")
-    if gpu_src not in sys.path:
-        sys.path.insert(0, gpu_src)
-    sys.modules.pop("class_simulation_gpu", None)
-    csg = importlib.import_module("class_simulation_gpu")
-    sim = csg.SimulationGPU(folder_path=BASE)
-    sim.force_fullvector = True
-    sim.run()
+    from class_simulation import Simulation as _ReservoirSim
+    _ReservoirSim(BASE, backend="gpumeep").run_simulation()
     Ex_f, Ey_f, Hz_f = _far_field(os.path.join(BASE, "simulation", "monitor_2.npz"))
     I = np.abs(Ex_f) ** 2 + np.abs(Ey_f) ** 2
     sig = np.deg2rad(sigma_deg)

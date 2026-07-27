@@ -1,7 +1,7 @@
 """Plots for the voltage-electrode reservoir.
 
 Reads `simulation/voltage_reservoir.npz` (saved by VoltageReservoir.save())
-and `simulation/opt_sensor.npz` (saved by class_simulation_gpu) and emits
+and `simulation/opt_sensor.npz` (saved by the FDTD stage) and emits
 five figures into `figures/`:
 
   1. potential.png       — V (electric potential) heatmap with electrode positions

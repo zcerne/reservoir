@@ -173,15 +173,8 @@ def relax(coeffs, lc_everywhere=True):
 
 
 def forward():
-    import importlib
-    gpu_src = os.environ.get("GPUMEEP_PATH", "/home/cernez/GPUmeep/src")
-    if gpu_src not in sys.path:
-        sys.path.insert(0, gpu_src)
-    sys.modules.pop("class_simulation_gpu", None)
-    csg = importlib.import_module("class_simulation_gpu")
-    sim = csg.SimulationGPU(folder_path=BASE)
-    sim.force_fullvector = True
-    sim.run()
+    from class_simulation import Simulation as _ReservoirSim
+    _ReservoirSim(BASE, backend="gpumeep").run_simulation()
     I = np.abs(np.load(os.path.join(BASE, "simulation", "monitor_2.npz"))["Ey"][0]) ** 2
     y = np.linspace(-SPAN/2, SPAN/2, len(I))
     G = np.exp(-y**2/(2*TARGET_SIGMA**2))

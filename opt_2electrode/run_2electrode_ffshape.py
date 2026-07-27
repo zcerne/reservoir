@@ -215,15 +215,8 @@ def evaluate(x):
     coeffs = np.asarray(x[:NCTRL], dtype=np.float64)
     V0 = float(x[NCTRL]) if OPT_V0 else V0_FIXED
     relax(coeffs, V0)
-    import importlib
-    gpu_src = os.environ.get("GPUMEEP_PATH", "/home/cernez/GPUmeep/src")
-    if gpu_src not in sys.path:
-        sys.path.insert(0, gpu_src)
-    sys.modules.pop("class_simulation_gpu", None)
-    csg = importlib.import_module("class_simulation_gpu")
-    sim = csg.SimulationGPU(folder_path=BASE)
-    sim.force_fullvector = True
-    sim.run()
+    from class_simulation import Simulation as _ReservoirSim
+    _ReservoirSim(BASE, backend="gpumeep").run_simulation()
     Ey_f = _far_field(os.path.join(BASE, "simulation", "monitor_2.npz"))
     I = np.abs(Ey_f) ** 2
     sig = np.deg2rad(SIGMA_DEG); th0 = np.deg2rad(THETA0_DEG)

@@ -1,10 +1,9 @@
 """Top-level driver: voltage input → director → FDTD → sensor.
 
 Stitches `class_voltage_reservoir.VoltageReservoir` (input encoding) with
-`class_simulation_gpu.SimulationGPU` (FDTD). Writes the director field to
-`simulation/lc_fields.npz` (the format class_simulation_gpu reads), then
-invokes the existing FDTD pipeline. No refactor of class_simulation_gpu
-needed — it just consumes the saved director.
+`class_simulation.Simulation(backend="gpumeep")` (FDTD). Writes the director
+field to `simulation/lc_fields.npz` (the format the FDTD stage reads), then
+invokes the existing FDTD pipeline.
 
 Usage:
     python run_voltage_reservoir.py --path data/test_voltage
@@ -25,7 +24,7 @@ from class_voltage_reservoir import VoltageReservoir
 
 
 def write_lc_fields(folder: str | Path, vr: VoltageReservoir) -> str:
-    """Save director in the lc_fields.npz format class_simulation_gpu reads.
+    """Save director in the lc_fields.npz format the gpumeep FDTD stage reads.
 
     Required keys: phi (nx, ny, nz), x (nx,), y (ny,). theta optional.
     """
@@ -57,7 +56,7 @@ def main():
     ap.add_argument("--skip-fdtd", action="store_true",
                     help="only compute director, don't run FDTD")
     ap.add_argument("--precision", choices=["fp32", "fp64"], default="fp32",
-                    help="FDTD precision (passed to class_simulation_gpu)")
+                    help="FDTD precision (passed to class_simulation.py)")
     args = ap.parse_args()
 
     # Stage 1: voltage → director
@@ -74,7 +73,7 @@ def main():
     print(f"compute: {time.time()-t0:.2f}s  phi∈[{phi.min():+.3f},{phi.max():+.3f}]  "
           f"|E|max={float(np.linalg.norm(vr.E, axis=0).max()):.3f} V/µm")
 
-    # Stage 2: write lc_fields.npz so class_simulation_gpu can read it
+    # Stage 2: write lc_fields.npz so the gpumeep FDTD stage can read it
     lc_path = write_lc_fields(args.path, vr)
     print(f"[run_voltage_reservoir] wrote {lc_path}")
     vr.save()  # also save full voltage_reservoir.npz for inspection
@@ -83,11 +82,12 @@ def main():
         print("[run_voltage_reservoir] --skip-fdtd: stopping after director.")
         return 0
 
-    # Stage 3: FDTD via existing class_simulation_gpu
-    print(f"\n=== Stage 3: FDTD (class_simulation_gpu --precision {args.precision}) ===")
-    here = os.path.dirname(os.path.abspath(__file__))
-    cmd = [sys.executable, os.path.join(here, "class_simulation_gpu.py"),
-           "--path", args.path, "--precision", args.precision]
+    # Stage 3: FDTD via class_simulation.py (unified meep/gpumeep entry point)
+    print(f"\n=== Stage 3: FDTD (class_simulation.py --backend gpumeep --precision {args.precision}) ===")
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cmd = [sys.executable, os.path.join(root, "class_simulation.py"),
+           "--path", args.path, "--backend", "gpumeep",
+           "--precision", args.precision, "--lc-only"]
     return subprocess.call(cmd)
 
 

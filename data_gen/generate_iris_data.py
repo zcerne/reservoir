@@ -6,7 +6,7 @@ Pipeline per iris sample:
   2. Map each normalized value linearly to a voltage in [-10, +10] V.
   3. Set top + bottom electrodes identically (y-symmetric: y_min[k] = y_max[k]).
   4. Compute director via class_voltage_reservoir (Poisson + LC relax / shortcut).
-  5. Write director to simulation/lc_fields.npz and run class_simulation_gpu FDTD.
+  5. Write director to simulation/lc_fields.npz and run the gpumeep FDTD stage.
   6. Accumulate I(y) sensor output.
 Save single iris_dataset.npz with input/voltage/output triples.
 """

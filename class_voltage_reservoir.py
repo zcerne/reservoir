@@ -1,14 +1,14 @@
 """Top-level composer: electrodes → Poisson → LC director → optical material.
 
-This is the new "voltage_reservoir" reservoir type used in
-`class_simulation_gpu.py` when JSON has `reservoir.class = "voltage_reservoir"`.
+This is the new "voltage_reservoir" reservoir type, built via
+`_simplesim_ext.build_reservoir` when JSON has `reservoir.class =
+"voltage_reservoir"` (backend="gpumeep" path → class_reservoir_gpu.ReservoirGPU).
 It encapsulates the data-encoding pipeline:
 
     input voltages → Dirichlet → V → E → n(E) → ε(n) → FDTD material
 
 Returns the optical material (anisotropic ε_inv tensor at Yee faces) that
-`class_simulation_gpu` slots into the same place the old reservoir's
-`get_dielectric_3d` provided one.
+slots into the same place the old reservoir's `get_dielectric_3d` provided one.
 
 Short class. Stitches `VoltageElectrodes` + `Poisson2D` + `LCFromField`.
 """
@@ -26,7 +26,7 @@ from class_lc_from_field import LCFromField
 class VoltageReservoir:
     """Voltage-driven LC reservoir.
 
-    Usage from class_simulation_gpu:
+    Usage from class_reservoir_gpu (backend="gpumeep"):
         vr = VoltageReservoir(folder)
         vr.compute(voltages)         # one call per input data point
         phi_lc_2d = vr.phi_mid_z()   # 2D φ slice at mid-z for the FDTD material

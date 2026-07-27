@@ -7,7 +7,7 @@ pulls results back, and terminates the pod.
 This is the reservoir-project-specific runner. It assumes:
   * the reservoir repo is at github.com:zcerne/reservoir.git
   * GPUmeep is at github.com:zcerne/GPUmeep.git
-  * `class_simulation_gpu.py` (in this repo) drives the GPU FDTD
+  * `class_simulation.py --backend gpumeep` (in this repo) drives the GPU FDTD
 
 API key: read from `~/.runpod/api_key` or env RUNPOD_API_KEY. Never commit it.
 
@@ -51,7 +51,7 @@ def parse_args():
     p.add_argument("--precision", choices=["fp32", "fp64"], default="fp32")
     p.add_argument("--empty", action="store_true",
                    help="Vacuum reference run (no reservoir material)")
-    p.add_argument("--script", default="class_simulation_gpu.py",
+    p.add_argument("--script", default="class_simulation.py",
                    help="Reservoir script to run on the pod")
     p.add_argument("--no-terminate", action="store_true")
     p.add_argument("--name", default=None)
@@ -187,7 +187,8 @@ def main():
         ], check=True)
 
         # Run (pod-side path is the clean relative remote_data)
-        extra = "--precision " + args.precision + (" --empty" if args.empty else "")
+        extra = "--backend gpumeep --precision " + args.precision + \
+            (" --empty-only" if args.empty else " --lc-only")
         runner = (
             f"cd /workspace/reservoir && "
             f"GPUMEEP_PATH=/workspace/GPUmeep/src "
