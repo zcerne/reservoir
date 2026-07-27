@@ -1,33 +1,39 @@
 import numpy as np
 
 
-def _classify_bin(nu, tones, max_order):
-    """Decompose an integer frequency ν = Σ aₖ·toneₖ with small integer coeffs.
+def _build_lookup(tones, max_order):
+    """Map every achievable integer frequency ν = Σ aₖ·toneₖ (Σ|aₖ| ≤ max_order) to
+    its LOWEST-order integer-coefficient decomposition. Handles any number of tones
+    (earlier version hardcoded a 2-tone basis and silently misclassified a 3rd/4th
+    driven tone's fundamental as a high-order intermod product of tones[0], tones[1])."""
+    from itertools import product
+    n = len(tones)
+    R = max_order
+    lookup = {0: (0, (0,) * n)}
+    if n == 0:
+        return lookup
+    for coeffs in product(range(-R, R + 1), repeat=n):
+        order = sum(abs(c) for c in coeffs)
+        if order == 0 or order > R:
+            continue
+        nu = sum(c * f for c, f in zip(coeffs, tones))
+        if nu not in lookup or order < lookup[nu][0]:
+            lookup[nu] = (order, coeffs)
+    return lookup
+
+
+def _classify_bin(nu, lookup):
+    """Classify an integer frequency bin using a precomputed `_build_lookup` table.
 
     Returns (order, kind) where order = Σ|aₖ| and kind ∈ {"dc","fundamental",
-    "harmonic","intermod","other"}. Picks the lowest-order decomposition found.
+    "harmonic","intermod","other"}.
     """
     if nu == 0:
         return 0, "dc"
-    best = None
-    R = max_order
-    if len(tones) == 1:
-        f0 = tones[0]
-        if f0 and nu % f0 == 0:
-            m = abs(nu // f0)
-            if m <= R:
-                best = (m, [nu // f0])
-    else:
-        f1, f2 = tones[0], tones[1]
-        for a in range(-R, R + 1):
-            for b in range(-R, R + 1):
-                if a * f1 + b * f2 == nu and (abs(a) + abs(b)) <= R:
-                    cand = (abs(a) + abs(b), [a, b])
-                    if best is None or cand[0] < best[0]:
-                        best = cand
-    if best is None:
+    entry = lookup.get(int(nu))
+    if entry is None:
         return None, "other"
-    order, coeffs = best
+    order, coeffs = entry
     if order == 1:
         return 1, "fundamental"
     nz = [c for c in coeffs if c != 0]
@@ -72,13 +78,14 @@ def harmonic_specter(harmonic_data, max_order=6, rel_thresh=1e-9):
     total = float(P.sum()) + 1e-30
     freqs = np.fft.fftfreq(N_t, d=1.0 / N_t).round().astype(int)   # integer bin freqs
 
+    lookup = _build_lookup(tones, max_order)
     by_kind = {"dc": 0.0, "fundamental": 0.0, "harmonic": 0.0, "intermod": 0.0, "other": 0.0}
     by_order = {}
     max_ord = 0
     for nu, p in zip(freqs, P):
         if p < rel_thresh * total:
             continue
-        order, kind = _classify_bin(int(nu), tones, max_order)
+        order, kind = _classify_bin(int(nu), lookup)
         by_kind[kind] += float(p)
         if order is not None:
             by_order[order] = by_order.get(order, 0.0) + float(p)
