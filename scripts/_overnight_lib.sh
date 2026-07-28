@@ -15,13 +15,16 @@ D04=data/lasing_testing/04_adding_LC
 D03=data/lasing_testing/03b_isotropic_ds
 AMPFILE=$HOME/resevoir/scripts/chosen_amps.txt
 
-# wait_slot N — block until fewer than N processes are using the GPU. Counts
-# real CUDA contexts (nvidia-smi), not shell wrappers.
+# wait_slot N — block until fewer than N *FDTD* jobs are using the GPU. Counts
+# CUDA contexts holding >= 800 MiB: one 2D forward needs ~1.2 GB, while display
+# servers and other strays sit at a few hundred MiB and would otherwise eat a
+# slot permanently (they did: a 386 MiB process wedged smaug1's queue at 3/3).
 wait_slot() {
   local limit=${1:-3}
   while :; do
     local n
-    n=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader 2>/dev/null | wc -l)
+    n=$(nvidia-smi --query-compute-apps=used_memory --format=csv,noheader,nounits \
+        2>/dev/null | awk '$1 >= 800' | wc -l)
     [ "$n" -lt "$limit" ] && return 0
     sleep 60
   done
