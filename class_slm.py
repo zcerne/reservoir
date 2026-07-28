@@ -1,7 +1,8 @@
 import warnings
 import meep as mp
 import numpy as np
-from lc_geometry import get_dielectric_from_S_theta_yz
+import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
+from LCrelax.src.lc_geometry import get_dielectric_from_S_theta_yz
 
 
 class SLM:

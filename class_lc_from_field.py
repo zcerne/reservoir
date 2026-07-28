@@ -14,7 +14,8 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 
-from alcs_jax import (fe_core_director, fe_core_director_fwdbwd, n_sph,
+import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
+from LCrelax.src.alcs_jax import (fe_core_director, fe_core_director_fwdbwd, n_sph,
                       fe_core_qtensor, qtensor_to_director, ldg_constants_from_frank)
 
 

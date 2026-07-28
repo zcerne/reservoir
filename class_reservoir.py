@@ -1,8 +1,9 @@
 import json
 import numpy as np
 from pathlib import Path
-from alcs_class import XaLCS
-from lc_geometry import get_dielectric_3d
+import _lcrelax_locate  # noqa: F401  (resolves the canonical LCrelax package)
+from LCrelax.src.alcs_class import XaLCS
+from LCrelax.src.lc_geometry import get_dielectric_3d
 
 
 class Reservoir:
@@ -251,7 +252,7 @@ class Reservoir:
         from LCrelax.src.qtensor_3d import (ldg_constants_5cb,
                                             q5_from_director, director_and_S)
         from LCrelax.src.molecular_field import relax_qtensor_field
-        from alcs_jax import n_sph
+        from LCrelax.src.alcs_jax import n_sph
         ec = self.elastic_constants                                    # (K1,K2,K3,q0)
         eps_a = self.n_e ** 2 - self.n_o ** 2
         cst = ldg_constants_5cb(float(ec[0]), float(ec[1]), float(ec[2]), eps_a, dx_um=dx)
