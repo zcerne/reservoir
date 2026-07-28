@@ -22,7 +22,6 @@
     "monitor_1",
     "monitor_2",
     "pop_monitor",
-    "snapshot_1",
     "n2f_map"
   ],
   "guide_1": {
@@ -188,22 +187,6 @@
     "type": "population",
     "on_object": "reservoir",
     "snap_interval": 3.0
-  },
-  "snapshot_1": {
-    "_comment": "Dense field snapshots ONLY over t=[0,80] MEEP units (dt=4 -> ~21 snaps) where the pulse actually arrives/peaks/decays (confirmed: prior dt=50 run showed peak intensity at the very first sample t=51, already down 4 orders of magnitude by t=100) -- nothing recorded in the long empty tail after that, keeps the npz well under 100 MB.",
-    "class": "monitor",
-    "type": "2Dsnap",
-    "on_object": "reservoir",
-    "dt": 4.0,
-    "snap_t1": 0.0,
-    "snap_t2": 100.0,
-    "position": {
-      "position": "center",
-      "size": [
-        10.0,
-        10.0
-      ]
-    }
   },
   "n2f_map": {
     "class": "monitor",
