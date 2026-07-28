@@ -41,11 +41,85 @@ def _resolve_timeseries(d: dict):
     return N.sum(axis=(2, 3)), t, levels
 
 
+def sim_dir(design_path: str | Path) -> str:
+    """Backend output dir — gpumeep if present, else the MEEP one."""
+    for sub in ("simulation_gpumeep", "simulation"):
+        p = os.path.join(design_path, sub)
+        if os.path.isdir(p):
+            return p
+    return os.path.join(design_path, "simulation_gpumeep")
+
+
+def sensor_npz(design_path: str | Path, key: str, suffix: str = "") -> str:
+    """Path to sensor <key>'s npz. Mirrors SimpleSim's sim_data.tagged(): no
+    suffix → "<key>.npz", suffix "2" → "<key>_2.npz". Falls back to the legacy
+    trailing-underscore spelling ("<key>_.npz") for data written before that
+    cleanup, so older runs still plot."""
+    d = sim_dir(design_path)
+    s = str(suffix).strip("_")
+    clean = os.path.join(d, f"{key}_{s}.npz" if s else f"{key}.npz")
+    if os.path.exists(clean):
+        return clean
+    legacy = os.path.join(d, f"{key}_{suffix}.npz")
+    return legacy if os.path.exists(legacy) else clean
+
+
+def pick_snapshots(times: np.ndarray, n: int,
+                    t_range: tuple[float, float] | None) -> np.ndarray:
+    """Indices of n² evenly-spaced snapshots inside t_range."""
+    t_lo = t_range[0] if t_range and t_range[0] is not None else times[0]
+    t_hi = t_range[1] if t_range and t_range[1] is not None else times[-1]
+    idxs = np.where((times >= t_lo) & (times <= t_hi))[0]
+    if len(idxs) == 0:
+        raise ValueError(f"no snapshots in t_range {t_range} "
+                         f"(times: {times[0]:.1f}–{times[-1]:.1f})")
+    step = max(1, len(idxs) // (n * n))
+    pick = idxs[::step][:n * n]
+    if len(pick) < n * n:
+        pick = np.sort(np.unique(np.concatenate([pick, idxs[-(n * n - len(pick)):]])))
+    return pick
+
+
+def grid_figure(maps: np.ndarray, times: np.ndarray, pick: np.ndarray,
+                 x: np.ndarray, y: np.ndarray, n: int, title: str,
+                 cbar_label: str, out: Path, cmap: str = "inferno",
+                 norm=None) -> Path:
+    """Draw picked 2-D maps on an n×n grid with one shared colorbar.
+
+    ``maps`` is indexed by the ORIGINAL snapshot index (maps[pick[k]]), stored
+    (nx, ny) so it is transposed for pcolormesh's (row, col) = (y, x).
+    """
+    fig, axes = plt.subplots(n, n, figsize=(3 * n, 3 * n), layout="constrained")
+    axes = np.atleast_1d(axes).reshape(-1)
+    kw = dict(shading="auto", cmap=cmap, rasterized=True)
+    if norm is not None:
+        kw["norm"] = norm
+    else:
+        kw["vmin"] = float(np.min(maps[pick]))
+        kw["vmax"] = float(np.max(maps[pick]))
+    for ax, ti in zip(axes, pick):
+        ax.pcolormesh(x, y, maps[ti].T, **kw)
+        ax.set_title(f"t = {times[ti]:.1f}")
+        ax.set_aspect("equal")
+        ax.set_xticks([]); ax.set_yticks([])
+    for ax in axes[len(pick):]:
+        ax.set_visible(False)
+
+    fig.suptitle(title, fontsize=11)
+    fig.colorbar(axes[0].collections[0], ax=axes.tolist(), shrink=0.92,
+                 label=cbar_label)
+
+    os.makedirs(out.parent, exist_ok=True)
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
-def plot_population_snapshots(npz_path: str | Path, fig_dir: str | Path,
+def plot_population_snapshots(design_path: str | Path,
                                n: int = 3, level: int = 2,
                                t_range: tuple[float, float] | None = None,
                                suffix: str = "") -> Path | None:
@@ -63,58 +137,32 @@ def plot_population_snapshots(npz_path: str | Path, fig_dir: str | Path,
     t_range  : optional (t_min, t_max) to restrict the snapshot window
     suffix   : appended to the output filename
     """
+    npz_path = sensor_npz(design_path, "pop_monitor", suffix)
+    fig_dir = os.path.join(design_path, "figures")
     d = dict(np.load(npz_path, allow_pickle=True))
     N_spatial, times, x, y, levels = _resolve_snapshots(d)
     if N_spatial is None or len(times) == 0:
         print(f"[pop] no spatial snapshot data in {npz_path} — skipping grid plot")
         return None
     level_name = levels[level]
-    n_lev = N_spatial.shape[1]
 
-    # --- select n² evenly-spaced snapshots ---
-    t_lo = t_range[0] if t_range else times[0]
-    t_hi = t_range[1] if t_range else times[-1]
-    mask = (times >= t_lo) & (times <= t_hi)
-    idxs = np.where(mask)[0]
-    if len(idxs) == 0:
-        raise ValueError(f"no snapshots in t_range {t_range} (times: {times[0]:.1f}–{times[-1]:.1f})")
-    step = max(1, len(idxs) // (n * n))
-    pick = idxs[::step][:n * n]
-    if len(pick) < n * n:
-        pick = np.sort(np.unique(np.concatenate([pick, idxs[-(n * n - len(pick)):]])))
-
-    # --- plot ---
-    fig, axes = plt.subplots(n, n, figsize=(3 * n, 3 * n))
-    vmin = float(N_spatial[pick, level].min())
-    vmax = float(N_spatial[pick, level].max())
-    for ax, ti in zip(axes.flat, pick):
-        ax.pcolormesh(x, y, N_spatial[ti, level].T, shading="auto",
-                      vmin=vmin, vmax=vmax, cmap="inferno", rasterized=True)
-        ax.set_title(f"t = {times[ti]:.1f}")
-        ax.set_aspect("equal")
-        ax.set_xticks([]); ax.set_yticks([])
-    for ax in axes.flat[len(pick):]:
-        ax.set_visible(False)
-
-    fig.suptitle(f"Population snapshots — {level_name}  "
-                 f"(t = {times[pick[0]]:.1f} – {times[pick[-1]]:.1f})", fontsize=11)
-    cbar = fig.colorbar(axes.flat[0].collections[0], ax=axes, shrink=0.92,
-                        label=f"{level_name} population")
-    fig.tight_layout()
-
-    out = Path(fig_dir) / f"pop_snapshots_{level_name}{suffix}.png"
-    os.makedirs(out.parent, exist_ok=True)
-    fig.savefig(out, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    return out
+    pick = pick_snapshots(times, n, t_range)
+    return grid_figure(
+        N_spatial[:, level], times, pick, x, y, n,
+        title=(f"Population snapshots — {level_name}  "
+               f"(t = {times[pick[0]]:.1f} – {times[pick[-1]]:.1f})"),
+        cbar_label=f"{level_name} population",
+        out=Path(fig_dir) / f"pop_snapshots_{level_name}{suffix}.png")
 
 
-def plot_population_timeseries(npz_path: str | Path, fig_dir: str | Path,
+def plot_population_timeseries(design_dir: str | Path,
                                 suffix: str = "") -> Path:
     """Plot total population of each dye level vs time (1D lines).
 
     Works with both old (full-spatial) and new (pre-summed) formats.
     """
+    npz_path = sensor_npz(design_dir, "pop_monitor", suffix)
+    fig_dir = os.path.join(design_dir, "figures")
     d = dict(np.load(npz_path, allow_pickle=True))
     summed, times, levels = _resolve_timeseries(d)
 
@@ -143,17 +191,17 @@ def plot_population_timeseries(npz_path: str | Path, fig_dir: str | Path,
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="Plot population snapshots + timeseries")
-    ap.add_argument("npz", help="path to pop_monitor.npz")
-    ap.add_argument("--fig-dir", default=".", help="output directory for figures")
+    ap.add_argument("design_path", help="design folder (holds simulation_gpumeep/)")
     ap.add_argument("--n", type=int, default=3, help="grid size for snapshots (n×n)")
     ap.add_argument("--level", type=int, default=2, help="dye level for snapshots (0-3)")
     ap.add_argument("--snap-t1", type=float, default=None, help="snapshot window start")
     ap.add_argument("--snap-t2", type=float, default=None, help="snapshot window end")
+    ap.add_argument("--suffix", default="", help="run suffix (pop_monitor_<suffix>.npz)")
     args = ap.parse_args()
 
     t_range = (args.snap_t1, args.snap_t2) if args.snap_t1 is not None or args.snap_t2 is not None else None
-    s1 = plot_population_snapshots(args.npz, args.fig_dir, n=args.n, level=args.level,
-                                    t_range=t_range)
-    s2 = plot_population_timeseries(args.npz, args.fig_dir)
-    print(f"[pop] snapshots → {s1}", flush=True)
+    s1 = plot_population_snapshots(args.design_path, n=args.n, level=args.level,
+                                    t_range=t_range, suffix=args.suffix)
+    s2 = plot_population_timeseries(args.design_path, suffix=args.suffix)
+    print(f"[pop] snapshots  → {s1}", flush=True)
     print(f"[pop] timeseries → {s2}", flush=True)

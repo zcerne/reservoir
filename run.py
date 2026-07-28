@@ -7,13 +7,13 @@ extensions wired in.
     python run.py data/test2D --backend meep      # MEEP instead of GPUmeep
     python run.py data/test2D --relax-only        # LC relaxation only
     python run.py data/test2D --plot              # figures from saved npz
-    python run.py data/test2D --suffix v30_        # tag every saved/found
+    python run.py data/test2D --suffix v30         # tag every saved/found
                                                    # OUTPUT file (sensor
                                                    # npz + figures) so a
                                                    # design folder can hold
                                                    # multiple runs side by
                                                    # side
-    python run.py data/test2D --design-suffix v30_  # save/load a distinct
+    python run.py data/test2D --design-suffix v30   # save/load a distinct
                                                    # LC-relax DESIGN
                                                    # VARIANT (e.g. a
                                                    # different applied
@@ -23,8 +23,8 @@ extensions wired in.
                                                    # + simulate + save
                                                    # each variant fully
                                                    # independently:
-                                                   #   --design-suffix v0_  --suffix v0_
-                                                   #   --design-suffix v30_ --suffix v30_
+                                                   #   --design-suffix v0  --suffix v0
+                                                   #   --design-suffix v30 --suffix v30
 """
 from __future__ import annotations
 
@@ -63,9 +63,10 @@ def main() -> None:
     ap.add_argument("--empty", action="store_true")
     ap.add_argument("--plot", action="store_true")
     ap.add_argument("--suffix", default="",
-                    help="appended to every saved/searched output filename "
-                         "(sensor npz + figures), so a design folder can hold "
-                         "multiple parameter variants side by side")
+                    help="tag appended to every saved/searched output filename "
+                         "(sensor npz + figures) as _<suffix>, so a design "
+                         "folder can hold multiple parameter variants side by "
+                         "side. No suffix -> plain <sensor>.npz")
     ap.add_argument("--design-suffix", default="",
                     help="selects/saves a distinct LC-relax design variant "
                          "(lc_fields_<key>_<design-suffix>.npz) — separate "

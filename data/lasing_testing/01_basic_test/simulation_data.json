@@ -24,17 +24,23 @@
   "guide_1": {
     "class": "guide",
     "index": 1.5,
-    "sizes": [1.0, 10.0]
+    "sizes": [
+      1.0,
+      10.0
+    ]
   },
   "reservoir": {
     "_comment": "Isotropic dye-doped medium: uniform n=1.5, no LC constants, no relaxation, no lc_fields.npz; gain via the sted block (pre-inverted 4-level atom).",
     "class": "reservoir",
     "isotropic": true,
     "n": 1.5,
-    "sizes": [20, 10],
+    "sizes": [
+      20,
+      10
+    ],
     "resolution": 10,
     "sted": {
-      "_comment": "Pre-inverted 4-level dye (N3=25 upper, N1=0 lower) — signal sees gain directly, no pump needed",
+      "_comment": "Pre-inverted 4-level dye (N3=25 upper, N1=0 lower) \u2014 signal sees gain directly, no pump needed",
       "enabled": true,
       "lbdA": 0.45,
       "gammaA": 0.1,
@@ -50,23 +56,26 @@
   "guide_2": {
     "class": "guide",
     "index": 1.5,
-    "sizes": [1.0, 10.0]
+    "sizes": [
+      1.0,
+      10.0
+    ]
   },
   "source_1": {
-    "_comment": "Focused Gaussian beam PULSE at 500nm (w0=3um waist, focused 6um downstream at the reservoir center) injected at the LEFT edge of guide_1 — replaces the old flat plane-wave launch, which excited the guide/reservoir's full multimode superposition (visible as an X-shaped interference/beating pattern in the population data) with a genuinely single-lobed beam.",
+    "_comment": "Plane-wave Gaussian PULSE at 500nm across guide_1. Reverted from the exact2d focused beam: its normalization cancels the amplitude parameter entirely AND overflows to exactly-zero fields for amp>=50 at this w0/n (float64 limit, real MEEP fails identically). The plane pulse genuinely scales with amplitude.",
     "class": "source",
     "position": {
       "on_object": "guide_1",
       "position": "center",
-      "size": [10.0, 0.0]
+      "size": [
+        0.0,
+        10.0,
+        0.0
+      ]
     },
-    "amplitude": 1.0,
+    "amplitude": 100.0,
     "component": "Ey",
-    "source_type": "gaussianbeam",
-    "w0": 3.0,
-    "focus": [6.0, 0.0],
-    "kdir": [1.0, 0.0, 0.0],
-    "exact2d": true,
+    "source_type": "gaussian",
     "lam": 0.55,
     "dlam": 0.2
   },
@@ -79,7 +88,10 @@
       "position": "center",
       "size": 10.0
     },
-    "lam_range": [0.4, 0.6],
+    "lam_range": [
+      0.4,
+      0.6
+    ],
     "n_lam": 61
   },
   "monitor_2": {
@@ -91,7 +103,10 @@
       "position": "center",
       "size": 10.0
     },
-    "lam_range": [0.4, 0.6],
+    "lam_range": [
+      0.4,
+      0.6
+    ],
     "n_lam": 61
   },
   "pop_monitor": {
@@ -111,7 +126,10 @@
     "snap_t2": 80.0,
     "position": {
       "position": "center",
-      "size": [10.0, 10.0]
+      "size": [
+        20.0,
+        10.0
+      ]
     }
   }
 }
