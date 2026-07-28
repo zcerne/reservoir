@@ -6,7 +6,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.datasets import load_iris
-from class_simulation_T import SimulationT
 
 
 def _load_iris_normalized():

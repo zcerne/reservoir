@@ -1,22 +1,55 @@
 #!/usr/bin/env python
-"""Reservoir runner — thin wrapper over the SimpleSim library, same
-functionality as focusProject's run.py, using ReservoirSimulation (the
-SimpleSim Simulation subclass wired with reservoir/mirror/slm/concentration-
-sensor/legacy-pulse-source support — see class_simulation.py / _simplesim_ext.py).
+"""Reservoir runner — thin wrapper over the SimpleSim library, same shape as
+focusProject's run.py: plain simplesim.Simulation, no reservoir-specific
+extensions wired in.
 
     python run.py data/test2D                     # relax + FDTD + plots
     python run.py data/test2D --backend meep      # MEEP instead of GPUmeep
     python run.py data/test2D --relax-only        # LC relaxation only
     python run.py data/test2D --plot              # figures from saved npz
     python run.py data/test2D --suffix v30_        # tag every saved/found
-                                                   # file so a design folder
-                                                   # can hold multiple runs
-                                                   # (e.g. --suffix v0_ / v30_)
-                                                   # side by side
+                                                   # OUTPUT file (sensor
+                                                   # npz + figures) so a
+                                                   # design folder can hold
+                                                   # multiple runs side by
+                                                   # side
+    python run.py data/test2D --design-suffix v30_  # save/load a distinct
+                                                   # LC-relax DESIGN
+                                                   # VARIANT (e.g. a
+                                                   # different applied
+                                                   # voltage) — separate
+                                                   # from --suffix above;
+                                                   # combine both to relax
+                                                   # + simulate + save
+                                                   # each variant fully
+                                                   # independently:
+                                                   #   --design-suffix v0_  --suffix v0_
+                                                   #   --design-suffix v30_ --suffix v30_
 """
 from __future__ import annotations
 
 import argparse
+import os
+import sys
+
+
+def _ensure_simplesim():
+    if "simplesim" in sys.modules:
+        return
+    cands = [os.environ.get("SIMPLESIM_PATH")]
+    d = os.path.dirname(os.path.abspath(__file__))
+    while d not in ("/", ""):
+        cands += [os.path.join(d, "SimpleSim", "gitcode"),
+                  os.path.join(d, "SimpleSim")]
+        d = os.path.dirname(d)
+    cands.append(os.path.expanduser("~/Nextcloud/Doktorski/Projects/SimpleSim/gitcode"))
+    for p in cands:
+        if p and os.path.isdir(os.path.join(p, "simplesim")):
+            if p not in sys.path:
+                sys.path.insert(0, p)
+            return
+    raise ModuleNotFoundError(
+        "SimpleSim not found — set SIMPLESIM_PATH to its gitcode dir")
 
 
 def main() -> None:
@@ -33,14 +66,17 @@ def main() -> None:
                     help="appended to every saved/searched output filename "
                          "(sensor npz + figures), so a design folder can hold "
                          "multiple parameter variants side by side")
+    ap.add_argument("--design-suffix", default="",
+                    help="selects/saves a distinct LC-relax design variant "
+                         "(lc_fields_<key>_<design-suffix>.npz) — separate "
+                         "from --suffix, which only tags output filenames")
     a = ap.parse_args()
 
-    import _lcrelax_locate  # noqa: F401
-    import _simplesim_locate  # noqa: F401
-    from class_simulation import ReservoirSimulation
+    _ensure_simplesim()
+    from simplesim import Simulation
 
-    sim = ReservoirSimulation(a.design, backend=a.backend, precision=a.precision,
-                              suffix=a.suffix)
+    sim = Simulation(a.design, backend=a.backend, precision=a.precision,
+                     suffix=a.suffix, design_suffix=a.design_suffix)
     if a.plot:
         sim.plot()
         return
