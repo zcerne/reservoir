@@ -59,7 +59,7 @@
     "f_tolerance": 1e-06,
     "optimize_phi_theta": [
       true,
-      true
+      false
     ],
     "boundary_conditions": [
       "free",
