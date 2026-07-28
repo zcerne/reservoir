@@ -33,7 +33,7 @@
     ]
   },
   "reservoir": {
-    "_comment": "ANISOTROPIC dye-doped 5CB nematic (isotropic=false) — the LC version of 03_n2f_testing's uniform n=1.5 medium. Director from a Q-tensor (Landau-de Gennes) relaxation with random-but-continuous anchoring on the y faces, so the reservoir has a smoothly varying birefringent landscape instead of a uniform index. Gain unchanged: same pre-inverted 4-level dye via the sted block.",
+    "_comment": "ANISOTROPIC dye-doped 5CB nematic (isotropic=false) \u2014 the LC version of 03_n2f_testing's uniform n=1.5 medium. Director from a Q-tensor (Landau-de Gennes) relaxation with random-but-continuous anchoring on the y faces, so the reservoir has a smoothly varying birefringent landscape instead of a uniform index. Gain unchanged: same pre-inverted 4-level dye via the sted block.",
     "class": "reservoir",
     "isotropic": false,
     "n": 1.5,
@@ -42,7 +42,7 @@
       10
     ],
     "resolution": 10,
-    "_comment_lc": "5CB (4-cyano-4'-pentylbiphenyl) at 25 C. n_o/n_e are the ones that matter here: they set the FDTD dielectric tensor (optical anisotropy eps_a = n_e^2 - n_o^2 = 0.566, since the molecules cannot reorient at optical frequencies). The Frank constants are 5CB's real values in pN and are consumed by the DIRECTOR relax methods — the Q3D path below deliberately ignores them, see lc_param.",
+    "_comment_lc": "5CB (4-cyano-4'-pentylbiphenyl) at 25 C. n_o/n_e are the ones that matter here: they set the FDTD dielectric tensor (optical anisotropy eps_a = n_e^2 - n_o^2 = 0.566, since the molecules cannot reorient at optical frequencies). The Frank constants are 5CB's real values in pN and are consumed by the DIRECTOR relax methods \u2014 the Q3D path below deliberately ignores them, see lc_param.",
     "n_o": 1.531,
     "n_e": 1.706,
     "elastic_constants": {
@@ -52,7 +52,7 @@
       "q0": 0.0
     },
     "S": 1.0,
-    "_comment_relax": "Q-tensor (Landau-de Gennes) relaxation. NOTE: LCblock._relax_qtensor runs on the openQmin-style NON-DIMENSIONAL LdG scale (A=-1, B=-12.6, C=12, L=1) and derives S_eq from it — feeding it SI 5CB constants on a micron grid makes FIRE diverge to NaN in ~10 steps and silently cache an all-zero director. So elastic_constants/S above do NOT drive this path; they document the material and would apply if lc_param were switched to a director method.",
+    "_comment_relax": "Q-tensor (Landau-de Gennes) relaxation. NOTE: LCblock._relax_qtensor runs on the openQmin-style NON-DIMENSIONAL LdG scale (A=-1, B=-12.6, C=12, L=1) and derives S_eq from it \u2014 feeding it SI 5CB constants on a micron grid makes FIRE diverge to NaN in ~10 steps and silently cache an all-zero director. So elastic_constants/S above do NOT drive this path; they document the material and would apply if lc_param were switched to a director method.",
     "lc_param": "Q3D",
     "maxeval": 5000,
     "f_tolerance": 1e-06,
@@ -65,7 +65,7 @@
       "free",
       "free"
     ],
-    "_comment_faces": "Explicit per-face anchoring overrides (x_min, x_max, y_min, y_max, z_min, z_max); all null so every face comes from boundary_function below. Required keys — LCblockConfig.from_dict reads them unconditionally.",
+    "_comment_faces": "Explicit per-face anchoring overrides (x_min, x_max, y_min, y_max, z_min, z_max); all null so every face comes from boundary_function below. Required keys \u2014 LCblockConfig.from_dict reads them unconditionally.",
     "face_phi": [
       null,
       null,
@@ -82,13 +82,16 @@
       null,
       null
     ],
-    "_comment_boundary": "Random CONTINUOUS anchoring: sinus_random_2d with n_periods=0 drops the sinusoid entirely, leaving pure Gaussian-smoothed random noise — phi = clip(pi/2 + noise_level*pi*noise(x), 0, pi). noise_level 0.5 spans the full [0, pi] range; scale 2.0 um sets the correlation length, giving ~8 smooth undulations across the 30 um face with at most ~0.11 rad between adjacent grid points (the plain 'random' function is white noise and jumps up to pi point-to-point, which is NOT continuous). Independent noise on y_min/y_max; x faces and theta left free.",
+    "_comment_boundary": "Random CONTINUOUS anchoring: sinus_random_2d with n_periods=0 drops the sinusoid entirely, leaving pure Gaussian-smoothed random noise \u2014 phi = clip(pi/2 + noise_level*pi*noise(x), 0, pi). noise_level 0.5 spans the full [0, pi] range; scale 2.0 um sets the correlation length, giving ~8 smooth undulations across the 30 um face with at most ~0.11 rad between adjacent grid points (the plain 'random' function is white noise and jumps up to pi point-to-point, which is NOT continuous). Independent noise on y_min/y_max; x faces and theta left free.",
     "boundary_function": "sinus_random_2d",
     "boundary_n_periods": 0,
     "boundary_phase_shift": 0.0,
     "boundary_noise_level": 0.5,
     "boundary_scale": 2.0,
     "boundary_seed": 7,
+    "_comment_bulk_seed": "Bulk (initial) director: phi0 = 0 everywhere plus a per-voxel uniform fluctuation of +/- bulk_seed_noise radians (0.1 rad ~ 5.7 deg). Near-uniform along x but symmetry-broken, so the relax settles into a smooth texture instead of the dense disclination tangle a full U(0,pi) random quench leaves behind. theta0 stays exactly pi/2 (planar) -- the noise is in-plane only. RNG seeded from boundary_seed, so it is reproducible.",
+    "bulk_seed": 0.0,
+    "bulk_seed_noise": 0.1,
     "sted": {
       "_comment": "4-level dye starting in the GROUND state (N1_0=30, N3_0=0) -- source_pump (Ez, absorption line lbdA=0.45) must genuinely drive population 1->4->3 to build any inversion, instead of the old pre-inverted N3_0=30/N1_0=0 shortcut that left the pump with nothing to do.",
       "enabled": true,
@@ -130,7 +133,7 @@
     "component": "Ey",
     "source_type": "gaussian",
     "lam": 0.55,
-    "dlam": 0.05,
+    "dlam": 0.1,
     "start_time": 0.0
   },
   "source_pump": {
