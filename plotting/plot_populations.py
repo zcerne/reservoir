@@ -42,20 +42,31 @@ def _resolve_timeseries(d: dict):
 
 
 def sim_dir(design_path: str | Path) -> str:
-    """Backend output dir — gpumeep if present, else the MEEP one."""
-    for sub in ("simulation_gpumeep", "simulation"):
+    """Backend output dir — first of gpumeep / meep / plain that holds npz
+    output. ("simulation_meep" is what backend_meep writes; plain
+    "simulation" is the pre-per-backend legacy layout and also where the LC
+    fields cache lives, so it comes last.)"""
+    subs = ("simulation_gpumeep", "simulation_meep", "simulation")
+    for sub in subs:
+        p = os.path.join(design_path, sub)
+        if os.path.isdir(p) and any(f.endswith(".npz") for f in os.listdir(p)):
+            return p
+    for sub in subs:                      # nothing populated — first existing
         p = os.path.join(design_path, sub)
         if os.path.isdir(p):
             return p
     return os.path.join(design_path, "simulation_gpumeep")
 
 
-def sensor_npz(design_path: str | Path, key: str, suffix: str = "") -> str:
+def sensor_npz(design_path: str | Path, key: str, suffix: str = "",
+               data_dir: str | Path | None = None) -> str:
     """Path to sensor <key>'s npz. Mirrors SimpleSim's sim_data.tagged(): no
     suffix → "<key>.npz", suffix "2" → "<key>_2.npz". Falls back to the legacy
     trailing-underscore spelling ("<key>_.npz") for data written before that
-    cleanup, so older runs still plot."""
-    d = sim_dir(design_path)
+    cleanup, so older runs still plot. `data_dir` names the backend output dir
+    explicitly, for callers plotting more than one backend of the same design
+    (sim_dir() alone can only pick one)."""
+    d = str(data_dir) if data_dir else sim_dir(design_path)
     s = str(suffix).strip("_")
     clean = os.path.join(d, f"{key}_{s}.npz" if s else f"{key}.npz")
     if os.path.exists(clean):
@@ -122,7 +133,9 @@ def grid_figure(maps: np.ndarray, times: np.ndarray, pick: np.ndarray,
 def plot_population_snapshots(design_path: str | Path,
                                n: int = 3, level: int = 2,
                                t_range: tuple[float, float] | None = None,
-                               suffix: str = "") -> Path | None:
+                               suffix: str = "",
+                               fig_dir: str | Path | None = None,
+                               data_dir: str | Path | None = None) -> Path | None:
     """Plot spatial population snapshots on an n×n grid.
 
     Requires full spatial data (``snap_N`` in new format, or 4-D ``N`` in
@@ -136,9 +149,12 @@ def plot_population_snapshots(design_path: str | Path,
     level    : which dye level to plot (0=N1, 1=N2, 2=N3, 3=N4; default 2=N3)
     t_range  : optional (t_min, t_max) to restrict the snapshot window
     suffix   : appended to the output filename
+    fig_dir  : where to write the PNG (default <design_path>/figures) — lets a
+               caller reading data from a remote mount still write figures
+               locally
     """
-    npz_path = sensor_npz(design_path, "pop_monitor", suffix)
-    fig_dir = os.path.join(design_path, "figures")
+    npz_path = sensor_npz(design_path, "pop_monitor", suffix, data_dir)
+    fig_dir = fig_dir or os.path.join(design_path, "figures")
     d = dict(np.load(npz_path, allow_pickle=True))
     N_spatial, times, x, y, levels = _resolve_snapshots(d)
     if N_spatial is None or len(times) == 0:
@@ -156,13 +172,16 @@ def plot_population_snapshots(design_path: str | Path,
 
 
 def plot_population_timeseries(design_dir: str | Path,
-                                suffix: str = "") -> Path:
+                                suffix: str = "",
+                                fig_dir: str | Path | None = None,
+                                data_dir: str | Path | None = None) -> Path:
     """Plot total population of each dye level vs time (1D lines).
 
     Works with both old (full-spatial) and new (pre-summed) formats.
+    `fig_dir` defaults to <design_dir>/figures.
     """
-    npz_path = sensor_npz(design_dir, "pop_monitor", suffix)
-    fig_dir = os.path.join(design_dir, "figures")
+    npz_path = sensor_npz(design_dir, "pop_monitor", suffix, data_dir)
+    fig_dir = fig_dir or os.path.join(design_dir, "figures")
     d = dict(np.load(npz_path, allow_pickle=True))
     summed, times, levels = _resolve_timeseries(d)
 

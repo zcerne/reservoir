@@ -40,7 +40,9 @@ def plot_field_snapshots(design_path: str | Path,
                          t_range: tuple[float, float] | None = None,
                          suffix: str = "",
                          log: bool = False,
-                         dyn_range: float = 1e6) -> Path | None:
+                         dyn_range: float = 1e6,
+                         fig_dir: str | Path | None = None,
+                         data_dir: str | Path | None = None) -> Path | None:
     """Intensity |E|² snapshots on an n×n grid. None if the file has no fields.
 
     Parameters
@@ -57,8 +59,8 @@ def plot_field_snapshots(design_path: str | Path,
                 unclamped LogNorm spends ~300 decades on nothing and washes
                 every panel out.
     """
-    npz_path = sensor_npz(design_path, monitor, suffix)
-    fig_dir = os.path.join(design_path, "figures")
+    npz_path = sensor_npz(design_path, monitor, suffix, data_dir)
+    fig_dir = fig_dir or os.path.join(design_path, "figures")
     if not os.path.exists(npz_path):
         print(f"[field] no snapshot file {npz_path} — skipping intensity grid")
         return None

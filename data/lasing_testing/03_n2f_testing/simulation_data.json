@@ -6,7 +6,7 @@
   "periodic": false,
   "pml_size": 2.0,
   "background_index": 1.5,
-  "run_until": 200.0,
+  "run_until": 100.0,
   "source_off_decay": 0.0,
   "dft_t_start": 0.0,
   "dft_t_end": 200.0,
@@ -51,8 +51,8 @@
       "lbdE": 0.55,
       "gammaE": 0.1,
       "SGMA": 0.006,
-      "N1_0": 30.0,
-      "N3_0": 0.0,
+      "N1_0": 0.0,
+      "N3_0": 30.0,
       "rate_43": 10.0,
       "rate_21": 100.0
     }
@@ -85,7 +85,7 @@
     "source_type": "gaussian",
     "lam": 0.55,
     "dlam": 0.2,
-    "start_time": 100.0
+    "start_time": 0.0
   },
   "source_pump": {
     "_comment": "Uniform 2D-area CW pump filling the reservoir's own footprint (not a guided line source like source_1) at the dye's absorption line lbdA=0.45 -- Ez polarization, orthogonal to source_1's guided Ey signal at the emission line lbdE=0.55, so pump and probe don't directly interfere in the FDTD fields. Drives real N1->N3 population transfer from a genuine ground-state start (sted.N1_0=30/N3_0=0). amplitude=200 (2026-07-24, per user request) -- between amp=100 (gradual buildup, ~35-57% inversion over 100-200 units) and amp=1000 (near-instant ~98% saturation by t~20), so this should show an intermediate, still-visible buildup curve.",
@@ -149,7 +149,7 @@
     "on_object": "reservoir",
     "dt": 4.0,
     "snap_t1": 0.0,
-    "snap_t2": 80.0,
+    "snap_t2": 100.0,
     "position": {
       "position": "center",
       "size": [
@@ -166,7 +166,7 @@
       "position": "right",
       "size": 8.0
     },
-    "lam": 0.5,
+    "lam": 0.55,
     "center": [
       200.0,
       0.0
