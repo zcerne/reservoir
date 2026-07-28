@@ -44,7 +44,7 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps)
+        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor)
         chans = ([int(c) for c in args.channels.split(",")] if args.channels
                  else list(range(len(tones))))
         if len(chans) != len(tones) or max(chans) >= n_strips:
@@ -66,7 +66,8 @@ def main():
         inputs = np.stack([p["inp"] for p in parts])
         t = np.asarray([float(p["t"]) for p in parts])
         np.savez(out_path, outputs=outputs, inputs=inputs, t=t,
-                 tones=np.asarray(tones), amps=np.asarray(amps), components=np.asarray(comps))
+                 tones=np.asarray(tones), amps=np.asarray(amps), components=np.asarray(comps),
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"))
         print(f"[harmdata] assembled → {out_path}  ({len(parts)} samples, tones={tones})", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master)

@@ -45,7 +45,7 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps)
+        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor)
         rng = np.random.default_rng(args.seed)
         U = rng.uniform(-1.0, 1.0, size=(args.n, n_strips))   # i.i.d. Uniform[-1,1] (real)
 
@@ -64,7 +64,8 @@ def main():
         if args.readout == "intensity":
             outputs = np.abs(outputs) ** 2
         np.savez(out_path, inputs=inputs, outputs=outputs, scale=args.scale,
-                 readout=np.asarray(args.readout), components=np.asarray(comps))
+                 readout=np.asarray(args.readout), components=np.asarray(comps),
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"))
         print(f"[ipcdata] assembled → {out_path}  ({len(parts)} probes, readout={args.readout})", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master)

@@ -18,12 +18,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 
 
-def open_reservoir(path, components):
+def open_reservoir(path, components, out_sensor=None):
     """Load the fixed reservoir; return (forward_fn, n_strips, is_master).
 
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
     field over `components` (Ey[,Ex,Ez]). NOTE the source casts amplitude to real,
     so pass REAL amplitudes unless a tone's imaginary part is intended as a phase.
+
+    out_sensor: alternative readout — key of a sensor whose npz to use instead of
+    monitor_2. For a near2far area map ({E2, EH, x, y}) the output is the map's
+    LAST COLUMN E2[-1, :] (the far screen at max x, 1D over y, real intensity);
+    other npz types fall back to the `components` stacking above.
 
     Runs through SimpleSim's ReservoirSimulation (class_simulation.py) — the
     current, actively-maintained engine (same one the interactive run()/plot()
@@ -76,7 +81,13 @@ def open_reservoir(path, components):
                                   overrides={src_key: {"amplitude": list(E)}})
         sim.relax()
         sim.run(empty=False)
-        m2 = np.load(os.path.join(out_dir, f"monitor_2_{suffix}.npz"))
+        if out_sensor:
+            d = np.load(os.path.join(out_dir, f"{out_sensor}_{suffix}.npz"))
+            if "E2" in d.files:
+                return np.asarray(d["E2"])[-1, :].copy()
+            m2 = d
+        else:
+            m2 = np.load(os.path.join(out_dir, f"monitor_2_{suffix}.npz"))
         zeros = None
         vals = []
         for c in components:
@@ -163,6 +174,9 @@ def add_common_args(ap):
     ap.add_argument("--assemble", action="store_true", help="combine parts → final npz")
     ap.add_argument("--count", action="store_true", help="print #work items (for sbatch --array)")
     ap.add_argument("--components", default="Ey", help="sensor components to save (Ey[,Ex,Ez])")
+    ap.add_argument("--out_sensor", default=None,
+                    help="sensor key to read as output instead of monitor_2 "
+                         "(near2far map -> E2 last column at max x, 1D over y)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--reverse", action="store_true", help="serial: iterate indices high→low")
     ap.add_argument("--skip_existing", action="store_true", help="skip an index whose part file already exists")
