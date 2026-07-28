@@ -22,6 +22,20 @@ def _build_lookup(tones, max_order):
     return lookup
 
 
+def _bin_label(coeffs):
+    """Human-readable name for a bin from its tone coefficients: (2,0) -> '2f1',
+    (-1,1) -> 'f2-f1', (2,2) -> '2f1+2f2'. Empty string for DC/unclassified."""
+    # positive terms first so a difference reads "f2-f1", not "-f1+f2"
+    terms = sorted(((k, c) for k, c in enumerate(coeffs) if c != 0),
+                   key=lambda kc: (kc[1] < 0, kc[0]))
+    parts = []
+    for k, c in terms:
+        mag = "" if abs(c) == 1 else str(abs(c))
+        sign = "-" if c < 0 else ("+" if parts else "")
+        parts.append(f"{sign}{mag}f{k + 1}")
+    return "".join(parts)
+
+
 def _classify_bin(nu, lookup):
     """Classify an integer frequency bin using a precomputed `_build_lookup` table.
 
@@ -65,7 +79,10 @@ def harmonic_specter(harmonic_data, max_order=6, rel_thresh=1e-9):
     Returns dict: power_by_kind {dc,fundamental,harmonic,intermod,other},
         power_by_order {order: power}, thd (√(harmonic/fundamental)),
         imd (intermod/fundamental), distortion_ratio ((total−dc−fund)/fund),
-        max_order (highest order with significant power), n_t, tones, linear.
+        max_order (highest order with significant power), n_t, tones, linear,
+        plus the resolved per-bin spectrum the classification is built from —
+        spec_nu / spec_power / spec_kind / spec_order / spec_label over the
+        non-negative bins (what the plot draws; carries no raw field data).
     """
     Y = np.asarray(harmonic_data["outputs"])
     tones = [int(t) for t in np.asarray(harmonic_data["tones"]).reshape(-1)]
@@ -92,6 +109,19 @@ def harmonic_specter(harmonic_data, max_order=6, rel_thresh=1e-9):
             if order >= 2:
                 max_ord = max(max_ord, order)
 
+    # per-bin spectrum over the non-negative half, for plotting/inspection
+    keep = freqs >= 0
+    o_sort = np.argsort(freqs[keep])
+    spec_nu = freqs[keep][o_sort]
+    spec_power = P[keep][o_sort]
+    spec_kind, spec_order, spec_label = [], [], []
+    for v in spec_nu:
+        o, k = _classify_bin(int(v), lookup)
+        spec_kind.append(k)
+        spec_order.append(-1 if o is None else int(o))
+        ent = lookup.get(int(v))
+        spec_label.append(_bin_label(ent[1]) if ent is not None else "")
+
     fund = by_kind["fundamental"]
     nonlin_power = by_kind["harmonic"] + by_kind["intermod"] + by_kind["other"]
     # classic THD/IMD are relative to the fundamental — only meaningful when a
@@ -109,6 +139,8 @@ def harmonic_specter(harmonic_data, max_order=6, rel_thresh=1e-9):
         thd=thd, imd=imd, distortion_frac=distortion_frac,
         max_order=int(max_ord), n_t=int(N_t), tones=tones,
         linear=bool(nonlin_power < rel_thresh * total),
+        spec_nu=spec_nu, spec_power=spec_power, spec_kind=spec_kind,
+        spec_order=spec_order, spec_label=spec_label,
     )
 
 
