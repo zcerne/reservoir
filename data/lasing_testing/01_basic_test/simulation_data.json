@@ -1,5 +1,5 @@
 {
-  "_comment": "Lasing basic test: 1um n=1.5 guide -> 10um ISOTROPIC dye-doped n=1.5 reservoir -> 1um n=1.5 guide. Gaussian pulse at 500nm from the left of guide_1; input/output 1Ddft sensors mid-guide; atom-level (concentration) sensor across the reservoir.",
+  "_comment": "Lasing basic test: 1um n=1.5 guide -> 10um ISOTROPIC dye-doped n=1.5 reservoir -> 1um n=1.5 guide. Gaussian pulse at 500nm from the left of guide_1; input/output 1Ddft sensors mid-guide; atom-level (population) sensor across the reservoir.",
   "resolution": 40,
   "dimention": 2,
   "cell_size_y": 20.0,
@@ -18,7 +18,7 @@
     "source_1",
     "monitor_1",
     "monitor_2",
-    "conc_monitor",
+    "pop_monitor",
     "snapshot_1"
   ],
   "guide_1": {
@@ -53,7 +53,7 @@
     "sizes": [1.0, 10.0]
   },
   "source_1": {
-    "_comment": "Focused Gaussian beam PULSE at 500nm (w0=3um waist, focused 6um downstream at the reservoir center) injected at the LEFT edge of guide_1 — replaces the old flat plane-wave launch, which excited the guide/reservoir's full multimode superposition (visible as an X-shaped interference/beating pattern in the concentration data) with a genuinely single-lobed beam.",
+    "_comment": "Focused Gaussian beam PULSE at 500nm (w0=3um waist, focused 6um downstream at the reservoir center) injected at the LEFT edge of guide_1 — replaces the old flat plane-wave launch, which excited the guide/reservoir's full multimode superposition (visible as an X-shaped interference/beating pattern in the population data) with a genuinely single-lobed beam.",
     "class": "source",
     "position": {
       "on_object": "guide_1",
@@ -94,10 +94,10 @@
     "lam_range": [0.4, 0.6],
     "n_lam": 61
   },
-  "conc_monitor": {
+  "pop_monitor": {
     "_comment": "Atom-level sensor: saves N(t) for all 4 dye levels over the reservoir; snap_interval in MEEP time units (1 unit = 3.336 fs)",
     "class": "monitor",
-    "type": "concentration",
+    "type": "population",
     "on_object": "reservoir",
     "snap_interval": 3.0
   },

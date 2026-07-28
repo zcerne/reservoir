@@ -14,13 +14,13 @@ def savefig_workbox(name: str) -> None:
     import matplotlib.pyplot as plt
     plt.savefig(os.path.join(workboxdatapath, "figures", name), dpi=140)
 
-concentration_data = np.load(os.path.join(data_path, "simulation_gpumeep/conc_monitor.npz"))
+population_data = np.load(os.path.join(data_path, "simulation_gpumeep/pop_monitor.npz"))
 
-print(concentration_data)
+print(population_data)
 
-times = concentration_data["times"]
-levels = concentration_data["levels"]
-N = concentration_data["N"]  # (n_times, 4, Nx, Ny) — gain_populations() returns the FULL
+times = population_data["times"]
+levels = population_data["levels"]
+N = population_data["N"]  # (n_times, 4, Nx, Ny) — gain_populations() returns the FULL
                               # sim grid (not cropped to the reservoir), so the physical
                               # extent below is the whole cell, not just the reservoir.
 
@@ -50,7 +50,7 @@ for i in range(4):
     axs[i].set_xlabel("x [µm]")
     axs[i].set_ylabel("y [µm]")
 fig.tight_layout()
-savefig_workbox("conc_snapshot.png")
+savefig_workbox("pop_snapshot.png")
 # plt.show()
 
 sums = np.sum(N, axis=(2, 3)).T
@@ -66,7 +66,7 @@ plt.ylabel("total population (summed over grid)")
 
 plt.legend()
 # plt.yscale("log")
-savefig_workbox("conc_totals.png")
+savefig_workbox("pop_totals.png")
 # plt.show()
 
 snapshot_1_data = np.load(os.path.join(data_path, "simulation_gpumeep/snapshot_1.npz"))
@@ -76,7 +76,7 @@ snap_t = snapshot_1_data["t"]
 snap_Ex = snapshot_1_data["Ex"]
 snap_Ey = snapshot_1_data["Ey"]
 snap_Ez = snapshot_1_data["Ez"]  # (n_snaps, nx, ny) — 2Dsnap, cropped to the JSON
-                                 # position.size box already (unlike conc_monitor,
+                                 # position.size box already (unlike pop_monitor,
                                  # this sensor type honors size at record time).
 snap_I = np.abs(snap_Ex) ** 2 + np.abs(snap_Ey) ** 2 + np.abs(snap_Ez) ** 2
 

@@ -1,5 +1,5 @@
 {
-  "_comment": "Lasing basic test: 1um n=1.5 guide -> 30um ISOTROPIC dye-doped n=1.5 reservoir -> 1um n=1.5 guide (reservoir extended 20um->30um 2026-07-25 per user request, pump area widened to match). Gaussian pulse at 500nm from the left of guide_1; input/output 1Ddft sensors mid-guide; atom-level (concentration) sensor across the reservoir.",
+  "_comment": "Lasing basic test: 1um n=1.5 guide -> 30um ISOTROPIC dye-doped n=1.5 reservoir -> 1um n=1.5 guide (reservoir extended 20um->30um 2026-07-25 per user request, pump area widened to match). Gaussian pulse at 500nm from the left of guide_1; input/output 1Ddft sensors mid-guide; atom-level (population) sensor across the reservoir.",
   "resolution": 40,
   "dimention": 2,
   "cell_size_y": 20.0,
@@ -21,7 +21,7 @@
     "source_pump",
     "monitor_1",
     "monitor_2",
-    "conc_monitor",
+    "pop_monitor",
     "snapshot_1",
     "n2f_map"
   ],
@@ -136,7 +136,7 @@
     ],
     "n_lam": 61
   },
-  "conc_monitor": {
+  "pop_monitor": {
     "_comment": "Atom-level sensor: saves N(t) for all 4 dye levels over the reservoir; snap_interval in MEEP time units (1 unit = 3.336 fs)",
     "class": "monitor",
     "type": "population",
