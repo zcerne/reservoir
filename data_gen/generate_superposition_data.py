@@ -56,7 +56,7 @@ def main():
         if args.assemble:                                     # assemble: no reservoir needed
             is_master = True
         else:
-            forward, n_strips, is_master = gc.open_reservoir(args.path, comps)
+            forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor)
             E_base, combos = _plan(args.seed, args.n_base, args.n_trials, n_strips, args.scale)
 
     def run_one(k):
@@ -83,7 +83,8 @@ def main():
         np.savez(out_path, E1=np.stack(E1), E2=np.stack(E2),
                  alpha=np.asarray(alpha), beta=np.asarray(beta),
                  out1=np.stack(out1), out2=np.stack(out2), out_combo=np.stack(out_combo),
-                 components=np.asarray(comps))
+                 components=np.asarray(comps),
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"))
         print(f"[supdata] assembled → {out_path}  ({len(out_combo)} trials from {len(parts)} parts)", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master)
