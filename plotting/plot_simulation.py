@@ -101,12 +101,18 @@ class PlotSimulation:
     #: and carry no field/spectrum arrays of their own
     NON_SENSOR_SUFFIXES = ("_n2f_eq",)
 
+    #: npz written into an output dir that are not sensors at all — the LC
+    #: relax cache and Poisson solve live in the plain `simulation/` dir
+    #: alongside (or instead of) legacy sensor output.
+    NON_SENSOR_PREFIXES = ("lc_fields", "poisson")
+
     def sensors(self, bdir: Path) -> list[Path]:
         """Sensor npz files in `bdir` matching this run's suffix."""
         s = str(self.suffix).strip("_")
         out = []
         for p in sorted(bdir.glob("*.npz")):
-            if p.stem.endswith(self.NON_SENSOR_SUFFIXES):
+            if (p.stem.endswith(self.NON_SENSOR_SUFFIXES)
+                    or p.stem.startswith(self.NON_SENSOR_PREFIXES)):
                 continue
             if s and not p.stem.endswith(f"_{s}"):
                 continue
@@ -128,13 +134,21 @@ class PlotSimulation:
             print(f"[plot_sim] no simulation output for {self.rel} "
                   f"(looked in . and {ORION_ROOT})", flush=True)
             return []
-        for bdir in bdirs:
+        # decide the flat-vs-split layout on dirs that actually yield
+        # sensors: the plain `simulation/` dir holds the LC cache and would
+        # otherwise force a needless per-backend split on a single-backend run
+        work = [(d, self.sensors(d)) for d in bdirs]
+        work = [(d, sens) for d, sens in work if sens]
+        if not work:
+            print(f"[plot_sim] no plottable sensors for {self.rel}", flush=True)
+            return []
+        for bdir, sensors in work:
             tag = bdir.name.replace("simulation_", "") or "meep"
             tag = "meep" if tag == "simulation" else tag
-            fdir = self.fig_dir / tag if len(bdirs) > 1 else self.fig_dir
+            fdir = self.fig_dir / tag if len(work) > 1 else self.fig_dir
             fdir.mkdir(parents=True, exist_ok=True)
             print(f"[plot_sim] {bdir}", flush=True)
-            for npz in self.sensors(bdir):
+            for npz in sensors:
                 try:
                     self._plot_one(npz, tag, bdir, fdir)
                 except Exception as e:                     # one bad sensor must
