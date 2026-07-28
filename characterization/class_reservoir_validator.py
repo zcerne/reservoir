@@ -18,7 +18,8 @@ intensity views (n1/n3/n4 report both field and |E|²).
   v = Validator("data/reservoir_clasifications/01_2D_director")
   v.run_all(); print(v.report())
 """
-import os
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 
 import m1_best_linear_approx as m1
@@ -36,7 +37,16 @@ import n7_dimention_expansion as n7
 class Validator:
     def __init__(self, reservoir_path):
         self.path = reservoir_path
-        self.datasets = os.path.join(reservoir_path, "datasets")
+        local_ds = os.path.join(reservoir_path, "datasets")
+        orion_ds = os.path.expanduser(f"~/Orion/resevoir/{reservoir_path}/datasets")
+        # Prefer local datasets/; fall back to Orion if local is missing/empty
+        if os.path.isdir(local_ds) and os.listdir(local_ds):
+            self.datasets = local_ds
+        elif os.path.isdir(orion_ds):
+            self.datasets = orion_ds
+            print(f"[validator] using Orion datasets: {orion_ds}", flush=True)
+        else:
+            self.datasets = local_ds  # keep original for clear "missing" messages
         self.stats_dir = os.path.join(reservoir_path, "stats_data")
         self.results = {}
 
