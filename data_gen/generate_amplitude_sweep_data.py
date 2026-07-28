@@ -37,7 +37,7 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps)
+        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor)
         rng = np.random.default_rng(args.seed)
         dirs = rng.normal(size=(M, n_strips))                 # REAL directions
         dirs /= (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
@@ -53,6 +53,7 @@ def main():
         outputs = np.stack([p["output"] for p in parts])
         level_id = np.asarray([int(p["level_id"]) for p in parts])
         np.savez(out_path, inputs=inputs, outputs=outputs, level_id=level_id,
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"),
                  levels=levels, components=np.asarray(comps))
         print(f"[ampdata] assembled → {out_path}  ({len(parts)} probes, {len(levels)} levels)", flush=True)
 
