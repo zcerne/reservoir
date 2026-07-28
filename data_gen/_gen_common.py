@@ -43,6 +43,13 @@ def open_reservoir(path, components):
     backend = os.environ.get("RESERVOIR_SOLVER", backend).lower()
     backend = "gpumeep" if backend in ("gpumeep", "gpu", "gpumma") else "meep"
 
+    # SimpleSim lives in a sibling checkout, not on PYTHONPATH — resolve it the
+    # same way run.py does (SIMPLESIM_PATH, then a walk up from the repo for
+    # SimpleSim/gitcode or SimpleSim). Without this every data_gen script dies
+    # with ModuleNotFoundError on any machine that doesn't happen to export
+    # PYTHONPATH (e.g. smaug over non-login ssh).
+    import run as _run
+    _run._ensure_simplesim()
     from simplesim import Simulation as ReservoirSimulation
 
     # First source in JSON key order that isn't "source_2" (same convention the
