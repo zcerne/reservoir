@@ -43,7 +43,7 @@ def open_reservoir(path, components):
     backend = os.environ.get("RESERVOIR_SOLVER", backend).lower()
     backend = "gpumeep" if backend in ("gpumeep", "gpu", "gpumma") else "meep"
 
-    from class_simulation import ReservoirSimulation
+    from simplesim import Simulation as ReservoirSimulation
 
     # First source in JSON key order that isn't "source_2" (same convention the
     # old pipeline used) -- for 02_adding_pump this is source_1 (signal), not
