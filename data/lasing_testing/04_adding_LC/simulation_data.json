@@ -56,6 +56,9 @@
     "lc_param": "Q3D",
     "maxeval": 5000,
     "f_tolerance": 1e-06,
+    "_comment_maxiter": "Newton-CG outer cap for the Q-tensor relax. The built-in default is min(maxeval, 200), which left this frustrated texture unconverged at |grad E| = 2e-01; the solver exits early on its own tolerance, so a high cap only costs time when it is actually needed.",
+    "qtensor_maxiter": 3000,
+    "director_n_ticks": 60,
     "optimize_phi_theta": [
       true,
       false
