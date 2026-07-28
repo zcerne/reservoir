@@ -76,9 +76,20 @@ def open_reservoir(path, components, out_sensor=None):
     _mp = resolve_engine(backend)
     is_master = bool(_mp.am_master()) if hasattr(_mp, "am_master") else True
 
+    # Dataset forwards never use population SNAPSHOTS (whole-cell E + N at
+    # snap_interval → 2.1 GB/run on 04_adding_LC, rewritten every forward):
+    # force snap_interval=0 on every population monitor, keeping only the
+    # small N(t) trace.
+    pop_off = {k: {"snap_interval": 0}
+               for k, v in cfg.items()
+               if isinstance(v, dict) and v.get("class") == "monitor"
+               and str(v.get("type", "")) == "population"}
+
     def forward(E):
+        ov = {src_key: {"amplitude": list(E)}}
+        ov.update(pop_off)
         sim = ReservoirSimulation(path, backend=backend, suffix=suffix,
-                                  overrides={src_key: {"amplitude": list(E)}})
+                                  overrides=ov)
         sim.relax()
         sim.run(empty=False)
         if out_sensor:
