@@ -26,9 +26,13 @@ def open_reservoir(path, components, out_sensor=None):
     so pass REAL amplitudes unless a tone's imaginary part is intended as a phase.
 
     out_sensor: alternative readout — key of a sensor whose npz to use instead of
-    monitor_2. For a near2far area map ({E2, EH, x, y}) the output is the map's
-    LAST COLUMN E2[-1, :] (the far screen at max x, 1D over y, real intensity);
-    other npz types fall back to the `components` stacking above.
+    monitor_2. For a near2far area map the output is the COMPLEX field of the
+    map's LAST COLUMN, i.e. EH[-1, :, c] for each requested component (the far
+    screen at max x, 1D over y). NOT the stored `E2` intensity: parts must keep
+    the raw complex field so `--readout intensity` can apply |E|² at assemble
+    time, and so a field→field map stays linear-testable (an intensity readout
+    annihilates the fundamentals and manufactures order-2 products of its own).
+    Other npz types fall back to the `components` stacking above.
 
     Runs through SimpleSim's ReservoirSimulation (class_simulation.py) — the
     current, actively-maintained engine (same one the interactive run()/plot()
@@ -94,8 +98,11 @@ def open_reservoir(path, components, out_sensor=None):
         sim.run(empty=False)
         if out_sensor:
             d = np.load(os.path.join(out_dir, f"{out_sensor}_{suffix}.npz"))
-            if "E2" in d.files:
-                return np.asarray(d["E2"])[-1, :].copy()
+            if "EH" in d.files:
+                ci = {"Ex": 0, "Ey": 1, "Ez": 2, "Hx": 3, "Hy": 4, "Hz": 5}
+                EH = np.asarray(d["EH"])
+                return np.concatenate([EH[-1, :, ci[c]].ravel()
+                                       for c in components])
             m2 = d
         else:
             m2 = np.load(os.path.join(out_dir, f"monitor_2_{suffix}.npz"))
