@@ -72,10 +72,14 @@ class PlotMain:
             ("n7_intensity",   plot_n7_dimension_expansion,  "n7_intensity"),
             ("n7",             plot_n7_dimension_expansion,  "n7"),
         ]
+        # the n4 plot grows a raw-sweep panel when handed the dataset itself
+        harm_data = self.validator._load("harmonics.npz")
         for key, fn, tag in plot_map:
             if key in R:
                 try:
-                    out = fn(R[key], self.fig_dir, suffix=f"_{tag}")
+                    kw = ({"data": harm_data}
+                          if key.startswith("n4") and harm_data is not None else {})
+                    out = fn(R[key], self.fig_dir, suffix=f"_{tag}", **kw)
                     self.saved.append(out)
                     print(f"[plot_main] {out}", flush=True)
                 except Exception as e:
