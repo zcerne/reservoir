@@ -24,11 +24,11 @@ class PlotMain:
     """Discover datasets (local → Orion fallback), run Validator, plot all results."""
 
     def __init__(self, reservoir_path: str, fig_dir: str | None = None,
-                 skip_cached: bool = False):
+                 skip_cached: bool = False, component: str | None = None):
         self.path = reservoir_path
         self.fig_dir = Path(fig_dir) if fig_dir else Path(reservoir_path) / "figures"
         self.skip_cached = skip_cached
-        self.validator = Validator(reservoir_path)
+        self.validator = Validator(reservoir_path, component=component)
         self.saved: list[Path] = []
 
     # ------------------------------------------------------------------- dispatch
@@ -244,9 +244,14 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Characterize + plot all available results")
     ap.add_argument("--path", required=True, help="reservoir dir (has simulation_data.json)")
     ap.add_argument("--fig-dir", default=None, help="output directory for figures (default: <path>/figures)")
+    ap.add_argument("--component", default=None,
+                    help="restrict analysis to one stored polarization (e.g. Ey); "
+                         "cached stats_data must be cleared (--skip-cached) when "
+                         "switching, or you'll replot the old slice")
     ap.add_argument("--skip-cached", action="store_true",
                     help="re-run all analyses, ignore cached stats_data/")
     args = ap.parse_args()
-    pm = PlotMain(args.path, fig_dir=args.fig_dir, skip_cached=args.skip_cached)
+    pm = PlotMain(args.path, fig_dir=args.fig_dir, skip_cached=args.skip_cached,
+                  component=args.component)
     saved = pm.run()
     print(f"\n[done] {len(saved)} figures saved to {pm.fig_dir}", flush=True)

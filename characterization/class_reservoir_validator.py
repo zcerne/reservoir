@@ -35,7 +35,16 @@ import n7_dimention_expansion as n7
 
 
 class Validator:
-    def __init__(self, reservoir_path):
+    def __init__(self, reservoir_path, component=None):
+        #: restrict analysis to ONE stored polarization (e.g. "Ey"). Datasets
+        #: written with --components Ex,Ey,Ez concatenate equal-width blocks
+        #: and record the order in their `components` key; without slicing,
+        #: every method analyses the pump channel (Ez) mixed in with the
+        #: signal — that is how the ad-hoc Ey-only figures on 04/03b differ
+        #: from plot_main's. None keeps the historical use-everything
+        #: behaviour (also right for datasets with no `components` key,
+        #: e.g. the NN references, whose state has no polarizations).
+        self.component = component
         self.path = reservoir_path
         local_ds = os.path.join(reservoir_path, "datasets")
         orion_ds = os.path.expanduser(f"~/Orion/resevoir/{reservoir_path}/datasets")
@@ -53,7 +62,25 @@ class Validator:
     # ------------------------------------------------------------------ io
     def _load(self, name):
         p = os.path.join(self.datasets, name)
-        return dict(np.load(p, allow_pickle=True)) if os.path.exists(p) else None
+        d = dict(np.load(p, allow_pickle=True)) if os.path.exists(p) else None
+        return self._slice_component(d) if d is not None else None
+
+    def _slice_component(self, d):
+        """Cut one polarization's block out of every output-like array."""
+        if not self.component or "components" not in d:
+            return d
+        comps = [str(c) for c in np.asarray(d["components"]).reshape(-1)]
+        if self.component not in comps or len(comps) < 2:
+            return d
+        k = comps.index(self.component)
+        out = dict(d)
+        for key in ("outputs", "out1", "out2", "out_combo"):
+            if key in out:
+                a = np.asarray(out[key])
+                n = a.shape[-1] // len(comps)
+                out[key] = a[..., k * n:(k + 1) * n]
+        out["components"] = np.asarray([self.component])
+        return out
 
     def _load_stats(self, name):
         """Load cached analysis results from stats_data/<name>.npz. Each stored value
