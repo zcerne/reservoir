@@ -13,7 +13,8 @@ KIND_COLOR = {"dc": "gray", "fundamental": "C0", "harmonic": "C1",
 
 
 def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "",
-                                 data: dict | None = None) -> Path:
+                                 data: dict | None = None,
+                                 normalize: bool = True) -> Path:
     """Where the nonlinear energy sits.
 
     Top (whenever the result carries the per-bin spectrum, i.e. `spec_nu` from
@@ -29,6 +30,9 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     are shown as |output|² over the sweep.
     """
     has_spec = "spec_nu" in res and len(np.asarray(res["spec_nu"])) > 0
+    fund_p = float(res["power_by_kind"].get("fundamental", 0.0))
+    norm = fund_p if (normalize and fund_p > 0) else 1.0
+    unit = " / fundamental" if norm != 1.0 else ""
     n_bot = 3 if data is not None else 2
     if has_spec:
         fig = plt.figure(figsize=(5.0 * n_bot + 1.0, 8.0))
@@ -44,7 +48,7 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     # ---------- the spectrum itself ----------
     if ax_s is not None:
         nu = np.asarray(res["spec_nu"])
-        pw = np.asarray(res["spec_power"], dtype=float)
+        pw = np.asarray(res["spec_power"], dtype=float) / norm
         kinds_b = np.asarray(res["spec_kind"])
         labels = np.asarray(res["spec_label"])
         pmax = pw.max() if pw.size and pw.max() > 0 else 1.0
@@ -64,11 +68,14 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
                 ax_s.annotate(lb, (v, p), textcoords="offset points",
                               xytext=(0, 4), ha="center", fontsize=7.5)
         ax_s.set_yscale("log")
-        ax_s.set_ylim(floor, pmax * 12)
+        if norm != 1.0:
+            ax_s.set_ylim(1e-9, 30.0)
+        else:
+            ax_s.set_ylim(floor, pmax * 12)
         ax_s.set_xlim(-0.7, nu_max + 0.7)
         ax_s.set_xticks(range(0, nu_max + 1, max(1, (nu_max + 1) // 24)))
         ax_s.set_xlabel("sweep-frequency bin ν")
-        ax_s.set_ylabel("power")
+        ax_s.set_ylabel("power" + unit)
         tone_txt = ", ".join(f"f{i + 1}={t}" for i, t in enumerate(res["tones"]))
         ax_s.set_title(f"phase-sweep spectrum ({tone_txt})")
         ax_s.legend(handles=[plt.Rectangle((0, 0), 1, 1, color=c, label=k)
@@ -77,24 +84,28 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
 
     # ---------- power by kind ----------
     kinds = ["dc", "fundamental", "harmonic", "intermod", "other"]
-    vals = np.array([res["power_by_kind"][k] for k in kinds], dtype=float)
+    vals = np.array([res["power_by_kind"][k] for k in kinds], dtype=float) / norm
     vpos = vals[vals > 0]
     kfloor = (vpos.min() * 0.1) if vpos.size else 1e-30
     ax1.bar(kinds, np.maximum(vals, kfloor), color=[KIND_COLOR[k] for k in kinds])
     ax1.set_yscale("log")
-    ax1.set_ylabel("power")
+    if norm != 1.0:
+        ax1.set_ylim(1e-9, 30.0)
+    ax1.set_ylabel("power" + unit)
     ax1.set_title("power by kind")
     ax1.tick_params(axis="x", rotation=30)
 
     # ---------- power by order ----------
     orders = sorted(res["power_by_order"])
-    ovals = np.array([res["power_by_order"][o] for o in orders], dtype=float)
+    ovals = np.array([res["power_by_order"][o] for o in orders], dtype=float) / norm
     opos = ovals[ovals > 0]
     ofloor = (opos.min() * 0.1) if opos.size else 1e-30
     ax2.bar([str(o) for o in orders], np.maximum(ovals, ofloor), color="C1")
     ax2.set_yscale("log")
+    if norm != 1.0:
+        ax2.set_ylim(1e-9, 30.0)
     ax2.set_xlabel("order")
-    ax2.set_ylabel("power")
+    ax2.set_ylabel("power" + unit)
     ax2.set_title(f"power by order (max nonlinear order = {res['max_order']})")
 
     # ---------- optional: the raw sweep ----------
