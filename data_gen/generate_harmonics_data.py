@@ -70,7 +70,8 @@ def main():
                  out_sensor=np.asarray(args.out_sensor or "monitor_2"))
         print(f"[harmdata] assembled → {out_path}  ({len(parts)} samples, tones={tones})", flush=True)
 
-    return gc.run_mode(args, n_items, run_one, assemble, is_master)
+    return gc.run_mode(args, n_items, run_one, assemble, is_master,
+                       out_path=out_path)
 
 
 if __name__ == "__main__":

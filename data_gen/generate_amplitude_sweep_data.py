@@ -57,7 +57,8 @@ def main():
                  levels=levels, components=np.asarray(comps))
         print(f"[ampdata] assembled → {out_path}  ({len(parts)} probes, {len(levels)} levels)", flush=True)
 
-    return gc.run_mode(args, n_items, run_one, assemble, is_master)
+    return gc.run_mode(args, n_items, run_one, assemble, is_master,
+                       out_path=out_path)
 
 
 if __name__ == "__main__":

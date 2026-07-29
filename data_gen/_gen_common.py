@@ -132,6 +132,11 @@ def save_part(out_path, k, is_master, **arrays):
     np.savez(os.path.join(d, f"part_{int(k):06d}.npz"), idx=int(k), **arrays)
 
 
+def part_exists(out_path, k):
+    """True if work item k already has a part file."""
+    return os.path.exists(os.path.join(_parts_dir(out_path), f"part_{int(k):06d}.npz"))
+
+
 def load_parts(out_path):
     """Return parts as a list of dicts sorted by idx. Errors if any are missing/gapped."""
     d = _parts_dir(out_path)
@@ -147,9 +152,24 @@ def load_parts(out_path):
     return parts
 
 
-def run_mode(args, n_items, run_one, assemble, is_master):
+def run_mode(args, n_items, run_one, assemble, is_master, out_path=None):
     """Dispatch --count / --index / --serial / --assemble. `run_one(k)` executes one
-    forward + save_part; `assemble()` builds the final npz. Returns an exit code."""
+    forward + save_part; `assemble()` builds the final npz. Returns an exit code.
+
+    `out_path` enables `--skip_existing` for EVERY generator: work items whose part
+    file already exists are skipped before the (expensive) forward run. The flag is
+    registered for all generators by add_common_args but used to be implemented only
+    inside generate_ipc_data's own run_one, so every other probe set silently redid
+    finished work on a restart — which is exactly what a restart is for (found
+    2026-07-29 after a VRAM crash cost a partly-finished superposition set)."""
+    skip = getattr(args, "skip_existing", False) and out_path is not None
+
+    def _run(k):
+        if skip and part_exists(out_path, k):
+            return False
+        run_one(k)
+        return True
+
     if getattr(args, "count", False):
         print(n_items)                                        # for sbatch --array
         return 0
@@ -157,16 +177,17 @@ def run_mode(args, n_items, run_one, assemble, is_master):
         k = int(args.index)
         if not (0 <= k < n_items):
             raise SystemExit(f"--index {k} out of range [0,{n_items})")
-        run_one(k)
+        _run(k)
         return 0
     if getattr(args, "batch", None) is not None:
         S = int(args.batch_size); lo = int(args.batch) * S; hi = min(lo + S, n_items)
         if lo >= n_items:
             raise SystemExit(f"--batch {args.batch} (size {S}) starts at {lo} ≥ n_items {n_items}")
         for k in range(lo, hi):
-            run_one(k)
+            ran = _run(k)
             if is_master:
-                print(f"[gen] batch {args.batch}: {k-lo+1}/{hi-lo} (idx {k}/{n_items})", flush=True)
+                print(f"[gen] batch {args.batch}: {k-lo+1}/{hi-lo} (idx {k}/{n_items})"
+                      f"{'' if ran else ' [skipped, part exists]'}", flush=True)
         return 0
     if getattr(args, "assemble", False):
         if is_master:
@@ -177,9 +198,10 @@ def run_mode(args, n_items, run_one, assemble, is_master):
     # with a forward array run and meet in the middle (run_one skips done parts).
     order = range(n_items - 1, -1, -1) if getattr(args, "reverse", False) else range(n_items)
     for i, k in enumerate(order):
-        run_one(k)
+        ran = _run(k)
         if is_master:
-            print(f"[gen] serial {i+1}/{n_items} (idx {k})", flush=True)
+            print(f"[gen] serial {i+1}/{n_items} (idx {k})"
+                  f"{'' if ran else ' [skipped, part exists]'}", flush=True)
     if is_master:
         assemble()
     return 0
