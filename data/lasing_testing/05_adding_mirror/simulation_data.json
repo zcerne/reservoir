@@ -1,8 +1,7 @@
 {
-  "_comment": "05_adding_mirror: 03b_isotropic_ds (the cleaned isotropic twin of 03, dlam matched to 04) plus two R=0.5 DBR mirrors flanking the reservoir -> Fabry-Perot cavity. Created 2026-07-29.",
+  "_comment": "05_adding_mirror: 03b_isotropic_ds (the cleaned isotropic twin of 03, dlam matched to 04) plus two R=0.5 DBR mirrors flanking the reservoir -> Fabry-Perot cavity. Created 2026-07-29. cell_size_y removed 2026-07-29 (user): auto-derive -> tallest object (reservoir, 10) + 2*pml = 14 instead of the inherited 20, cutting ~30% of grid rows that were vacuum margin.",
   "resolution": 40,
   "dimention": 2,
-  "cell_size_y": 20.0,
   "periodic": false,
   "pml_size": 2.0,
   "background_index": 1.5,
