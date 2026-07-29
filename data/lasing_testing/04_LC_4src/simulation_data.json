@@ -1,5 +1,5 @@
 {
-  "_comment": "4-SOURCE capacity variant of 04_adding_LC (LC (anisotropic) reservoir). Identical in every way except source_1.amplitude is a 4-element list, which return_quadrosource splits into 4 independent 2.5um y-strips instead of 2 of 5um. Created 2026-07-29 because Dambre IPC on the 2-strip designs measured 2.00 with input dimension 2 -- i.e. it was pinned at the ceiling the INPUT imposes, not a property of the reservoir. Capacity needs more input channels than the capacity you hope to measure. Harmonics/superposition/amp_sweep stay on the 2-strip originals; only the capacity (ipc) set moves here.",
+  "_comment": "4-SOURCE capacity variant of 04_adding_LC (LC (anisotropic) reservoir). Identical in every way except source_1.amplitude is a 4-element list, which return_quadrosource splits into 4 independent 2.5um y-strips instead of 2 of 5um. Created 2026-07-29 because Dambre IPC on the 2-strip designs measured 2.00 with input dimension 2 -- i.e. it was pinned at the ceiling the INPUT imposes, not a property of the reservoir. Capacity needs more input channels than the capacity you hope to measure. Harmonics/superposition/amp_sweep stay on the 2-strip originals; only the capacity (ipc) set moves here. Population monitor and any snapshot sensors REMOVED (2026-07-29, user: \"be careful with snapshots, dont save them\" / \"same goes for pop monitor\"): these dataset runs only ever read n2f_map, while pop_monitor with snap_interval>0 writes whole-cell N and E every run (2.1 GB on 04). Removed from the design rather than merely overridden at runtime, so no entry point can resurrect them.",
   "resolution": 40,
   "dimention": 2,
   "cell_size_y": 20.0,
@@ -21,7 +21,6 @@
     "source_pump",
     "monitor_1",
     "monitor_2",
-    "pop_monitor",
     "n2f_map"
   ],
   "guide_1": {
@@ -188,13 +187,6 @@
       0.6
     ],
     "n_lam": 61
-  },
-  "pop_monitor": {
-    "_comment": "Atom-level sensor: saves N(t) for all 4 dye levels over the reservoir; snap_interval in MEEP time units (1 unit = 3.336 fs)",
-    "class": "monitor",
-    "type": "population",
-    "on_object": "reservoir",
-    "snap_interval": 3.0
   },
   "n2f_map": {
     "class": "monitor",
