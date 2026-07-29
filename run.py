@@ -75,6 +75,8 @@ def main() -> None:
 
     _ensure_simplesim()
     from simplesim import Simulation
+    from symbols_source import register as _register_symbols
+    _register_symbols()
 
     sim = Simulation(a.design, backend=a.backend, precision=a.precision,
                      suffix=a.suffix, design_suffix=a.design_suffix)
