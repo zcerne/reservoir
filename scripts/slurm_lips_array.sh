@@ -65,8 +65,18 @@ case "$METHOD" in
     *) echo "unknown method '$METHOD'"; exit 1 ;;
 esac
 
+# BATCH_SIZE set (via --export=ALL,BATCH_SIZE=50) -> each array task runs a
+# CONTIGUOUS BLOCK of samples in one process instead of a single --index.
+# That matters here: python + JAX + CUDA init and the design load cost roughly
+# as much as one forward run, so one-sample-per-task throws away about half the
+# GPU. With 625 samples, 13 tasks of 50 is far better than 625 tasks of 1.
 cd "$CODE"
 echo "=== $METHOD $DESIGN task ${SLURM_ARRAY_TASK_ID} host $(hostname) $(date) ==="
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader || echo "(no GPU visible)"
-$PY -u "$GEN" --path "$DESIGN" "$@" --skip_existing --index "$SLURM_ARRAY_TASK_ID"
+if [ -n "$BATCH_SIZE" ]; then
+    $PY -u "$GEN" --path "$DESIGN" "$@" --skip_existing \
+        --batch "$SLURM_ARRAY_TASK_ID" --batch_size "$BATCH_SIZE"
+else
+    $PY -u "$GEN" --path "$DESIGN" "$@" --skip_existing --index "$SLURM_ARRAY_TASK_ID"
+fi
 echo "=== task ${SLURM_ARRAY_TASK_ID} done $(date) ==="
