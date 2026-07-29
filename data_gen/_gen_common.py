@@ -18,12 +18,18 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 
 
-def open_reservoir(path, components, out_sensor=None):
+def open_reservoir(path, components, out_sensor=None, full_sensor=False):
     """Load the fixed reservoir; return (forward_fn, n_strips, is_master).
 
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
     field over `components` (Ey[,Ex,Ez]). NOTE the source casts amplitude to real,
     so pass REAL amplitudes unless a tone's imaginary part is intended as a phase.
+
+    full_sensor: with out_sensor, return the sensor's ENTIRE array per component
+    (the whole near2far map, nx*ny values each) instead of just its last column.
+    Much larger — a 200x200 map over 3 components is ~1.9 MB per sample — but it
+    keeps every spatial channel available, so a readout can be chosen later.
+    The assembled npz records `sensor_shape` so the flat vector can be reshaped.
 
     out_sensor: alternative readout — key of a sensor whose npz to use instead of
     monitor_2. For a near2far area map the output is the COMPLEX field of the
@@ -101,6 +107,12 @@ def open_reservoir(path, components, out_sensor=None):
             if "EH" in d.files:
                 ci = {"Ex": 0, "Ey": 1, "Ez": 2, "Hx": 3, "Hy": 4, "Hz": 5}
                 EH = np.asarray(d["EH"])
+                if full_sensor:
+                    # the WHOLE far-field map per component, (nx, ny) each,
+                    # flattened C-order and concatenated in `components` order
+                    # (reshape with sensor_shape from the assembled npz)
+                    return np.concatenate([EH[:, :, ci[c]].ravel()
+                                           for c in components])
                 return np.concatenate([EH[-1, :, ci[c]].ravel()
                                        for c in components])
             m2 = d
