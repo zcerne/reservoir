@@ -18,12 +18,45 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 
 
-def open_reservoir(path, components, out_sensor=None, full_sensor=False):
+def _load_extras(out_dir, out_sensor, suffix):
+    """Everything worth keeping per sample beyond the readout vector:
+
+      m2_*  monitor_2's complex DFT fields (61 freqs x 402 points x Ex/Ey/Ez,
+            ~1.2 MB) — the in-cell spectral readout
+      eq_*  the near2far EQUIVALENCE CURRENTS (~46 kB) — the raw near-field
+            data the far field is computed FROM. With these the far field can
+            be re-rendered at any distance, angle or resolution without ever
+            re-running FDTD, which the far-field map alone cannot do because
+            its screen geometry is baked in.
+
+    Missing files are skipped rather than fatal (the MEEP backend does not
+    emit equivalence currents at all)."""
+    extras = {}
+    m2 = os.path.join(out_dir, f"monitor_2_{suffix}.npz")
+    if os.path.exists(m2):
+        with np.load(m2) as d:
+            extras.update({f"m2_{k}": d[k] for k in d.files})
+    if out_sensor:
+        eq = os.path.join(out_dir, f"{out_sensor}_n2f_eq_{suffix}.npz")
+        if not os.path.exists(eq):                      # pre-suffix fallback
+            eq = os.path.join(out_dir, f"{out_sensor}_n2f_eq.npz")
+        if os.path.exists(eq):
+            with np.load(eq) as d:
+                extras.update({f"eq_{k}": d[k] for k in d.files})
+    return extras
+
+
+def open_reservoir(path, components, out_sensor=None, full_sensor=False,
+                   with_extras=False):
     """Load the fixed reservoir; return (forward_fn, n_strips, is_master).
 
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
     field over `components` (Ey[,Ex,Ez]). NOTE the source casts amplitude to real,
     so pass REAL amplitudes unless a tone's imaginary part is intended as a phase.
+
+    with_extras: after each run, populate `forward.extras` with monitor_2's
+    fields and the near2far equivalence currents, so a generator can store them
+    in the part file (see _load_extras).
 
     full_sensor: with out_sensor, return the sensor's ENTIRE array per component
     (the whole near2far map, nx*ny values each) instead of just its last column.
@@ -102,6 +135,8 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False):
                                   overrides=ov)
         sim.relax()
         sim.run(empty=False)
+        if with_extras:
+            forward.extras = _load_extras(out_dir, out_sensor, suffix)
         if out_sensor:
             d = np.load(os.path.join(out_dir, f"{out_sensor}_{suffix}.npz"))
             if "EH" in d.files:

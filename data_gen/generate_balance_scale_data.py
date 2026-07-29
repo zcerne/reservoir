@@ -61,6 +61,10 @@ def main():
     ap.add_argument("--amp_min", type=float, default=10.0)
     ap.add_argument("--amp_max", type=float, default=50.0)
     ap.add_argument("--full_sensor", action="store_true", default=True)
+    ap.add_argument("--extras", action="store_true", default=True,
+                    help="also store monitor_2 fields and the near2far "
+                         "equivalence currents in each part (default on)")
+    ap.add_argument("--no_extras", dest="extras", action="store_false")
     ap.add_argument("--last_column_only", dest="full_sensor", action="store_false",
                     help="store only the far screen's last column instead of the whole map")
     gc.add_common_args(ap)
@@ -82,15 +86,16 @@ def main():
     else:
         forward, n_strips, is_master = gc.open_reservoir(
             args.path, comps, out_sensor=args.out_sensor,
-            full_sensor=args.full_sensor)
+            full_sensor=args.full_sensor, with_extras=args.extras)
         if n_strips != X.shape[1]:
             raise SystemExit(
                 f"design has {n_strips} source strips but Balance Scale has "
                 f"{X.shape[1]} features — use a 4-strip design (e.g. 04_LC_4src)")
 
     def run_one(k):
-        gc.save_part(out_path, k, is_master, output=forward(A[k].astype(complex)),
-                     inp=X[k], amp=A[k], label=int(y[k]))
+        out = forward(A[k].astype(complex))
+        gc.save_part(out_path, k, is_master, output=out, inp=X[k], amp=A[k],
+                     label=int(y[k]), **getattr(forward, "extras", {}))
 
     def assemble():
         parts = gc.load_parts(out_path)
@@ -99,6 +104,18 @@ def main():
         side = int(round(np.sqrt(n_per)))
         shape = ([len(comps), side, side] if args.full_sensor and side * side == n_per
                  else [len(comps), n_per])
+        # monitor_2 fields and near2far equivalence currents. Geometry keys
+        # (ys, wy, freqs, x_line, dx) are identical in every run, so store one
+        # copy; only the per-sample arrays are stacked.
+        extra = {}
+        for key in sorted(set(parts[0]) - {"idx", "output", "inp", "amp", "label"}):
+            vals = [np.asarray(p[key]) for p in parts if key in p]
+            if len(vals) != len(parts):
+                continue
+            same = all(v.shape == vals[0].shape and np.array_equal(v, vals[0])
+                       for v in vals[1:])
+            extra[key] = vals[0] if same else np.stack(vals)
+
         np.savez(out_path,
                  inputs=np.stack([p["inp"] for p in parts]),
                  amplitudes=np.stack([p["amp"] for p in parts]),
@@ -106,7 +123,13 @@ def main():
                  outputs=outputs, components=np.asarray(comps),
                  class_names=np.asarray(CLASSES),
                  sensor_shape=np.asarray(shape),
-                 amp_range=np.asarray([args.amp_min, args.amp_max]))
+                 amp_range=np.asarray([args.amp_min, args.amp_max]),
+                 **extra)
+        if extra:
+            per = [k for k, v in extra.items() if np.asarray(v).shape[:1] == (len(parts),)]
+            print(f"[balance] extras: {len(per)} per-sample arrays "
+                  f"({', '.join(per[:6])}{'…' if len(per) > 6 else ''}), "
+                  f"{len(extra) - len(per)} shared", flush=True)
         print(f"[balance] assembled → {out_path}  ({len(parts)} samples, "
               f"outputs {outputs.shape}, per-sample layout {shape})", flush=True)
 
