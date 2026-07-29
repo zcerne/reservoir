@@ -1,6 +1,6 @@
 #!/usr/bin/bash -l
 #SBATCH --job-name=res_gen
-#SBATCH --partition=grace
+#SBATCH --partition=F5-gpu
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=16
@@ -8,24 +8,29 @@
 #SBATCH --time=8:00:00
 #SBATCH --output=/project/cerneziga/reservoir_runs/slurm_%A_%a.log
 #
-# Reservoir data generation on lips (IJS), GH200 / aarch64, one forward run per
+# Reservoir data generation on lips (IJS) F5 partition — 2 x H200 — one forward run per
 # array task. Follows the split the user asked for: CODE on /home/cerneziga,
 # RESULTS AND DATASETS on /project/cerneziga.
 #
-#   sbatch --array=0-399%8 scripts/slurm_lips_array.sh \
+#   sbatch --array=0-399%2 scripts/slurm_lips_array.sh \
 #       ipc /project/cerneziga/reservoir_runs/04_LC_4src \
 #       --n 400 --scale 10 --out_sensor n2f_map --components Ex,Ey,Ez
 #
 #   method = superposition | harmonics | ampsweep | ipc | balance
 #
-# Partition: `grace` has 8 GH200 nodes and is usually less contended than
-# `F5-gpu` (2 nodes, where the 3D BlockOpt runs live — don't compete with them).
+# Partition: F5 — 2 x H200 nodes (user, 2026-07-29; not documented anywhere yet,
+# and NOT the GH200/Grace hardware my older notes describe). Only 2 nodes, so
+# cap array concurrency at %2; anything higher just queues. H200 is a normal
+# x86_64 host, so ordinary x86 CUDA wheels apply — none of the aarch64 caveats
+# that apply to the grace partition.
 #
 # !! UNVERIFIED ON LIPS !! I could not test this: ssh to lips refuses my key
 # (`Permission denied (publickey)`), so I could only write files over the sshfs
 # mount. Specifically unconfirmed:
-#   * that the `opt` env has a working jax+CUDA on aarch64 for gpumeep
-#   * that gpumeep runs at all on GH200 (never executed there)
+#   * the python env path below (is `opt` the right env on an x86_64 H200 node,
+#     or does F5 need its own?)
+#   * that gpumeep runs on H200 at all (never executed there)
+#   * the exact partition name — `F5-gpu` is what the older sinfo showed
 # If gpumeep fails, fall back to the MEEP backend by setting
 # RESERVOIR_SOLVER=meep below — CPU only, but it needs no GPU stack.
 
