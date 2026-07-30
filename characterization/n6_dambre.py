@@ -42,7 +42,12 @@ def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
     M, K = U.shape
     Xf = X.reshape(M, -1)
     F = Xf.shape[1]
-    thr = (2.0 * F / M) if threshold is None else threshold
+    # complex features act as TWO real regressors each in the projection —
+    # count them as such or the default noise floor sits a factor 2 low and
+    # purely linear systems grow phantom high-degree capacity (seen on the
+    # dye-free 02_2D_Q_tensor: in-sample deg3=5.4, held-out R2=0).
+    F_eff = 2 * F if np.iscomplexobj(Xf) else F
+    thr = (2.0 * F_eff / M) if threshold is None else threshold
 
     # readout design: reservoir states + bias, projected via lstsq/ridge
     A = np.concatenate([Xf, np.ones((M, 1))], axis=1)          # (M, F+1)
