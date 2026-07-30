@@ -43,6 +43,21 @@ export LCRELAX_PATH=/home/cerneziga/LCrelax
 # LCrelax must precede anything else that ships duplicate helpers
 export PYTHONPATH="$LCRELAX_PATH:$PYTHONPATH"
 export JAX_PLATFORMS=cuda,cpu
+
+# gpumeep compiles the whole FDTD as one lax.scan, and forward() rebuilds the
+# Simulation for every sample, so without a persistent cache that 20+ minute
+# compile is repaid on EVERY sample (measured 2026-07-30: 2696 s per forward, of
+# which the FDTD itself was ~40 s). The cache lives on /project so it is shared
+# by every task and both F5 nodes: the first task compiles, the rest load it.
+#
+# Submit the FIRST batch with %1 so exactly one task warms the cache instead of
+# several paying for the same compile in parallel:
+#   sbatch --array=0-7%1 --export=ALL,BATCH_SIZE=50 scripts/slurm_lips_array.sh …
+# Once /project/cerneziga/.jax_cache is populated, %2 is fine.
+export JAX_COMPILATION_CACHE_DIR=/project/cerneziga/.jax_cache
+export JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS=1
+export JAX_PERSISTENT_CACHE_MIN_ENTRY_SIZE_BYTES=0
+mkdir -p "$JAX_COMPILATION_CACHE_DIR"
 # never preallocate: several array tasks may land on one node and the first
 # would otherwise take ~75% of the GPU and starve the rest
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
