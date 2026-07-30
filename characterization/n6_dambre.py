@@ -9,7 +9,8 @@ def _legendre_norm(u, n):
     return np.sqrt(2 * n + 1.0) * L.legval(u, c)
 
 
-def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
+def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0,
+               max_features=None):
     """Nonlinearity Method F — Dambre Information Processing Capacity (gold standard).
 
     Reconstruct a complete orthonormal basis of polynomial functions of the input and
@@ -32,15 +33,31 @@ def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
     threshold : capacities below this are zeroed (noise floor; default 2·F/M ≈ the
         finite-sample bias of R² for F regressors on M samples).
     ridge : optional Tikhonov λ for the readout fit (stabilizes when F ≳ M).
+    max_features : cap on output channels actually used (evenly subsampled).
+        Default max(8, M//10): more channels than ~M/10 makes the R² estimate
+        degenerate (perfect in-sample fit, noise floor above 1, spectrum all
+        zeros). Pass the full count explicitly to opt out.
 
     Returns dict: ipc_total, ipc_by_degree {d: Σ capacity}, nonlinear_fraction
         (deg≥2 / total), max_degree_present, bound (rank of X = capacity ceiling),
-        n_targets, n, f_out, threshold, linear.
+        n_targets, n, f_out (channels available), f_used (channels analysed),
+        threshold, linear.
     """
     U = np.asarray(data["inputs"]).real
     X = np.asarray(data["outputs"])
     M, K = U.shape
     Xf = X.reshape(M, -1)
+    f_out = Xf.shape[1]
+
+    # Too many channels for the probe count is a DEGENERATE fit: with F ≳ M
+    # every target is reconstructed perfectly in-sample (R²→1) and the noise
+    # floor 2F/M rises above 1, so every real capacity is zeroed and the whole
+    # spectrum reads 0. Sampling F_max evenly-spaced channels — physically, a
+    # finite set of detectors on the screen — is what makes the measurement
+    # meaningful; the ceiling then sits at min(rank, n_targets), not at F.
+    f_cap = max(8, M // 10) if max_features is None else max_features
+    if f_out > f_cap:
+        Xf = Xf[:, np.linspace(0, f_out - 1, f_cap).astype(int)]
     F = Xf.shape[1]
     # complex features act as TWO real regressors each in the projection —
     # count them as such or the default noise floor sits a factor 2 low and
@@ -90,7 +107,7 @@ def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
         nonlinear_fraction=float(nl / (ipc_total + 1e-30)),
         max_degree_present=(max(present) if present else 0),
         bound=int(np.linalg.matrix_rank(Xf)), n_targets=int(n_targets),
-        n=int(M), f_out=int(F), threshold=float(thr),
+        n=int(M), f_out=int(f_out), f_used=int(F), threshold=float(thr),
         linear=bool(nl < 1e-6),
     )
 
