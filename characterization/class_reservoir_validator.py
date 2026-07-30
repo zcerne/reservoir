@@ -20,7 +20,7 @@ intensity views (n1/n3/n4 report both field and |E|²).
   v = Validator("data/reservoir_clasifications/01_2D_director")
   v.run_all(); print(v.report())
 """
-import os, sys
+import os, signal, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 
@@ -60,26 +60,57 @@ class Validator:
     #: RESERVOIR_DATA_ROOTS (os.pathsep-separated).
     DATA_ROOTS = ("~/Orion/resevoir",
                   "~/Nextcloud/Doktorski/Projects/Reservoir/gitcode",
-                  "~/resevoir")
+                  "~/resevoir",
+                  "~/Lips/resevoir")
+
+    #: Roots where designs sit FLAT by name instead of under data/<group>/ —
+    #: the lips project space keeps every run as reservoir_runs/<design>.
+    FLAT_DATA_ROOTS = ("~/Lips_project/reservoir_runs",)
 
     @staticmethod
-    def _has_data(d):
+    def _guard(fn, default, timeout=2.0):
+        """Run a filesystem call that must not hang the whole analysis. The lips
+        and Orion sshfs mounts go stale (a frozen FUSE stat blocks forever, and
+        both lips mounts died twice on 2026-07-30), so give every probe a short
+        deadline and treat a timeout as 'not there'."""
+        try:
+            def _fire(signum, frame):
+                raise TimeoutError
+            prev = signal.signal(signal.SIGALRM, _fire)
+            signal.setitimer(signal.ITIMER_REAL, timeout)
+        except (ValueError, AttributeError, OSError):
+            return fn()                      # no SIGALRM here (thread / platform)
+        try:
+            return fn()
+        except (TimeoutError, OSError):
+            return default
+        finally:
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, prev)
+
+    @classmethod
+    def _has_data(cls, d):
         """True only if the dir holds actual datasets. A git-tracked skeleton
         contains just .gitkeep — that must NOT outrank a mirror that has data."""
-        return os.path.isdir(d) and any(
-            n.endswith((".npz", ".npz.parts")) for n in os.listdir(d))
+        return cls._guard(lambda: os.path.isdir(d) and any(
+            n.endswith((".npz", ".npz.parts")) for n in os.listdir(d)), False)
 
     @classmethod
     def _mirror_candidates(cls, reservoir_path):
-        """The same design under every configured root: a design path always
-        contains .../data/<...>/<design>, so mirror on the 'data/' segment."""
+        """The same design under every configured root. Repo roots mirror on the
+        'data/' segment (.../data/<group>/<design>); flat roots take the design
+        name alone."""
         parts = os.path.normpath(os.path.abspath(reservoir_path)).split(os.sep)
-        if "data" not in parts:
-            return []
-        rel = os.path.join(*parts[len(parts) - 1 - parts[::-1].index("data"):])
-        roots = os.environ.get("RESERVOIR_DATA_ROOTS")
-        roots = roots.split(os.pathsep) if roots else cls.DATA_ROOTS
-        return [os.path.join(os.path.expanduser(r), rel) for r in roots]
+        env = os.environ.get("RESERVOIR_DATA_ROOTS")
+        roots = env.split(os.pathsep) if env else cls.DATA_ROOTS
+        out = []
+        if "data" in parts:
+            rel = os.path.join(*parts[len(parts) - 1 - parts[::-1].index("data"):])
+            out += [os.path.join(os.path.expanduser(r), rel) for r in roots]
+        design = parts[-1]
+        out += [os.path.join(os.path.expanduser(r), design)
+                for r in cls.FLAT_DATA_ROOTS]
+        return out
 
     @classmethod
     def _resolve_datasets(cls, reservoir_path):
@@ -101,7 +132,7 @@ class Validator:
         split across machines — say ipc.npz already synced here while
         harmonics.npz is still only on the cluster — still analyses completely."""
         primary = os.path.join(self.datasets, name)
-        if os.path.exists(primary):
+        if self._guard(lambda: os.path.exists(primary), False):
             return primary
         seen = {os.path.abspath(primary)}
         for cand in self._mirror_candidates(self.path):
@@ -109,7 +140,7 @@ class Validator:
             if os.path.abspath(p) in seen:
                 continue
             seen.add(os.path.abspath(p))
-            if os.path.exists(p):
+            if self._guard(lambda: os.path.exists(p), False):
                 print(f"[validator] {name} ← {os.path.dirname(p)}", flush=True)
                 return p
         return primary  # keep primary for clear "missing" messages
