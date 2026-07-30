@@ -60,6 +60,7 @@ def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
 
     # enumerate multi-indices d=(d1..dK), 1 ≤ Σdk ≤ max_degree
     ipc_by_degree = {}
+    targets_by_degree = {}
     n_targets = 0
     for combo in product(range(max_degree + 1), repeat=K):
         deg = sum(combo)
@@ -72,6 +73,7 @@ def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
         c = capacity(y)
         c = c if c > thr else 0.0                              # noise-floor threshold
         ipc_by_degree[deg] = ipc_by_degree.get(deg, 0.0) + c
+        targets_by_degree[deg] = targets_by_degree.get(deg, 0) + 1
         n_targets += 1
 
     ipc_total = float(sum(ipc_by_degree.values()))
@@ -79,6 +81,7 @@ def dambre_ipc(data, max_degree=3, threshold=None, ridge=0.0):
     present = [d for d, v in ipc_by_degree.items() if v > 1e-9]
     return dict(
         ipc_total=ipc_total, ipc_by_degree=ipc_by_degree,
+        targets_by_degree=targets_by_degree,
         nonlinear_fraction=float(nl / (ipc_total + 1e-30)),
         max_degree_present=(max(present) if present else 0),
         bound=int(np.linalg.matrix_rank(Xf)), n_targets=int(n_targets),

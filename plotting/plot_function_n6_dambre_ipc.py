@@ -16,6 +16,12 @@ def plot_n6_dambre_ipc(res: dict, fig_dir: str | Path, suffix: str = "") -> Path
 
     fig, ax = plt.subplots(figsize=(6.5, 4.5))
     ax.bar([str(d) for d in degs], vals, color=colors)
+    tbd = res.get("targets_by_degree", {})
+    for x, (d, v) in enumerate(zip(degs, vals)):
+        n_t = tbd.get(d)
+        label = (f"{v:.2f}\n({100 * v / n_t:.0f}%)" if n_t else f"{v:.2f}")
+        ax.annotate(label, (x, v), textcoords="offset points", xytext=(0, 4),
+                    ha="center", fontsize=8)
     ax.axhline(res["bound"], color="k", ls="--", label=f"ceiling = rank(X) = {res['bound']}")
     ax.set_xlabel("target polynomial degree")
     ax.set_ylabel("IPC (Σ capacity)")
