@@ -15,6 +15,22 @@ then a final `--assemble`. Wall-clock ≈ one forward run, not N of them.
 from __future__ import annotations
 import os, sys, glob
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# JAX persistent compilation cache — must be set BEFORE jax is imported anywhere.
+#
+# gpumeep runs the FDTD as one lax.scan, and XLA needs 20+ MINUTES to compile it
+# for the heavier designs (DBR mirrors + MultilevelAtom gain + monitors). Since
+# forward() rebuilds the Simulation for every sample, that compile was being paid
+# per sample: a py-spy dump of a "hung" worker (2026-07-30) sat in
+# backend_compile_and_load, which is what made 05_adding_mirror look deadlocked on
+# both smaug and lips. With the cache, the first sample pays it once and every
+# later sample — plus every other worker sharing the directory — loads the
+# executable instead. Override the location with JAX_COMPILATION_CACHE_DIR
+# (on lips point it at /project/cerneziga/.jax_cache).
+os.environ.setdefault("JAX_COMPILATION_CACHE_DIR",
+                      os.path.expanduser("~/.cache/jax_compile"))
+os.environ.setdefault("JAX_PERSISTENT_CACHE_MIN_COMPILE_TIME_SECS", "1")
+os.environ.setdefault("JAX_PERSISTENT_CACHE_MIN_ENTRY_SIZE_BYTES", "0")
 import numpy as np
 
 
