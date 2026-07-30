@@ -46,18 +46,50 @@ class Validator:
         #: e.g. the NN references, whose state has no polarizations).
         self.component = component
         self.path = reservoir_path
-        local_ds = os.path.join(reservoir_path, "datasets")
-        orion_ds = os.path.expanduser(f"~/Orion/resevoir/{reservoir_path}/datasets")
-        # Prefer local datasets/; fall back to Orion if local is missing/empty
-        if os.path.isdir(local_ds) and os.listdir(local_ds):
-            self.datasets = local_ds
-        elif os.path.isdir(orion_ds):
-            self.datasets = orion_ds
-            print(f"[validator] using Orion datasets: {orion_ds}", flush=True)
-        else:
-            self.datasets = local_ds  # keep original for clear "missing" messages
+        self.datasets = self._resolve_datasets(reservoir_path)
         self.stats_dir = os.path.join(reservoir_path, "stats_data")
         self.results = {}
+
+    # ------------------------------------------------------- dataset location
+    #: Repo roots searched for a design's datasets/ when the local copy holds no
+    #: data. The Nextcloud checkout versions only simulation_data.json and
+    #: .gitkeep (data/** is gitignored), so running from there must fall back to
+    #: the copy that actually has the .npz files, and vice versa. Override with
+    #: RESERVOIR_DATA_ROOTS (os.pathsep-separated).
+    DATA_ROOTS = ("~/Orion/resevoir",
+                  "~/Nextcloud/Doktorski/Projects/Reservoir/gitcode",
+                  "~/resevoir")
+
+    @staticmethod
+    def _has_data(d):
+        """True only if the dir holds actual datasets. A git-tracked skeleton
+        contains just .gitkeep — that must NOT outrank a mirror that has data."""
+        return os.path.isdir(d) and any(
+            n.endswith((".npz", ".npz.parts")) for n in os.listdir(d))
+
+    @classmethod
+    def _mirror_candidates(cls, reservoir_path):
+        """The same design under every configured root: a design path always
+        contains .../data/<...>/<design>, so mirror on the 'data/' segment."""
+        parts = os.path.normpath(os.path.abspath(reservoir_path)).split(os.sep)
+        if "data" not in parts:
+            return []
+        rel = os.path.join(*parts[len(parts) - 1 - parts[::-1].index("data"):])
+        roots = os.environ.get("RESERVOIR_DATA_ROOTS")
+        roots = roots.split(os.pathsep) if roots else cls.DATA_ROOTS
+        return [os.path.join(os.path.expanduser(r), rel) for r in roots]
+
+    @classmethod
+    def _resolve_datasets(cls, reservoir_path):
+        local = os.path.join(reservoir_path, "datasets")
+        if cls._has_data(local):
+            return local
+        for cand in cls._mirror_candidates(reservoir_path):
+            ds = os.path.join(cand, "datasets")
+            if os.path.abspath(ds) != os.path.abspath(local) and cls._has_data(ds):
+                print(f"[validator] datasets ← {ds}", flush=True)
+                return ds
+        return local  # keep local for clear "missing" messages
 
     # ------------------------------------------------------------------ io
     def _load(self, name):
