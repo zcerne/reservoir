@@ -25,11 +25,13 @@ class PlotMain:
     """Discover datasets (local → Orion fallback), run Validator, plot all results."""
 
     def __init__(self, reservoir_path: str, fig_dir: str | None = None,
-                 skip_cached: bool = False, component: str | None = None):
+                 skip_cached: bool = False, component: str | None = None,
+                 max_order: int = 6, rel_thresh: float = 1e-9):
         self.path = reservoir_path
         self.fig_dir = Path(fig_dir) if fig_dir else Path(reservoir_path) / "figures"
         self.skip_cached = skip_cached
-        self.validator = Validator(reservoir_path, component=component)
+        self.validator = Validator(reservoir_path, component=component,
+                                   max_order=max_order, rel_thresh=rel_thresh)
         self.saved: list[Path] = []
 
     # ------------------------------------------------------------------- dispatch
@@ -272,10 +274,18 @@ if __name__ == "__main__":
                     help="restrict analysis to one stored polarization (e.g. Ey); "
                          "cached stats_data must be cleared (--skip-cached) when "
                          "switching, or you'll replot the old slice")
+    ap.add_argument("--max-order", type=int, default=6,
+                    help="harmonic/intermod attribution depth for n4: bins are "
+                         "labelled as a*f1+b*f2 up to |a|+|b| <= this (default 6); "
+                         "lines beyond it fall into the 'other' class")
+    ap.add_argument("--rel-thresh", type=float, default=1e-9,
+                    help="n4: spectral bins below this fraction of total power "
+                         "count as numerical zero (default 1e-9)")
     ap.add_argument("--skip-cached", action="store_true",
                     help="re-run all analyses, ignore cached stats_data/")
     args = ap.parse_args()
     pm = PlotMain(args.path, fig_dir=args.fig_dir, skip_cached=args.skip_cached,
-                  component=args.component)
+                  component=args.component, max_order=args.max_order,
+                  rel_thresh=args.rel_thresh)
     saved = pm.run()
     print(f"\n[done] {len(saved)} figures saved to {pm.fig_dir}", flush=True)

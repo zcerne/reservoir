@@ -37,7 +37,8 @@ import n7_dimention_expansion as n7
 
 
 class Validator:
-    def __init__(self, reservoir_path, component=None):
+    def __init__(self, reservoir_path, component=None, max_order=6,
+                 rel_thresh=1e-9):
         #: restrict analysis to ONE stored polarization (e.g. "Ey"). Datasets
         #: written with --components Ex,Ey,Ez concatenate equal-width blocks
         #: and record the order in their `components` key; without slicing,
@@ -47,6 +48,12 @@ class Validator:
         #: behaviour (also right for datasets with no `components` key,
         #: e.g. the NN references, whose state has no polarizations).
         self.component = component
+        #: n4 attribution depth: bins are labelled as a*f1+b*f2 products up to
+        #: |a|+|b| <= max_order; anything beyond lands in "other". Raising it
+        #: reclassifies weak far-out lines instead of discarding them.
+        self.max_order = int(max_order)
+        #: bins below this fraction of total power count as numerical zero
+        self.rel_thresh = float(rel_thresh)
         self.path = reservoir_path
         self.datasets = self._resolve_datasets(reservoir_path)
         self.stats_dir = os.path.join(reservoir_path, "stats_data")
@@ -176,16 +183,22 @@ class Validator:
                     "n5": "ipc.npz", "n6": "ipc.npz", "n7": "ipc.npz"}
 
     def _source_fp(self, name):
-        """Fingerprint (path|size|mtime) of the dataset behind cache `name`."""
+        """Fingerprint of what cache `name` depends on: its dataset
+        (path|size|mtime) plus any analysis parameter that changes the result —
+        otherwise re-running with a different --max-order silently replays the
+        old spectrum."""
         ds = self.STATS_SOURCE.get(name.split("_")[0])
         if ds is None:
             return ""
         try:
             p = self._dataset_path(ds)
             st = os.stat(p)
-            return f"{os.path.realpath(p)}|{st.st_size}|{int(st.st_mtime)}"
+            fp = f"{os.path.realpath(p)}|{st.st_size}|{int(st.st_mtime)}"
         except OSError:
             return ""
+        if name.split("_")[0] == "n4":
+            fp += f"|mo={self.max_order}|rt={self.rel_thresh:g}"
+        return fp
 
     def _load_stats(self, name):
         """Load cached analysis results from stats_data/<name>.npz, unless the
@@ -203,7 +216,7 @@ class Validator:
         cached_fp = str(out.pop("_src_fp", "")) if "_src_fp" in out else None
         now_fp = self._source_fp(name)
         if now_fp and cached_fp != now_fp:
-            why = "no fingerprint" if cached_fp is None else "dataset changed"
+            why = "no fingerprint" if cached_fp is None else "source data or parameters changed"
             print(f"[validator] {name}: cache stale ({why}) — recomputing", flush=True)
             return None
         return out
@@ -311,8 +324,11 @@ class Validator:
             return cached.get("n4_intensity")
         d = self._load("harmonics.npz")
         if d is None: return None
-        self.results["n4_field"] = n4.harmonic_specter(d)
-        self.results["n4_intensity"] = n4.harmonic_specter(self._to_intensity(d, ("outputs",)))
+        self.results["n4_field"] = n4.harmonic_specter(
+            d, max_order=self.max_order, rel_thresh=self.rel_thresh)
+        self.results["n4_intensity"] = n4.harmonic_specter(
+            self._to_intensity(d, ("outputs",)),
+            max_order=self.max_order, rel_thresh=self.rel_thresh)
         self._save_stats("n4", n4_field=self.results["n4_field"],
                          n4_intensity=self.results["n4_intensity"])
         return self.results["n4_intensity"]
