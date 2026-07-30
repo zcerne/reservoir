@@ -5,7 +5,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=72
 #SBATCH --mem=100G
-#SBATCH --time=8:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --output=/project/cerneziga/reservoir_runs/slurm_%A_%a.log
 #
 # Reservoir data generation on lips (IJS) F5 partition — 2 x H200 — one forward run per

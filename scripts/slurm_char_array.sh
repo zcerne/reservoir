@@ -43,7 +43,7 @@
 #SBATCH --nodes=1
 #SBATCH --partition=of
 #SBATCH --qos=soft
-#SBATCH --time=2:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --mem=1900GB
 #SBATCH --cpus-per-task=96
 #SBATCH --output=slurm_char_%A_%a.log
