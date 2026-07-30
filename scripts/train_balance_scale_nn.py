@@ -110,7 +110,7 @@ def main():
     ap.add_argument("--test_frac", type=float, default=0.3)
     ap.add_argument("--root", default=os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data", "reservoir_clasifications"))
+        "data", "NN_data"))
     a = ap.parse_args()
 
     X, y, margin = load_balance_scale()
@@ -132,7 +132,7 @@ def main():
            "note": ("label = sign(LW*LD - RW*RD): a degree-2 function of the "
                     "inputs, so a linear model cannot express it"),
            "logistic_raw": lin, "models": {}}
-    for act, folder in (("identity", "05_linearNN"), ("sigmoid", "06_nonlinearNN")):
+    for act, folder in (("identity", "6_linearNN_balance"), ("sigmoid", "6_nonlinearNN_balance")):
         res, (W1, b1, W2, b2) = train_mlp(Xs[tr], y[tr], Xs[te], y[te], act,
                                           a.hidden, a.epochs, a.lr, a.seed)
         print(f"  MLP {act:8s} hidden={a.hidden} : train {res['train_acc']:.3f}  "

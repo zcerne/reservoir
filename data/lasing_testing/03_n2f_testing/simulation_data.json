@@ -84,7 +84,7 @@
     "component": "Ey",
     "source_type": "gaussian",
     "lam": 0.55,
-    "dlam": 0.2,
+    "dlam": 0.05,
     "start_time": 0.0
   },
   "source_pump": {
