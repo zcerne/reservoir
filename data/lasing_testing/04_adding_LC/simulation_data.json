@@ -96,7 +96,7 @@
     "bulk_seed": 0.0,
     "bulk_seed_noise": 0.1,
     "sted": {
-      "_comment": "4-level dye starting in the GROUND state (N1_0=30, N3_0=0) -- source_pump (Ez, absorption line lbdA=0.45) must genuinely drive population 1->4->3 to build any inversion, instead of the old pre-inverted N3_0=30/N1_0=0 shortcut that left the pump with nothing to do.",
+      "_comment": "4-level dye starting PRE-INVERTED: initial_populations = [N1_0, 0, N3_0, 0] = [0, 0, 30, 0], so the whole population already sits in upper lasing level 3 at t=0 and the signal at lbdE=0.55 sees gain immediately. source_pump (Ez, absorption line lbdA=0.45) therefore does not build the inversion, it sustains and tops up one that exists from t=0. Comment corrected 2026-07-30: it previously described a ground-state start (N1_0=30, N3_0=0) that these values never had -- 02_adding_pump is the design that genuinely does that, and 05_cav_unpumped is the deliberate ground-state control.",
       "enabled": true,
       "lbdA": 0.45,
       "gammaA": 0.1,
