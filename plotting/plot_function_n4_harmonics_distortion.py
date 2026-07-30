@@ -86,15 +86,18 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     kinds = ["dc", "fundamental", "harmonic", "intermod", "other"]
     vals = np.array([res["power_by_kind"][k] for k in kinds], dtype=float) / norm
     vpos = vals[vals > 0]
-    kfloor = (vpos.min() * 0.1) if vpos.size else 1e-30
+    # a zero bar must sit ON the axis floor, not at 0.1x the smallest positive
+    # value: with only the fundamental non-zero that painted every empty class
+    # at 10% and made a perfectly linear device look distorted.
+    kfloor = 1e-7 if norm != 1.0 else ((vpos.min() * 0.1) if vpos.size else 1e-30)
     ax1.bar(kinds, np.maximum(vals, kfloor), color=[KIND_COLOR[k] for k in kinds])
     ax1.set_yscale("log")
     if norm != 1.0:
         ax1.set_ylim(1e-7, 3000.0)
         for x, v in enumerate(vals):
-            if v > 0:
-                ax1.annotate(f"{v:.3g}%", (x, v), textcoords="offset points",
-                             xytext=(0, 3), ha="center", fontsize=7.5)
+            ax1.annotate(f"{v:.3g}%" if v > 0 else "0",
+                         (x, max(v, kfloor)), textcoords="offset points",
+                         xytext=(0, 3), ha="center", fontsize=7.5)
     ax1.set_ylabel("power" + unit)
     ax1.set_title("power by kind")
     ax1.tick_params(axis="x", rotation=30)
@@ -103,15 +106,15 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     orders = sorted(res["power_by_order"])
     ovals = np.array([res["power_by_order"][o] for o in orders], dtype=float) / norm
     opos = ovals[ovals > 0]
-    ofloor = (opos.min() * 0.1) if opos.size else 1e-30
+    ofloor = 1e-7 if norm != 1.0 else ((opos.min() * 0.1) if opos.size else 1e-30)
     ax2.bar([str(o) for o in orders], np.maximum(ovals, ofloor), color="C1")
     ax2.set_yscale("log")
     if norm != 1.0:
         ax2.set_ylim(1e-7, 3000.0)
         for x, v in enumerate(ovals):
-            if v > 0:
-                ax2.annotate(f"{v:.3g}%", (x, v), textcoords="offset points",
-                             xytext=(0, 3), ha="center", fontsize=7.5)
+            ax2.annotate(f"{v:.3g}%" if v > 0 else "0",
+                         (x, max(v, ofloor)), textcoords="offset points",
+                         xytext=(0, 3), ha="center", fontsize=7.5)
     ax2.set_xlabel("order")
     ax2.set_ylabel("power" + unit)
     ax2.set_title(f"power by order (max nonlinear order = {res['max_order']})")
