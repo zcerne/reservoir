@@ -137,9 +137,29 @@ class Validator:
         out["components"] = np.asarray([self.component])
         return out
 
+    #: dataset each cached stats file is computed from. The cache MUST invalidate
+    #: when that file changes — swapping a 2-source ipc.npz for a 4-source one
+    #: otherwise silently replays the old spectrum (deg1 stuck at 2 instead of 4).
+    STATS_SOURCE = {"modes": "superposition.npz", "n1": "superposition.npz",
+                    "n2": "ipc.npz", "n3": "amp_sweep.npz", "n4": "harmonics.npz",
+                    "n5": "ipc.npz", "n6": "ipc.npz", "n7": "ipc.npz"}
+
+    def _source_fp(self, name):
+        """Fingerprint (path|size|mtime) of the dataset behind cache `name`."""
+        ds = self.STATS_SOURCE.get(name.split("_")[0])
+        if ds is None:
+            return ""
+        try:
+            p = self._dataset_path(ds)
+            st = os.stat(p)
+            return f"{os.path.realpath(p)}|{st.st_size}|{int(st.st_mtime)}"
+        except OSError:
+            return ""
+
     def _load_stats(self, name):
-        """Load cached analysis results from stats_data/<name>.npz. Each stored value
-        is an analysis-result dict; np.savez wraps it as a 0-d object array, so unwrap
+        """Load cached analysis results from stats_data/<name>.npz, unless the
+        dataset they were computed from has changed. Each stored value is an
+        analysis-result dict; np.savez wraps it as a 0-d object array, so unwrap
         with .item() to recover the nested dict (power_by_order, gain_by_order, …)."""
         p = os.path.join(self.stats_dir, f"{name}.npz")
         if not os.path.exists(p):
@@ -149,14 +169,22 @@ class Validator:
         for k in raw.files:
             v = raw[k]
             out[k] = v.item() if getattr(v, "ndim", None) == 0 and v.dtype == object else v
+        cached_fp = str(out.pop("_src_fp", "")) if "_src_fp" in out else None
+        now_fp = self._source_fp(name)
+        if now_fp and cached_fp != now_fp:
+            why = "no fingerprint" if cached_fp is None else "dataset changed"
+            print(f"[validator] {name}: cache stale ({why}) — recomputing", flush=True)
+            return None
         return out
 
     def _save_stats(self, name, **kwargs):
-        """Save analysis results to stats_data/<name>.npz (skips None values)."""
+        """Save analysis results to stats_data/<name>.npz (skips None values),
+        stamped with the source dataset's fingerprint for cache invalidation."""
         os.makedirs(self.stats_dir, exist_ok=True)
         clean = {k: v for k, v in kwargs.items() if v is not None}
         if clean:
-            np.savez(os.path.join(self.stats_dir, f"{name}.npz"), **clean)
+            np.savez(os.path.join(self.stats_dir, f"{name}.npz"),
+                     _src_fp=self._source_fp(name), **clean)
 
     @staticmethod
     def _to_intensity(d, keys):
