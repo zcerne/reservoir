@@ -18,6 +18,7 @@ from plot_function_n4_harmonics_distortion import plot_n4_harmonics_distortion
 from plot_function_n5_volterra_series import plot_n5_volterra_series
 from plot_function_n6_dambre_ipc import plot_n6_dambre_ipc
 from plot_function_n7_dimension_expansion import plot_n7_dimension_expansion
+from plot_single_source_sweep import plot_single_source_amplitude_sweep
 
 
 class PlotMain:
@@ -84,6 +85,23 @@ class PlotMain:
                     print(f"[plot_main] {out}", flush=True)
                 except Exception as e:
                     print(f"[plot_main] {tag} FAILED: {e}", flush=True)
+
+        # --- single-source amplitude sweep ---
+        # Not a validator result (no R[...] key): single_source_sweep.py writes its
+        # own dataset, so load and plot it directly. The _meep variant is the same
+        # sweep run through MEEP, plotted alongside for cross-solver comparison.
+        for name, tag in (("single_source_sweep.npz", "sweep"),
+                          ("single_source_sweep_meep.npz", "sweep_meep")):
+            sweep = self.validator._load(name)
+            if sweep is None:
+                continue
+            try:
+                out = plot_single_source_amplitude_sweep(sweep, self.fig_dir,
+                                                         suffix=f"_{tag}")
+                self.saved.append(out)
+                print(f"[plot_main] {out}", flush=True)
+            except Exception as e:
+                print(f"[plot_main] {tag} FAILED: {e}", flush=True)
 
         # --- combined summary ---
         try:
