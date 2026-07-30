@@ -8,8 +8,12 @@ first `--t-first` t.u.); window k is T_rt later. Used for the pump ladder
 
     python analysis_T/echo_energies.py \
         data/memory_testing/decayamp_p150_R0.5_a* \
-        data/memory_testing/decay_p150_R0.5 \
-        --label-re 'a([0-9.]+)$|p150' --n-echoes 3
+        data/final_reservoir_comparison/05_adding_mirror \
+        --label-re 'a([0-9.]+)$|mirror' --n-echoes 3
+
+The amp-10 rung of the probe ladder is the characterized cavity itself, which
+lives in final_reservoir_comparison as the 05 entry (moved there 2026-07-30) —
+hence the two different globs above for what is one ladder.
 """
 from __future__ import annotations
 

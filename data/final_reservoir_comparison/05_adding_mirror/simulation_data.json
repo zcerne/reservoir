@@ -5,10 +5,10 @@
   "periodic": false,
   "pml_size": 2.0,
   "background_index": 1.5,
-  "run_until": 100.0,
+  "run_until": 300.0,
   "source_off_decay": 0.0,
   "dft_t_start": 0.0,
-  "dft_t_end": 200.0,
+  "dft_t_end": 600.0,
   "courant": 0.5,
   "fp": "fp64",
   "solver": "gpumeep",
@@ -23,7 +23,8 @@
     "monitor_1",
     "monitor_2",
     "pop_monitor",
-    "n2f_map"
+    "n2f_map",
+    "point_snap"
   ],
   "guide_1": {
     "class": "guide",
@@ -99,7 +100,7 @@
         0.0
       ]
     },
-    "amplitude": 200.0,
+    "amplitude": 150.0,
     "component": "Ez",
     "source_type": "continuous",
     "lam": 0.45,
@@ -160,9 +161,10 @@
       200.0
     ],
     "n_points": [
-      200,
+      2,
       200
-    ]
+    ],
+    "_comment": "| 2026-07-30: n_points 200x200 -> 2x200. The generators read only the LAST column (EH[-1,:]) and xs=linspace(cx-w/2,cx+w/2,nx) puts that column at the same x for nx=2 as for nx=200, so the readout is byte-identical while the far-field transform costs ~200x less (was ~40 min/sample)."
   },
   "mirror_1": {
     "_comment": "Quarter-wave DBR (SimpleSim Mirror object, added 2026-07-29): SiO2/TiO2 n=[1.46, 2.4] at the signal wavelength. reflectivity 0.5 -> 4 layers, achieved R = 0.576 (quantised upward; stored on the object). Two of these around the reservoir form the Fabry-Perot cavity for the memory-reservoir experiments; R is the memory-depth knob.",
@@ -179,5 +181,15 @@
     "n2": 2.4,
     "lam": 0.55,
     "reflectivity": 0.5
+  },
+  "point_snap": {
+    "_comment": "Ey time trace at a point in guide_2 (dt=0.1 -> ~5 samples per optical period): the lasing-threshold check. With the CW pump on the whole run, the field after the signal pulse must RING DOWN; growth or a plateau means net round-trip gain >= 1 (lasing) and the operating point is unusable as a memory reservoir.",
+    "class": "monitor",
+    "type": "0Dsnap",
+    "on_object": "guide_2",
+    "dt": 0.1,
+    "position": {
+      "position": "center"
+    }
   }
 }
