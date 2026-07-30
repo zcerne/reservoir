@@ -68,6 +68,8 @@ class PlotMain:
             ("n5_field",       plot_n5_volterra_series,      "n5_field"),
             ("n5_intensity",   plot_n5_volterra_series,      "n5_intensity"),
             ("n5",             plot_n5_volterra_series,      "n5"),
+            ("n6_field",       plot_n6_dambre_ipc,           "n6_field"),
+            ("n6_intensity",   plot_n6_dambre_ipc,           "n6_intensity"),
             ("n6",             plot_n6_dambre_ipc,           "n6"),
             ("n7_field",       plot_n7_dimension_expansion,  "n7_field"),
             ("n7_intensity",   plot_n7_dimension_expansion,  "n7_intensity"),

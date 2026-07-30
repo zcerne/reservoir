@@ -8,7 +8,9 @@ Dataset → method map (datasets produced by data_gen/generate_*_data.py):
     superposition.npz → n1  (+ its complex base pairs build the linear operator G for MODES)
     amp_sweep.npz     → n3
     harmonics.npz     → n4
-    ipc.npz           → n2, n5, n6   (Uniform[-1,1] probes; intensity readout)
+    ipc.npz           → n2, n5, n6   (Uniform[-1,1] probes; n6 reports BOTH
+                        the field and the intensity readout — they carry
+                        opposite parities, see dambre())
 
 MODES need the *field* operator G (linear); nonlinearity n2/n5/n6 use the ipc
 {inputs,outputs} set. Field outputs are squared to |E|² on demand for the
@@ -274,31 +276,47 @@ class Validator:
         self._save_stats("n5", n5=self.results["n5"])
         return self.results["n5"]
 
-    def dambre(self):
-        cached = self._load_stats("n6")
-        if cached is not None:
-            for k, v in cached.items(): self.results[k] = v
-            return cached.get("n6")
-        d = self._load("ipc.npz")
-        if d is None: return None
-        di = self._to_intensity(d, ("outputs",)) if np.iscomplexobj(d["outputs"]) else d
-        # IPC needs a WELL-DETERMINED readout: if the raw state has more channels F
-        # than probes M, the linear fit reconstructs any target perfectly (spurious
-        # capacity) and the significance threshold (~2F/M) then rejects everything →
-        # IPC=0. The physical state is low-rank anyway, so PCA-reduce to K≪M leading
-        # components (independent readout channels) before the Dambre estimate.
+    @staticmethod
+    def _reduce_state(di, label=""):
+        """IPC needs a WELL-DETERMINED readout: if the raw state has more channels F
+        than probes M, the linear fit reconstructs any target perfectly (spurious
+        capacity) and the significance threshold (~2F/M) then rejects everything →
+        IPC=0. The physical state is low-rank anyway, so PCA-reduce to K≪M leading
+        components (independent readout channels) before the Dambre estimate."""
         X = np.asarray(di["outputs"]); M = X.shape[0]; Xf = X.reshape(M, -1)
         F = Xf.shape[1]
-        if F >= M // 2:
-            Xc = Xf - Xf.mean(0, keepdims=True)
-            _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-            k = int(min(F, max(4, M // 4)))               # keep top-k, keep F < M/2
-            Xr = Xc @ Vt[:k].conj().T                      # (M, k) PCA scores
-            di = {**di, "outputs": Xr}
-            print(f"[validator] dambre: PCA-reduced state {F}→{k} channels (M={M} probes)", flush=True)
-        self.results["n6"] = n6.dambre_ipc(di, max_degree=3)
-        self._save_stats("n6", n6=self.results["n6"])
-        return self.results["n6"]
+        if F < M // 2:
+            return di
+        Xc = Xf - Xf.mean(0, keepdims=True)
+        _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+        k = int(min(F, max(4, M // 4)))                    # keep top-k, keep F < M/2
+        print(f"[validator] dambre{label}: PCA-reduced state {F}→{k} channels "
+              f"(M={M} probes)", flush=True)
+        return {**di, "outputs": Xc @ Vt[:k].conj().T}     # (M, k) PCA scores
+
+    def dambre(self):
+        d = self._load("ipc.npz")
+        if d is None: return None
+        is_cx = np.iscomplexobj(d["outputs"])
+        # Field and intensity see DIFFERENT halves of the spectrum: |E|² is even in
+        # the drive so it annihilates every odd (linear, cubic…) target, while the
+        # field is odd and annihilates the even ones. Reporting only the intensity
+        # view hides exactly the orders the medium contributes, so do both — same
+        # split as n1/n3/n4. (--component slices polarization; it does not choose
+        # the readout.)
+        keys = ("n6_field", "n6_intensity") if is_cx else ("n6",)
+        cached = self._load_stats("n6")
+        if cached is not None and all(k in cached for k in keys):
+            for k, v in cached.items(): self.results[k] = v
+            return cached.get(keys[-1])
+        variants = ([("n6_field", d),
+                     ("n6_intensity", self._to_intensity(d, ("outputs",)))]
+                    if is_cx else [("n6", d)])
+        for key, dv in variants:
+            self.results[key] = n6.dambre_ipc(
+                self._reduce_state(dv, f" {key.split('_')[-1]}"), max_degree=3)
+        self._save_stats("n6", **{k: self.results[k] for k, _ in variants})
+        return self.results[keys[-1]]
 
     def dimension_expansion(self):
         d = self._load("ipc.npz")
