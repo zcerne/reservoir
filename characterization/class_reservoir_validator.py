@@ -285,13 +285,20 @@ class Validator:
         components (independent readout channels) before the Dambre estimate."""
         X = np.asarray(di["outputs"]); M = X.shape[0]; Xf = X.reshape(M, -1)
         F = Xf.shape[1]
-        if F < M // 2:
+        # Reduce straight to the size the estimate actually wants (M//10, the same
+        # cap dambre_ipc would apply). Reducing only to M/4 and letting dambre_ipc
+        # subsample the scores afterwards is WRONG: it selects evenly spaced
+        # indices, which is right for spatial detectors but not for PCA scores —
+        # those are ordered by variance, so skipping leading components throws
+        # away the very modes carrying the linear response (03b deg1 fell 2.00 →
+        # 0.76 that way).
+        k = int(min(F, max(4, M // 10)))
+        if F <= k:
             return di
         Xc = Xf - Xf.mean(0, keepdims=True)
         _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-        k = int(min(F, max(4, M // 4)))                    # keep top-k, keep F < M/2
-        print(f"[validator] dambre{label}: PCA-reduced state {F}→{k} channels "
-              f"(M={M} probes)", flush=True)
+        print(f"[validator] dambre{label}: PCA-reduced state {F}→{k} leading "
+              f"channels (M={M} probes)", flush=True)
         return {**di, "outputs": Xc @ Vt[:k].conj().T}     # (M, k) PCA scores
 
     def dambre(self):
@@ -313,8 +320,11 @@ class Validator:
                      ("n6_intensity", self._to_intensity(d, ("outputs",)))]
                     if is_cx else [("n6", d)])
         for key, dv in variants:
-            self.results[key] = n6.dambre_ipc(
-                self._reduce_state(dv, f" {key.split('_')[-1]}"), max_degree=3)
+            dr = self._reduce_state(dv, f" {key.split('_')[-1]}")
+            # _reduce_state already sized the readout; opt out of dambre_ipc's own
+            # even-spaced cap so it cannot re-cut PCA scores out of variance order.
+            n_ch = np.asarray(dr["outputs"]).reshape(dr["inputs"].shape[0], -1).shape[1]
+            self.results[key] = n6.dambre_ipc(dr, max_degree=3, max_features=n_ch)
         self._save_stats("n6", **{k: self.results[k] for k, _ in variants})
         return self.results[keys[-1]]
 
