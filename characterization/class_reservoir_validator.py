@@ -81,6 +81,8 @@ class Validator:
 
     @classmethod
     def _resolve_datasets(cls, reservoir_path):
+        """The design's primary datasets dir (first one holding data). Individual
+        files are still resolved per-file by `_dataset_path`."""
         local = os.path.join(reservoir_path, "datasets")
         if cls._has_data(local):
             return local
@@ -91,9 +93,28 @@ class Validator:
                 return ds
         return local  # keep local for clear "missing" messages
 
+    def _dataset_path(self, name):
+        """Locate ONE dataset, searching the primary dir and then every mirror.
+        Resolution is per FILE, not per directory, so a design whose data is
+        split across machines — say ipc.npz already synced here while
+        harmonics.npz is still only on the cluster — still analyses completely."""
+        primary = os.path.join(self.datasets, name)
+        if os.path.exists(primary):
+            return primary
+        seen = {os.path.abspath(primary)}
+        for cand in self._mirror_candidates(self.path):
+            p = os.path.join(cand, "datasets", name)
+            if os.path.abspath(p) in seen:
+                continue
+            seen.add(os.path.abspath(p))
+            if os.path.exists(p):
+                print(f"[validator] {name} ← {os.path.dirname(p)}", flush=True)
+                return p
+        return primary  # keep primary for clear "missing" messages
+
     # ------------------------------------------------------------------ io
     def _load(self, name):
-        p = os.path.join(self.datasets, name)
+        p = self._dataset_path(name)
         d = dict(np.load(p, allow_pickle=True)) if os.path.exists(p) else None
         return self._slice_component(d) if d is not None else None
 
