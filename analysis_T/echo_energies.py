@@ -7,8 +7,8 @@ first `--t-first` t.u.); window k is T_rt later. Used for the pump ladder
 (gain vs pump) and the probe-amplitude ladder (saturation: E1/E0, E2/E1 vs amp).
 
     python analysis_T/echo_energies.py \
-        data/lasing_testing/05_adding_mirror/decayamp_p150_R0.5_a* \
-        data/lasing_testing/05_adding_mirror/decay_p150_R0.5 \
+        data/memory_testing/decayamp_p150_R0.5_a* \
+        data/memory_testing/decay_p150_R0.5 \
         --label-re 'a([0-9.]+)$|p150' --n-echoes 3
 """
 from __future__ import annotations

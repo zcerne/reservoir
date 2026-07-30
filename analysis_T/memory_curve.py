@@ -8,7 +8,7 @@ split. The input sequence is rebuilt exactly via symbols_source.symbol_sequence
 (same seed, same n_sym as the run used) — nothing about u(n) is stored on disk.
 
     python analysis_T/memory_curve.py \
-        --base data/lasing_testing/05_adding_mirror --out memory_curve
+        --base data/memory_testing --out memory_curve
 
 Feature vector per symbol window: mean of the |Ey|^2 envelope plus `--taps`
 sub-window means (envelope = Ey^2 smoothed over ~2 optical periods).
@@ -89,7 +89,7 @@ def ridge_m(X, y, alpha, train_frac=0.7, seed=0):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--base", default="data/lasing_testing/05_adding_mirror")
+    ap.add_argument("--base", default="data/memory_testing")
     ap.add_argument("--taps", type=int, default=8)
     ap.add_argument("--washout", type=int, default=3,
                     help="symbol windows discarded at the start of each run")

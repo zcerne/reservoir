@@ -1,0 +1,180 @@
+{
+  "_comment": "05_adding_mirror: 03b_isotropic_ds (the cleaned isotropic twin of 03, dlam matched to 04) plus two R=0.5 DBR mirrors flanking the reservoir -> Fabry-Perot cavity. Created 2026-07-29. cell_size_y removed 2026-07-29 (user): auto-derive -> tallest object (reservoir, 10) + 2*pml = 14 instead of the inherited 20, cutting ~30% of grid rows that were vacuum margin.",
+  "resolution": 40,
+  "dimention": 2,
+  "periodic": false,
+  "pml_size": 2.0,
+  "background_index": 1.5,
+  "run_until": 1600.0,
+  "source_off_decay": 0.0,
+  "dft_t_start": 0.0,
+  "dft_t_end": 1600.0,
+  "courant": 0.5,
+  "fp": "fp64",
+  "solver": "gpumeep",
+  "object_order": [
+    "guide_1",
+    "reservoir",
+    "guide_2",
+    "source_1",
+    "source_pump",
+    "monitor_1",
+    "monitor_2",
+    "pop_monitor",
+    "n2f_map",
+    "point_snap"
+  ],
+  "guide_1": {
+    "class": "guide",
+    "index": 1.5,
+    "sizes": [
+      0.5,
+      10.0
+    ]
+  },
+  "reservoir": {
+    "_comment": "Isotropic dye-doped medium: uniform n=1.5, no LC constants, no relaxation, no lc_fields.npz; gain via the sted block, now genuinely PUMP-DRIVEN (see sted.N1_0/N3_0 below) via source_pump instead of pre-inverted.",
+    "class": "reservoir",
+    "isotropic": true,
+    "n": 1.5,
+    "sizes": [
+      30,
+      10
+    ],
+    "resolution": 10,
+    "sted": {
+      "_comment": "4-level dye starting in the GROUND state (N1_0=30, N3_0=0) -- source_pump (Ez, absorption line lbdA=0.45) must genuinely drive population 1->4->3 to build any inversion, instead of the old pre-inverted N3_0=30/N1_0=0 shortcut that left the pump with nothing to do.",
+      "enabled": true,
+      "lbdA": 0.45,
+      "gammaA": 0.1,
+      "lbdE": 0.55,
+      "gammaE": 0.1,
+      "SGMA": 0.006,
+      "N1_0": 0.0,
+      "N3_0": 30.0,
+      "rate_43": 10.0,
+      "rate_21": 100.0
+    }
+  },
+  "guide_2": {
+    "class": "guide",
+    "index": 1.5,
+    "sizes": [
+      1.0,
+      10.0
+    ]
+  },
+  "source_1": {
+    "_comment": "memory-curve drive: u(n)~U(amp_range) held 95 t.u. (measured T_rt), regen from seed",
+    "class": "source",
+    "position": {
+      "on_object": "guide_1",
+      "position": "left",
+      "size": [
+        0.0,
+        10.0,
+        0.0
+      ]
+    },
+    "amplitude": [
+      10.0,
+      10.0
+    ],
+    "component": "Ey",
+    "source_type": "symbols",
+    "lam": 0.55,
+    "symbol_length": 95.0,
+    "amp_range": [
+      0.5,
+      1.5
+    ],
+    "seed": 1
+  },
+  "source_pump": {
+    "_comment": "Uniform 2D-area CW pump filling the reservoir's own footprint (not a guided line source like source_1) at the dye's absorption line lbdA=0.45 -- Ez polarization, orthogonal to source_1's guided Ey signal at the emission line lbdE=0.55, so pump and probe don't directly interfere in the FDTD fields. Drives real N1->N3 population transfer from a genuine ground-state start (sted.N1_0=30/N3_0=0). amplitude=200 (2026-07-24, per user request) -- between amp=100 (gradual buildup, ~35-57% inversion over 100-200 units) and amp=1000 (near-instant ~98% saturation by t~20), so this should show an intermediate, still-visible buildup curve.",
+    "class": "source",
+    "position": {
+      "on_object": "reservoir",
+      "position": "center",
+      "size": [
+        30.0,
+        10.0,
+        0.0
+      ]
+    },
+    "amplitude": 150.0,
+    "component": "Ez",
+    "source_type": "continuous",
+    "lam": 0.45,
+    "dlam": 0.0
+  },
+  "monitor_1": {
+    "_comment": "input sensor, middle of guide_1",
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_1",
+    "position": {
+      "position": "center",
+      "size": 10.0
+    },
+    "lam_range": [
+      0.4,
+      0.6
+    ],
+    "n_lam": 61
+  },
+  "monitor_2": {
+    "_comment": "output sensor, middle of guide_2",
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_2",
+    "position": {
+      "position": "center",
+      "size": 10.0
+    },
+    "lam_range": [
+      0.4,
+      0.6
+    ],
+    "n_lam": 61
+  },
+  "pop_monitor": {
+    "_comment": "Atom-level sensor: saves N(t) for all 4 dye levels over the reservoir; snap_interval in MEEP time units (1 unit = 3.336 fs)",
+    "class": "monitor",
+    "type": "population",
+    "on_object": "reservoir",
+    "snap_interval": 0
+  },
+  "n2f_map": {
+    "class": "monitor",
+    "type": "near2far",
+    "on_object": "guide_2",
+    "position": {
+      "position": "right",
+      "size": 8.0
+    },
+    "lam": 0.55,
+    "center": [
+      200.0,
+      0.0
+    ],
+    "size": [
+      200.0,
+      200.0
+    ],
+    "n_points": [
+      200,
+      200
+    ]
+  },
+  "point_snap": {
+    "_comment": "Ey time trace at a point in guide_2 (dt=0.1 -> ~5 samples per optical period): the lasing-threshold check. With the CW pump on the whole run, the field after the signal pulse must RING DOWN; growth or a plateau means net round-trip gain >= 1 (lasing) and the operating point is unusable as a memory reservoir.",
+    "class": "monitor",
+    "type": "0Dsnap",
+    "on_object": "guide_2",
+    "dt": 0.1,
+    "position": {
+      "position": "center"
+    }
+  }
+}
