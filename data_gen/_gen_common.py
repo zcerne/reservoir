@@ -151,6 +151,18 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
                                   overrides=ov)
         sim.relax()
         sim.run(empty=False)
+        # MEEP writes monitor and near2far output from the MASTER rank only, so
+        # a non-master rank has nothing to read back. Every rank still has to
+        # run the FDTD above (it is an MPI collective), but only master's return
+        # value is ever used — save_part() discards the others. Without this
+        # guard each non-master rank raises FileNotFoundError on
+        # <sensor>_<tag>.npz, some die, the survivors block in the next
+        # collective, and the job deadlocks: observed 2026-07-30 on the 05
+        # amp_sweep, one item written in 2h44m with 16 ranks pinned at 100%.
+        # (single_source_sweep escaped it only because monitor_2 is written by
+        # every rank.)
+        if not is_master:
+            return None
         if with_extras:
             forward.extras = _load_extras(out_dir, out_sensor, suffix)
         if out_sensor:
