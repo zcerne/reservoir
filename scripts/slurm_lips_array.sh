@@ -3,7 +3,7 @@
 #SBATCH --partition=F5-gpu
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=72
 #SBATCH --mem=100G
 #SBATCH --time=8:00:00
 #SBATCH --output=/project/cerneziga/reservoir_runs/slurm_%A_%a.log
