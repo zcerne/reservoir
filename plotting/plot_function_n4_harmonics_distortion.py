@@ -31,8 +31,8 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     """
     has_spec = "spec_nu" in res and len(np.asarray(res["spec_nu"])) > 0
     fund_p = float(res["power_by_kind"].get("fundamental", 0.0))
-    norm = fund_p if (normalize and fund_p > 0) else 1.0
-    unit = " / fundamental" if norm != 1.0 else ""
+    norm = (fund_p / 100.0) if (normalize and fund_p > 0) else 1.0
+    unit = " [% of fundamental]" if norm != 1.0 else ""
     n_bot = 3 if data is not None else 2
     if has_spec:
         fig = plt.figure(figsize=(5.0 * n_bot + 1.0, 8.0))
@@ -69,7 +69,7 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
                               xytext=(0, 4), ha="center", fontsize=7.5)
         ax_s.set_yscale("log")
         if norm != 1.0:
-            ax_s.set_ylim(1e-9, 30.0)
+            ax_s.set_ylim(1e-7, 3000.0)
         else:
             ax_s.set_ylim(floor, pmax * 12)
         ax_s.set_xlim(-0.7, nu_max + 0.7)
@@ -90,7 +90,11 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     ax1.bar(kinds, np.maximum(vals, kfloor), color=[KIND_COLOR[k] for k in kinds])
     ax1.set_yscale("log")
     if norm != 1.0:
-        ax1.set_ylim(1e-9, 30.0)
+        ax1.set_ylim(1e-7, 3000.0)
+        for x, v in enumerate(vals):
+            if v > 0:
+                ax1.annotate(f"{v:.3g}%", (x, v), textcoords="offset points",
+                             xytext=(0, 3), ha="center", fontsize=7.5)
     ax1.set_ylabel("power" + unit)
     ax1.set_title("power by kind")
     ax1.tick_params(axis="x", rotation=30)
@@ -103,7 +107,11 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
     ax2.bar([str(o) for o in orders], np.maximum(ovals, ofloor), color="C1")
     ax2.set_yscale("log")
     if norm != 1.0:
-        ax2.set_ylim(1e-9, 30.0)
+        ax2.set_ylim(1e-7, 3000.0)
+        for x, v in enumerate(ovals):
+            if v > 0:
+                ax2.annotate(f"{v:.3g}%", (x, v), textcoords="offset points",
+                             xytext=(0, 3), ha="center", fontsize=7.5)
     ax2.set_xlabel("order")
     ax2.set_ylabel("power" + unit)
     ax2.set_title(f"power by order (max nonlinear order = {res['max_order']})")
@@ -123,8 +131,8 @@ def plot_n4_harmonics_distortion(res: dict, fig_dir: str | Path, suffix: str = "
 
     verdict = "LINEAR" if res["linear"] else f"NONLINEAR (order {res['max_order']})"
     fig.suptitle(f"Harmonic/intermod distortion (Method D) | tones={res['tones']} | "
-                 f"THD={res['thd']:.2e}  IMD={res['imd']:.2e}  "
-                 f"distortion_frac={res['distortion_frac']:.2e} -> {verdict}",
+                 f"THD={100 * res['thd']:.2f}%  IMD={100 * res['imd']:.2f}%  "
+                 f"distortion_frac={100 * res['distortion_frac']:.2f}% -> {verdict}",
                  fontsize=10)
     fig.tight_layout(rect=(0, 0, 1, 0.97) if ax_s is not None else None)
     out = Path(fig_dir) / f"n4_harmonics_distortion{suffix}.png"
