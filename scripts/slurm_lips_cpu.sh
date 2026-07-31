@@ -77,10 +77,19 @@ export SIMPLESIM_SCRATCH_TAG="cpu${SLURM_ARRAY_JOB_ID:-0}_${SLURM_ARRAY_TASK_ID:
 # the result under mpirun before declaring success.
 # Then either export RES_PY to its python, or edit the default below.
 PY=${RES_PY:-/project/cerneziga/mamba_x86/envs/pmp/bin/python}
-MPI=${RES_MPI:-mpirun}
+# mpirun from the SAME env as python, not whatever is on PATH (usually nothing
+# on these nodes). It also has to be this one: pymeep is built against the
+# mpich in that env, and launching it with a different MPI gives either
+# "command not found" or, worse, ranks that never form a communicator.
+MPI=${RES_MPI:-$(dirname "$PY")/mpirun}
 if [ ! -x "$PY" ]; then
     echo "no x86_64 python at $PY -- see the env-build notes at the top of this"
     echo "script; the aarch64 'opt' env from F5-gpu will not run on this node."
+    exit 1
+fi
+if [ ! -x "$MPI" ]; then
+    echo "no mpirun at $MPI -- expected it beside python in the same env."
+    echo "Set RES_MPI, or check the env was built with the mpich package."
     exit 1
 fi
 
