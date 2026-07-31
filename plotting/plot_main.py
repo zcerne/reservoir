@@ -26,12 +26,18 @@ class PlotMain:
 
     def __init__(self, reservoir_path: str, fig_dir: str | None = None,
                  skip_cached: bool = False, component: str | None = None,
-                 max_order: int = 6, rel_thresh: float = 1e-9):
+                 max_order: int = 6, rel_thresh: float = 1e-9,
+                 suffix: str = ""):
         self.path = reservoir_path
         self.fig_dir = Path(fig_dir) if fig_dir else Path(reservoir_path) / "figures"
         self.skip_cached = skip_cached
+        # dataset-variant suffix ("_a10"): the validator resolves every
+        # canonical name as <stem><suffix>.npz, and every figure/stats file
+        # carries the same suffix, so variants never overwrite the originals.
+        self.suffix = str(suffix or "")
         self.validator = Validator(reservoir_path, component=component,
-                                   max_order=max_order, rel_thresh=rel_thresh)
+                                   max_order=max_order, rel_thresh=rel_thresh,
+                                   suffix=self.suffix)
         self.saved: list[Path] = []
 
     # ------------------------------------------------------------------- dispatch
@@ -84,7 +90,8 @@ class PlotMain:
                 try:
                     kw = ({"data": harm_data}
                           if key.startswith("n4") and harm_data is not None else {})
-                    out = fn(R[key], self.fig_dir, suffix=f"_{tag}", **kw)
+                    out = fn(R[key], self.fig_dir,
+                             suffix=f"{self.suffix}_{tag}", **kw)
                     self.saved.append(out)
                     print(f"[plot_main] {out}", flush=True)
                 except Exception as e:
@@ -100,8 +107,8 @@ class PlotMain:
             if sweep is None:
                 continue
             try:
-                out = plot_single_source_amplitude_sweep(sweep, self.fig_dir,
-                                                         suffix=f"_{tag}")
+                out = plot_single_source_amplitude_sweep(
+                    sweep, self.fig_dir, suffix=f"{self.suffix}_{tag}")
                 self.saved.append(out)
                 print(f"[plot_main] {out}", flush=True)
             except Exception as e:
@@ -257,11 +264,13 @@ class PlotMain:
 
     # ------------------------------------------------------------------- helpers
     def _dataset_tag(self) -> str:
-        """Short tag from the datasets path for filenames."""
+        """Short tag from the datasets path for filenames. The dataset-variant
+        suffix rides along so e.g. summary_05_adding_mirror_a10.png sits next
+        to the drive-1 summary instead of replacing it."""
         ds = str(self.validator.datasets)
         # e.g. ".../data/lasing_testing/02_adding_pump/datasets" → "02_adding_pump"
         parts = ds.replace("/datasets", "").rstrip("/").split("/")
-        return parts[-1] if parts else "unknown"
+        return (parts[-1] if parts else "unknown") + self.suffix
 
 
 # ====================================================================== __main__
@@ -283,9 +292,14 @@ if __name__ == "__main__":
                          "count as numerical zero (default 1e-9)")
     ap.add_argument("--skip-cached", action="store_true",
                     help="re-run all analyses, ignore cached stats_data/")
+    ap.add_argument("--suffix", default="",
+                    help="dataset-variant suffix, e.g. _a10: every canonical "
+                         "dataset resolves as <stem><suffix>.npz (harmonics_a10"
+                         ".npz, ipc_a10.npz, ...) and figures/stats carry the "
+                         "same suffix, so drive variants live side by side")
     args = ap.parse_args()
     pm = PlotMain(args.path, fig_dir=args.fig_dir, skip_cached=args.skip_cached,
                   component=args.component, max_order=args.max_order,
-                  rel_thresh=args.rel_thresh)
+                  rel_thresh=args.rel_thresh, suffix=args.suffix)
     saved = pm.run()
     print(f"\n[done] {len(saved)} figures saved to {pm.fig_dir}", flush=True)

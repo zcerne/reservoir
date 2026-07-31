@@ -38,7 +38,7 @@ import n7_dimention_expansion as n7
 
 class Validator:
     def __init__(self, reservoir_path, component=None, max_order=6,
-                 rel_thresh=1e-9):
+                 rel_thresh=1e-9, suffix=""):
         #: restrict analysis to ONE stored polarization (e.g. "Ey"). Datasets
         #: written with --components Ex,Ey,Ez concatenate equal-width blocks
         #: and record the order in their `components` key; without slicing,
@@ -54,6 +54,12 @@ class Validator:
         self.max_order = int(max_order)
         #: bins below this fraction of total power count as numerical zero
         self.rel_thresh = float(rel_thresh)
+        #: dataset-variant suffix, e.g. "_a10": every canonical dataset name
+        #: is looked up as <stem><suffix>.npz (harmonics_a10.npz, ipc_a10.npz,
+        #: …) and the stats cache is kept per-suffix. Lets one design carry
+        #: parallel dataset sets (different drive amplitudes) that analyse and
+        #: plot through the same machinery instead of one-off scripts.
+        self.suffix = str(suffix or "")
         self.path = reservoir_path
         self.datasets = self._resolve_datasets(reservoir_path)
         self.stats_dir = os.path.join(reservoir_path, "stats_data")
@@ -137,7 +143,12 @@ class Validator:
         """Locate ONE dataset, searching the primary dir and then every mirror.
         Resolution is per FILE, not per directory, so a design whose data is
         split across machines — say ipc.npz already synced here while
-        harmonics.npz is still only on the cluster — still analyses completely."""
+        harmonics.npz is still only on the cluster — still analyses completely.
+        `self.suffix` is applied here, the single choke point every dataset
+        read goes through — callers keep using canonical names."""
+        if self.suffix:
+            stem, ext = os.path.splitext(name)
+            name = f"{stem}{self.suffix}{ext}"
         primary = os.path.join(self.datasets, name)
         if self._guard(lambda: os.path.exists(primary), False):
             return primary
@@ -224,7 +235,7 @@ class Validator:
         dataset they were computed from has changed. Each stored value is an
         analysis-result dict; np.savez wraps it as a 0-d object array, so unwrap
         with .item() to recover the nested dict (power_by_order, gain_by_order, …)."""
-        p = os.path.join(self.stats_dir, f"{name}.npz")
+        p = os.path.join(self.stats_dir, f"{name}{self.suffix}.npz")
         if not os.path.exists(p):
             return None
         raw = np.load(p, allow_pickle=True)
@@ -246,7 +257,7 @@ class Validator:
         os.makedirs(self.stats_dir, exist_ok=True)
         clean = {k: v for k, v in kwargs.items() if v is not None}
         if clean:
-            np.savez(os.path.join(self.stats_dir, f"{name}.npz"),
+            np.savez(os.path.join(self.stats_dir, f"{name}{self.suffix}.npz"),
                      _src_fp=self._source_fp(name), **clean)
 
     @staticmethod
