@@ -70,17 +70,11 @@ export SIMPLESIM_SCRATCH_TAG="cpu${SLURM_ARRAY_JOB_ID:-0}_${SLURM_ARRAY_TASK_ID:
 #
 # Build an x86_64 env once, on /project so every node sees it:
 #
-#   srun -p F5 -N1 -n8 --pty bash                     # get on an x86_64 node
-#   cd /project/cerneziga
-#   curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
-#       | tar -xvj bin/micromamba && mv bin/micromamba micromamba-x86
-#   export MAMBA_ROOT_PREFIX=/project/cerneziga/mamba_x86
-#   ./micromamba-x86 create -y -p $MAMBA_ROOT_PREFIX/envs/cpu -c conda-forge \
-#       python=3.11 "pymeep=*=mpi_mpich_*" mpich numpy scipy h5py matplotlib
-#   $MAMBA_ROOT_PREFIX/envs/cpu/bin/pip install "jax[cpu]"
+#   sbatch scripts/lips_build_cpu_env.sh
 #
-# pymeep must be the mpi_mpich_ build -- the plain one is serial and mpirun
-# would silently run N independent copies of the same simulation.
+# That is a batch job, not an interactive session: it must run ON an F5 node so
+# the micromamba binary and every package resolve for x86_64, and it verifies
+# the result under mpirun before declaring success.
 # Then either export RES_PY to its python, or edit the default below.
 PY=${RES_PY:-/project/cerneziga/mamba_x86/envs/cpu/bin/python}
 MPI=${RES_MPI:-mpirun}
