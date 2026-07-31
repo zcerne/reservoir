@@ -62,8 +62,33 @@ export XLA_FLAGS="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_thread
 # per-task scratch, or concurrent array tasks overwrite each other's monitor npz
 export SIMPLESIM_SCRATCH_TAG="cpu${SLURM_ARRAY_JOB_ID:-0}_${SLURM_ARRAY_TASK_ID:-0}"
 
-PY=/project/cerneziga/micromamba/envs/opt/bin/python
-MPI=mpirun
+# !! THIS PARTITION NEEDS ITS OWN ENV !!
+# /project/cerneziga/micromamba/envs/opt is an **aarch64** build (verified from
+# its ELF header, e_machine=0xb7) because it was made for the GH200 nodes on
+# F5-gpu. f02..f07 are x86_64 AMD zen-4, so that env cannot execute here at all
+# -- not a version mismatch, a different instruction set.
+#
+# Build an x86_64 env once, on /project so every node sees it:
+#
+#   srun -p F5 -N1 -n8 --pty bash                     # get on an x86_64 node
+#   cd /project/cerneziga
+#   curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest \
+#       | tar -xvj bin/micromamba && mv bin/micromamba micromamba-x86
+#   export MAMBA_ROOT_PREFIX=/project/cerneziga/mamba_x86
+#   ./micromamba-x86 create -y -p $MAMBA_ROOT_PREFIX/envs/cpu -c conda-forge \
+#       python=3.11 "pymeep=*=mpi_mpich_*" mpich numpy scipy h5py matplotlib
+#   $MAMBA_ROOT_PREFIX/envs/cpu/bin/pip install "jax[cpu]"
+#
+# pymeep must be the mpi_mpich_ build -- the plain one is serial and mpirun
+# would silently run N independent copies of the same simulation.
+# Then either export RES_PY to its python, or edit the default below.
+PY=${RES_PY:-/project/cerneziga/mamba_x86/envs/cpu/bin/python}
+MPI=${RES_MPI:-mpirun}
+if [ ! -x "$PY" ]; then
+    echo "no x86_64 python at $PY -- see the env-build notes at the top of this"
+    echo "script; the aarch64 'opt' env from F5-gpu will not run on this node."
+    exit 1
+fi
 
 METHOD=${1:?usage: sbatch --array=0-(N-1) scripts/slurm_lips_cpu.sh <method> <design_dir> [args]}
 DESIGN=${2:?usage: ... <method> <design_dir> [args]}
