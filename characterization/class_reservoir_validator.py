@@ -159,20 +159,33 @@ class Validator:
         return self._slice_component(d) if d is not None else None
 
     def _slice_component(self, d):
-        """Cut one polarization's block out of every output-like array."""
+        """Keep only the requested polarizations in every output-like array.
+
+        `component` may name one ("Ey") or several ("Ex,Ey"). Selecting a subset
+        is not cosmetic on the pumped designs: the far field is ~42% Ez, which
+        the Ey (TE) signal cannot excite in 2D — it is the Ez pump re-radiated
+        at the signal wavelength by the dye, whose emission couples all three
+        components. Ez also obeys the opposite parity to the field channels
+        (measured on 05: Ez carries deg2=3.00 with deg1=deg3=0, while Ex/Ey
+        carry deg1=2.00 and deg3=3.97 with deg2~0.3), so mixing it in changes
+        which orders the analysis reports.
+        """
         if not self.component or "components" not in d:
             return d
         comps = [str(c) for c in np.asarray(d["components"]).reshape(-1)]
-        if self.component not in comps or len(comps) < 2:
+        want = [c.strip() for c in str(self.component).split(",") if c.strip()]
+        keep = [c for c in want if c in comps]
+        if not keep or len(comps) < 2 or len(keep) == len(comps):
             return d
-        k = comps.index(self.component)
+        idx = [comps.index(c) for c in keep]
         out = dict(d)
         for key in ("outputs", "out1", "out2", "out_combo"):
             if key in out:
                 a = np.asarray(out[key])
                 n = a.shape[-1] // len(comps)
-                out[key] = a[..., k * n:(k + 1) * n]
-        out["components"] = np.asarray([self.component])
+                out[key] = np.concatenate([a[..., k * n:(k + 1) * n]
+                                           for k in idx], axis=-1)
+        out["components"] = np.asarray(keep)
         return out
 
     #: dataset each cached stats file is computed from. The cache MUST invalidate
@@ -196,6 +209,12 @@ class Validator:
             fp = f"{os.path.realpath(p)}|{st.st_size}|{int(st.st_mtime)}"
         except OSError:
             return ""
+        # The polarization slice changes EVERY analysis, not just n4: reading
+        # Ex,Ey instead of Ey moves the cavity's degree-2 IPC from 0.30 to 2.99,
+        # because the pump-fed Ez channel carries the even orders on its own.
+        # Without this the second run silently replays the first one's numbers.
+        if self.component:
+            fp += f"|comp={self.component}"
         if name.split("_")[0] == "n4":
             fp += f"|mo={self.max_order}|rt={self.rel_thresh:g}"
         return fp
