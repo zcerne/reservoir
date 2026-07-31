@@ -70,13 +70,13 @@ export SIMPLESIM_SCRATCH_TAG="cpu${SLURM_ARRAY_JOB_ID:-0}_${SLURM_ARRAY_TASK_ID:
 #
 # Build an x86_64 env once, on /project so every node sees it:
 #
-#   sbatch scripts/lips_build_cpu_env.sh
+#   sbatch scripts/lips_build_pmp_env.sh
 #
 # That is a batch job, not an interactive session: it must run ON an F5 node so
 # the micromamba binary and every package resolve for x86_64, and it verifies
 # the result under mpirun before declaring success.
 # Then either export RES_PY to its python, or edit the default below.
-PY=${RES_PY:-/project/cerneziga/mamba_x86/envs/cpu/bin/python}
+PY=${RES_PY:-/project/cerneziga/mamba_x86/envs/pmp/bin/python}
 MPI=${RES_MPI:-mpirun}
 if [ ! -x "$PY" ]; then
     echo "no x86_64 python at $PY -- see the env-build notes at the top of this"

@@ -1,15 +1,15 @@
 #!/usr/bin/bash -l
-#SBATCH --job-name=build_cpu_env
+#SBATCH --job-name=build_pmp
 #SBATCH --partition=F5
 #SBATCH --nodes=1
 #SBATCH --ntasks=4
 #SBATCH --time=2:00:00
 #SBATCH --mem=32G
-#SBATCH --output=/project/cerneziga/reservoir_runs/build_cpu_env_%j.log
+#SBATCH --output=/project/cerneziga/reservoir_runs/build_pmp_env_%j.log
 #
 # Build the x86_64 MEEP environment the F5 partition needs.
 #
-#   sbatch scripts/lips_build_cpu_env.sh
+#   sbatch scripts/lips_build_pmp_env.sh
 #
 # Submitted as a batch job on purpose: it has to run ON an F5 node so both the
 # micromamba binary and every package resolve for the right architecture, and
@@ -26,7 +26,7 @@ set -e
 cd /project/cerneziga
 
 PREFIX=/project/cerneziga/mamba_x86
-ENVDIR=$PREFIX/envs/cpu
+ENVDIR=$PREFIX/envs/pmp
 
 echo "=== node $(hostname), arch $(uname -m), $(date)"
 if [ "$(uname -m)" != "x86_64" ]; then
