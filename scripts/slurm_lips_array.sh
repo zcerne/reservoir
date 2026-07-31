@@ -18,9 +18,13 @@
 #
 #   method = superposition | harmonics | ampsweep | ipc | balance
 #
-# Partition: F5 — 2 x H200 nodes (user, 2026-07-29; not documented anywhere yet,
-# and NOT the GH200/Grace hardware my older notes describe). Only 2 nodes, so
-# cap array concurrency at %2; anything higher just queues. H200 is a normal
+# Partition: F5-gpu — 2 GPU nodes, h01/h02 (confirmed 2026-07-31 from a running
+# job's logs: "NVIDIA GH20..", nodes h01 and h02). Only 2, so cap array
+# concurrency at %2; anything higher just queues.
+#
+# Do NOT confuse this with the plain F5 partition, which is f02..f07 — six
+# 128-thread AMD nodes with Gres=(null), i.e. no GPUs at all. Those are for
+# MEEP/CPU work and have their own script, scripts/slurm_lips_cpu.sh. H200 is a normal
 # x86_64 host, so ordinary x86 CUDA wheels apply — none of the aarch64 caveats
 # that apply to the grace partition.
 #
