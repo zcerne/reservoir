@@ -1,0 +1,143 @@
+{
+  "_comment": "4-SOURCE IPC variant of 05_cav_unpumped (unpumped ground-state absorber, lam 0.55 on both transitions, N1_0=3 -> 70% transmission). Created 2026-07-31 (user: IPC runs should be for 4 sources). Identical physics to the parent; only the strip count and the dropped time sensors differ, so its IPC is directly comparable with 03b/04/06 while the parent keeps the 2-source harmonics that pair with the pumped cavity.",
+  "resolution": 40,
+  "dimention": 2,
+  "periodic": false,
+  "pml_size": 2.0,
+  "background_index": 1.5,
+  "run_until": 300.0,
+  "source_off_decay": 0.0,
+  "dft_t_start": 0.0,
+  "dft_t_end": 600.0,
+  "courant": 0.5,
+  "fp": "fp64",
+  "solver": "gpumeep",
+  "object_order": [
+    "guide_1",
+    "mirror_1",
+    "reservoir",
+    "mirror_2",
+    "guide_2",
+    "source_1",
+    "monitor_2",
+    "n2f_map"
+  ],
+  "guide_1": {
+    "class": "guide",
+    "index": 1.5,
+    "sizes": [
+      0.5,
+      10.0
+    ]
+  },
+  "reservoir": {
+    "_comment": "Isotropic dye-doped medium: uniform n=1.5, no LC constants, no relaxation, no lc_fields.npz; gain via the sted block, now genuinely PUMP-DRIVEN (see sted.N1_0/N3_0 below) via source_pump instead of pre-inverted.",
+    "class": "reservoir",
+    "isotropic": true,
+    "n": 1.5,
+    "sizes": [
+      30,
+      10
+    ],
+    "resolution": 10,
+    "sted": {
+      "_comment": "All population starts in the GROUND state (level 1) with no pump: initial_populations = [N1_0, 0, N3_0, 0] = [3, 0, 0, 0]. Absorption (1->4) and emission (3->2) are both at lam 0.55, so the dye sits on the signal line and, with no inversion, is a resonant ABSORBER at the probe wavelength. N1_0 was cut 30 -> 3 on 2026-07-31 after measurement: at 30 the cavity passed only 4.9% of the passive signal AND bleached least (0.08% ground-state depletion at amp 10, vs 0.33% at N1_0=3), because transmission depends on the product SGMA*N1_0 while depletion per molecule rises as the dye thins. N1_0=3 gives 70% transmission and the stronger saturable-absorber response -- both knobs improve together.",
+      "enabled": true,
+      "lbdA": 0.55,
+      "gammaA": 0.1,
+      "lbdE": 0.55,
+      "gammaE": 0.1,
+      "SGMA": 0.006,
+      "N1_0": 3.0,
+      "N3_0": 0.0,
+      "rate_43": 10.0,
+      "rate_21": 100.0
+    }
+  },
+  "guide_2": {
+    "class": "guide",
+    "index": 1.5,
+    "sizes": [
+      1.0,
+      10.0
+    ]
+  },
+  "source_1": {
+    "_comment": "Four independent 2.5um y-strips at amplitude 100 (return_quadrosource splits a 4-element list), not the 2 of 5um the parent uses. IPC is measured with 4 inputs across the whole comparison -- 03b_iso_4src, 04_LC_4src, 06_random_NN -- because Dambre capacity saturates at the input dimension, so a 2-source run reports deg1=2.00 and a total pinned by the drive rather than by the reservoir. Amplitude 100 because this absorber's nonlinearity grows as amplitude^2 and is only 0.003% at the drive the generators default to.",
+    "class": "source",
+    "position": {
+      "on_object": "guide_1",
+      "position": "left",
+      "size": [
+        0.0,
+        10.0,
+        0.0
+      ]
+    },
+    "amplitude": [
+      100.0,
+      100.0,
+      100.0,
+      100.0
+    ],
+    "component": "Ey",
+    "source_type": "gaussian",
+    "lam": 0.55,
+    "dlam": 0.1,
+    "start_time": 0.0
+  },
+  "monitor_2": {
+    "_comment": "output sensor, middle of guide_2",
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_2",
+    "position": {
+      "position": "center",
+      "size": 10.0
+    },
+    "lam_range": [
+      0.4,
+      0.6
+    ],
+    "n_lam": 61
+  },
+  "n2f_map": {
+    "class": "monitor",
+    "type": "near2far",
+    "on_object": "guide_2",
+    "position": {
+      "position": "right",
+      "size": 8.0
+    },
+    "lam": 0.55,
+    "center": [
+      200.0,
+      0.0
+    ],
+    "size": [
+      200.0,
+      200.0
+    ],
+    "n_points": [
+      2,
+      200
+    ],
+    "_comment": "| 2026-07-30: n_points 200x200 -> 2x200. The generators read only the LAST column (EH[-1,:]) and xs=linspace(cx-w/2,cx+w/2,nx) puts that column at the same x for nx=2 as for nx=200, so the readout is byte-identical while the far-field transform costs ~200x less (was ~40 min/sample)."
+  },
+  "mirror_1": {
+    "_comment": "Quarter-wave DBR (SimpleSim Mirror object, added 2026-07-29): SiO2/TiO2 n=[1.46, 2.4] at the signal wavelength. reflectivity 0.5 -> 4 layers, achieved R = 0.576 (quantised upward; stored on the object). Two of these around the reservoir form the Fabry-Perot cavity for the memory-reservoir experiments; R is the memory-depth knob.",
+    "class": "mirror",
+    "n1": 1.46,
+    "n2": 2.4,
+    "lam": 0.55,
+    "reflectivity": 0.5
+  },
+  "mirror_2": {
+    "_comment": "Quarter-wave DBR (SimpleSim Mirror object, added 2026-07-29): SiO2/TiO2 n=[1.46, 2.4] at the signal wavelength. reflectivity 0.5 -> 4 layers, achieved R = 0.576 (quantised upward; stored on the object). Two of these around the reservoir form the Fabry-Perot cavity for the memory-reservoir experiments; R is the memory-depth knob.",
+    "class": "mirror",
+    "n1": 1.46,
+    "n2": 2.4,
+    "lam": 0.55,
+    "reflectivity": 0.5
+  }
+}
