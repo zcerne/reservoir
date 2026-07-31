@@ -51,10 +51,21 @@ def softmax_ridge(Xtr, ytr, Xte, yte, n_out=3, epochs=3000, lr=0.5, ridge=1e-3):
             float((P(B).argmax(1) == yte).mean()))
 
 
-def features(out, shape, comps, pts, mode):
-    """out: (n_samples, n_comp*npix) complex → features at the chosen points."""
+def features(out, shape, comps, pts, mode, keep=None):
+    """out: (n_samples, n_comp*npix) complex → features at the chosen points.
+
+    `keep`: component names to read out, default all. Worth restricting: on the
+    pumped cavity the far field is 42% Ez, which the Ey (TE) signal cannot
+    excite in 2D at all — it is the Ez pump at 0.45 re-radiated at 0.55 by the
+    dye, whose emission couples every component (sigma_diag = 1,1,1). Reading
+    Ez therefore measures the gain medium's state rather than the signal path,
+    and it is worth ~0.04 of Balance accuracy on its own.
+    """
     n = out.shape[0]
     cube = out.reshape(n, len(comps), -1)
+    if keep:
+        ci = [comps.index(c) for c in keep]
+        cube = cube[:, ci, :]
     sel = cube[:, :, pts]                      # (n, n_comp, n_pts)
     if mode == "intensity":
         return (np.abs(sel) ** 2).reshape(n, -1)
@@ -76,15 +87,23 @@ def main():
     ap.add_argument("--test_frac", type=float, default=0.3)
     ap.add_argument("--ridge", type=float, default=1e-3)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--components", default=None,
+                    help="restrict the readout to these polarizations, e.g. "
+                         "Ex,Ey to exclude the pump-fed Ez channel (default: all)")
     a = ap.parse_args()
 
     f = os.path.join(a.path, "datasets", a.dataset)
     d = dict(np.load(f, allow_pickle=True))
     out, y = np.asarray(d["outputs"]), np.asarray(d["labels"])
     comps = [str(c) for c in np.asarray(d["components"]).reshape(-1)]
+    keep = ([c.strip() for c in a.components.split(",") if c.strip()]
+            if a.components else comps)
+    missing = [c for c in keep if c not in comps]
+    if missing:
+        raise SystemExit(f"dataset has {comps}, asked for {missing}")
     npix = out.shape[1] // len(comps)
     print(f"{os.path.basename(f)}: {out.shape[0]} samples, {len(comps)} comps "
-          f"x {npix} px, mode={a.mode}")
+          f"x {npix} px, readout={','.join(keep)}, mode={a.mode}")
 
     rng = np.random.default_rng(a.seed)
     idx = rng.permutation(len(y))
@@ -97,12 +116,12 @@ def main():
         for r in range(a.repeats):
             pts = np.random.default_rng(1000 + r).choice(npix, size=min(N, npix),
                                                          replace=False)
-            X = features(out, d.get("sensor_shape"), comps, pts, a.mode)
+            X = features(out, d.get("sensor_shape"), comps, pts, a.mode, keep)
             accs.append(softmax_ridge(X[tr], y[tr], X[te], y[te],
                                       ridge=a.ridge)[1])
         accs = np.array(accs)
-        n_feat = len(comps) * len(pts) * (1 if a.mode == "intensity"
-                                          else 2 if a.mode == "field" else 3)
+        n_feat = len(keep) * len(pts) * (1 if a.mode == "intensity"
+                                         else 2 if a.mode == "field" else 3)
         rows.append(dict(n_points=N, n_features=n_feat,
                          test_acc_mean=float(accs.mean()),
                          test_acc_std=float(accs.std())))
@@ -110,9 +129,12 @@ def main():
               f"test {accs.mean():.3f} ± {accs.std():.3f}")
 
     print("\n  reference on raw 4 features: logistic ~0.89, sigmoid MLP ~0.96")
-    js = os.path.join(a.path, "datasets", "balance_scale_readout.json")
-    json.dump({"mode": a.mode, "ridge": a.ridge, "repeats": a.repeats,
-               "test_frac": a.test_frac, "rows": rows}, open(js, "w"), indent=2)
+    tag = "" if set(keep) == set(comps) else "_" + "".join(keep)
+    js = os.path.join(a.path, "datasets",
+                      f"balance_scale_readout_{a.mode}{tag}.json")
+    json.dump({"mode": a.mode, "components": keep, "ridge": a.ridge,
+               "repeats": a.repeats, "test_frac": a.test_frac, "rows": rows},
+              open(js, "w"), indent=2)
     print(f"  -> {js}")
 
 
