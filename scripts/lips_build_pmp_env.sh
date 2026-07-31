@@ -53,7 +53,7 @@ export MAMBA_ROOT_PREFIX=$PREFIX
 echo "=== creating $ENVDIR"
 ./micromamba-x86 create -y -p "$ENVDIR" -c conda-forge \
     python=3.11 "pymeep=*=mpi_mpich_*" mpich \
-    numpy scipy h5py matplotlib
+    numpy scipy h5py matplotlib nlopt
 
 echo "=== jax (CPU only — no GPUs on this partition)"
 "$ENVDIR/bin/pip" install --no-input "jax[cpu]"
@@ -62,7 +62,7 @@ echo "=== jax (CPU only — no GPUs on this partition)"
 echo "=== verification"
 "$ENVDIR/bin/python" - <<'PY'
 import platform
-import numpy, jax, meep
+import numpy, scipy, jax, meep, nlopt
 print("  python   ", platform.python_version(), platform.machine())
 print("  numpy    ", numpy.__version__)
 print("  jax      ", jax.__version__, jax.devices())
