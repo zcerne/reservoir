@@ -130,8 +130,9 @@ def main():
 
     print("\n  reference on raw 4 features: logistic ~0.89, sigmoid MLP ~0.96")
     tag = "" if set(keep) == set(comps) else "_" + "".join(keep)
+    stem = os.path.splitext(a.dataset)[0]
     js = os.path.join(a.path, "datasets",
-                      f"balance_scale_readout_{a.mode}{tag}.json")
+                      f"{stem}_readout_{a.mode}{tag}.json")
     json.dump({"mode": a.mode, "components": keep, "ridge": a.ridge,
                "repeats": a.repeats, "test_frac": a.test_frac, "rows": rows},
               open(js, "w"), indent=2)
