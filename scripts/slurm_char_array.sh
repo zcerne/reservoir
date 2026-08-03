@@ -41,8 +41,14 @@
 # as there are free nodes. Reduce the WORKLOAD (fewer probes / run_until), not
 # the cores per task.
 #SBATCH --nodes=1
-#SBATCH --partition=of,xaos
+#SBATCH --partition=of
 #SBATCH --qos=soft
+# NOTE: partition and QoS are coupled on Orion and the allowed sets do NOT overlap:
+#   of    AllowQos = of, soft, quant, meteo, astro
+#   xaos  AllowQos = xaos          <- only this one
+# so a single job cannot target 'of,xaos'; sbatch rejects it with
+# 'Invalid qos specification'. To run on xaos, override BOTH together:
+#   sbatch --partition=xaos --qos=xaos --cpus-per-task=48 ...
 #SBATCH --time=2-00:00:00
 #SBATCH --mem=180GB
 #SBATCH --cpus-per-task=72
