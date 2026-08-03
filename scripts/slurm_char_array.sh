@@ -53,10 +53,12 @@ set -e
 BASE_DIR="/home/cernez/resevoir"
 PYTHON_MEEP=/home/cernez/micromamba/envs/pmp/bin/python
 MPIRUN=/home/cernez/micromamba/envs/pmp/bin/mpirun
-NRANK=72                      # MPI ranks per forward run. 72 not 96 so the job
-                              # is schedulable on BOTH partitions: taurus (of) has
-                              # 96 cores/2 TB, xaos has 72 cores/191 GB. Asking 96
-                              # or 1900 GB silently excludes every xaos node.
+# MPI ranks = whatever Slurm actually gave this task, never a hardcoded number:
+# the cluster is heterogeneous (taurus 96 cores/2 TB, xaos 72/191 GB, olimp 48,
+# manycore 224). A fixed NRANK either oversubscribes the small nodes or wastes
+# cores on the big ones, and a fixed --mem excludes whole partitions outright.
+# Override per submission:  sbatch --cpus-per-task=96 ... for a full taurus node.
+NRANK=${SLURM_CPUS_PER_TASK:-72}
 
 export SIMPLESIM_PATH=/home/cernez/SimpleSim
 export GPUMEEP_PATH=/home/cernez/GPUmeep/src
