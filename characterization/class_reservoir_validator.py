@@ -409,8 +409,21 @@ class Validator:
             return di
         Xc = Xf - Xf.mean(0, keepdims=True)
         _, S, Vt = np.linalg.svd(Xc, full_matrices=False)
+        # NEVER keep directions that are numerically zero. A LINEAR device has
+        # rank exactly K (state = M·u), so every PCA score past the K-th is
+        # FDTD round-off at ~1e-15 — but it is *deterministic* round-off, a
+        # genuine (if microscopic) nonlinear function of the input, and R² is
+        # scale-invariant, so the fit weights those directions exactly like
+        # real signal and manufactures capacity out of them. Measured on the
+        # dye-free 02_2D_Q_tensor (residual 5.5e-15 from a perfect linear fit,
+        # singular values dropping 0.669 → 2.5e-15 after the 4th): keeping the
+        # nominal 20 channels reported d3 = 11.83 of 20 targets — 59% cubic
+        # capacity for a provably linear map. Truncating at the rank cliff
+        # gives d3 = 0.19. (2026-08-03)
+        rank = int((S / (S[0] + 1e-300) > 1e-8).sum())
+        k = min(k, max(4, rank))
         print(f"[validator] dambre{label}: PCA-reduced state {F}→{k} leading "
-              f"channels (M={M} probes)", flush=True)
+              f"channels (M={M} probes, numerical rank {rank})", flush=True)
         return {**di, "outputs": Xc @ Vt[:k].conj().T}     # (M, k) PCA scores
 
     def dambre(self):
