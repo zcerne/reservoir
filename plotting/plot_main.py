@@ -38,6 +38,10 @@ class PlotMain:
         self.validator = Validator(reservoir_path, component=component,
                                    max_order=max_order, rel_thresh=rel_thresh,
                                    suffix=self.suffix)
+        # polarization-slice tag ("_ExEy"): rides on every figure/stats name so
+        # e.g. n4_harmonics_distortion_a10_ExEy_* sits next to the full-vector
+        # figures instead of overwriting them.
+        self.suffix += self.validator.comp_tag
         self.saved: list[Path] = []
 
     # ------------------------------------------------------------------- dispatch
@@ -279,10 +283,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Characterize + plot all available results")
     ap.add_argument("--path", required=True, help="reservoir dir (has simulation_data.json)")
     ap.add_argument("--fig-dir", default=None, help="output directory for figures (default: <path>/figures)")
-    ap.add_argument("--component", default=None,
-                    help="restrict analysis to one stored polarization (e.g. Ey); "
-                         "cached stats_data must be cleared (--skip-cached) when "
-                         "switching, or you'll replot the old slice")
+    ap.add_argument("--component", "--components", default=None,
+                    help="restrict analysis to a polarization subset (e.g. Ey, "
+                         "or Ex,Ey to drop the pump-fed Ez channel); figures and "
+                         "stats caches carry a _ExEy-style tag, so sliced runs "
+                         "live next to the full-vector ones")
     ap.add_argument("--max-order", type=int, default=6,
                     help="harmonic/intermod attribution depth for n4: bins are "
                          "labelled as a*f1+b*f2 up to |a|+|b| <= this (default 6); "

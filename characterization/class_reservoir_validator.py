@@ -48,6 +48,12 @@ class Validator:
         #: behaviour (also right for datasets with no `components` key,
         #: e.g. the NN references, whose state has no polarizations).
         self.component = component
+        #: filename tag for the polarization slice ("_ExEy" for "Ex,Ey"): stats
+        #: caches (and plot_main's figures) carry it so a component-sliced run
+        #: sits NEXT TO the full-vector one instead of overwriting/thrashing it.
+        self.comp_tag = ("" if not component else
+                         "_" + "".join(c.strip() for c in str(component).split(",")
+                                       if c.strip()))
         #: n4 attribution depth: bins are labelled as a*f1+b*f2 products up to
         #: |a|+|b| <= max_order; anything beyond lands in "other". Raising it
         #: reclassifies weak far-out lines instead of discarding them.
@@ -235,7 +241,7 @@ class Validator:
         dataset they were computed from has changed. Each stored value is an
         analysis-result dict; np.savez wraps it as a 0-d object array, so unwrap
         with .item() to recover the nested dict (power_by_order, gain_by_order, …)."""
-        p = os.path.join(self.stats_dir, f"{name}{self.suffix}.npz")
+        p = os.path.join(self.stats_dir, f"{name}{self.suffix}{self.comp_tag}.npz")
         if not os.path.exists(p):
             return None
         raw = np.load(p, allow_pickle=True)
@@ -257,7 +263,8 @@ class Validator:
         os.makedirs(self.stats_dir, exist_ok=True)
         clean = {k: v for k, v in kwargs.items() if v is not None}
         if clean:
-            np.savez(os.path.join(self.stats_dir, f"{name}{self.suffix}.npz"),
+            np.savez(os.path.join(self.stats_dir,
+                                  f"{name}{self.suffix}{self.comp_tag}.npz"),
                      _src_fp=self._source_fp(name), **clean)
 
     @staticmethod
