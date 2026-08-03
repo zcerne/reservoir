@@ -24,6 +24,7 @@ def main():
     ap.add_argument("--out", default=None)
     ap.add_argument("--levels", default="0.1,0.3,1,3,10")
     ap.add_argument("--n_probes", type=int, default=12)
+    gc.add_extras_args(ap)
     gc.add_common_args(ap)
     args = ap.parse_args()
 
@@ -37,7 +38,9 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor, n_sources=args.n_sources)
+        forward, n_strips, is_master = gc.open_reservoir(
+            args.path, comps, out_sensor=args.out_sensor,
+            n_sources=args.n_sources, with_extras=args.extras)
         rng = np.random.default_rng(args.seed)
         dirs = rng.normal(size=(M, n_strips))                 # REAL directions
         dirs /= (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
@@ -45,16 +48,19 @@ def main():
     def run_one(k):
         li, p = divmod(k, M)
         E = levels[li] * dirs[p]
-        gc.save_part(out_path, k, is_master, output=forward(E), inp=E, level_id=int(li))
+        gc.save_part(out_path, k, is_master, output=forward(E), inp=E,
+                     level_id=int(li), **getattr(forward, "extras", {}))
 
     def assemble():
         parts = gc.load_parts(out_path)
         inputs = np.stack([p["inp"] for p in parts])
         outputs = np.stack([p["output"] for p in parts])
         level_id = np.asarray([int(p["level_id"]) for p in parts])
+        extra = gc.collect_extras(parts, reserved=("output", "inp", "level_id"))
         np.savez(out_path, inputs=inputs, outputs=outputs, level_id=level_id,
                  out_sensor=np.asarray(args.out_sensor or "monitor_2"),
-                 levels=levels, components=np.asarray(comps))
+                 levels=levels, components=np.asarray(comps), **extra)
+        gc.report_extras("ampdata", extra, len(parts))
         print(f"[ampdata] assembled → {out_path}  ({len(parts)} probes, {len(levels)} levels)", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master,

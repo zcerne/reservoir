@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--amps", default=None)
     ap.add_argument("--channels", default=None)
     ap.add_argument("--n_t", type=int, default=64)
+    gc.add_extras_args(ap)
     gc.add_common_args(ap)
     args = ap.parse_args()
 
@@ -44,7 +45,9 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor, n_sources=args.n_sources)
+        forward, n_strips, is_master = gc.open_reservoir(
+            args.path, comps, out_sensor=args.out_sensor,
+            n_sources=args.n_sources, with_extras=args.extras)
         chans = ([int(c) for c in args.channels.split(",")] if args.channels
                  else list(range(len(tones))))
         if len(chans) != len(tones) or max(chans) >= n_strips:
@@ -58,16 +61,19 @@ def main():
         E = np.zeros(n_strips, dtype=complex)
         for k in range(len(tones)):
             E += amps[k] * np.exp(1j * tones[k] * t) * U[k]   # Re() taken by the source
-        gc.save_part(out_path, j, is_master, output=forward(E), inp=E, t=float(t))
+        gc.save_part(out_path, j, is_master, output=forward(E), inp=E, t=float(t),
+                     **getattr(forward, "extras", {}))
 
     def assemble():
         parts = gc.load_parts(out_path)
         outputs = np.stack([p["output"] for p in parts])
         inputs = np.stack([p["inp"] for p in parts])
         t = np.asarray([float(p["t"]) for p in parts])
+        extra = gc.collect_extras(parts, reserved=("output", "inp", "t"))
         np.savez(out_path, outputs=outputs, inputs=inputs, t=t,
                  tones=np.asarray(tones), amps=np.asarray(amps), components=np.asarray(comps),
-                 out_sensor=np.asarray(args.out_sensor or "monitor_2"))
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"), **extra)
+        gc.report_extras("harmdata", extra, len(parts))
         print(f"[harmdata] assembled → {out_path}  ({len(parts)} samples, tones={tones})", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master,

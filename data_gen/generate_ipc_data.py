@@ -34,6 +34,7 @@ def main():
                          "what gets saved as 'inputs' -- lets the device operate at any real "
                          "drive level without breaking the [-1,1] orthonormality the capacity "
                          "decomposition (n6_dambre) assumes.")
+    gc.add_extras_args(ap)
     gc.add_common_args(ap)
     args = ap.parse_args()
 
@@ -45,7 +46,9 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor, n_sources=args.n_sources)
+        forward, n_strips, is_master = gc.open_reservoir(
+            args.path, comps, out_sensor=args.out_sensor,
+            n_sources=args.n_sources, with_extras=args.extras)
         rng = np.random.default_rng(args.seed)
         U = rng.uniform(-1.0, 1.0, size=(args.n, n_strips))   # i.i.d. Uniform[-1,1] (real)
 
@@ -55,7 +58,8 @@ def main():
             if os.path.exists(part):
                 return
         v = forward((args.scale * U[m]).astype(complex))
-        gc.save_part(out_path, m, is_master, output=v, inp=U[m])
+        gc.save_part(out_path, m, is_master, output=v, inp=U[m],
+                     **getattr(forward, "extras", {}))
 
     def assemble():
         parts = gc.load_parts(out_path)
@@ -63,9 +67,11 @@ def main():
         outputs = np.stack([p["output"] for p in parts])
         if args.readout == "intensity":
             outputs = np.abs(outputs) ** 2
+        extra = gc.collect_extras(parts, reserved=("output", "inp"))
         np.savez(out_path, inputs=inputs, outputs=outputs, scale=args.scale,
                  readout=np.asarray(args.readout), components=np.asarray(comps),
-                 out_sensor=np.asarray(args.out_sensor or "monitor_2"))
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"), **extra)
+        gc.report_extras("ipcdata", extra, len(parts))
         print(f"[ipcdata] assembled → {out_path}  ({len(parts)} probes, readout={args.readout})", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master,

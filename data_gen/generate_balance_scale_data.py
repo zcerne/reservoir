@@ -61,10 +61,7 @@ def main():
     ap.add_argument("--amp_min", type=float, default=10.0)
     ap.add_argument("--amp_max", type=float, default=50.0)
     ap.add_argument("--full_sensor", action="store_true", default=True)
-    ap.add_argument("--extras", action="store_true", default=True,
-                    help="also store monitor_2 fields and the near2far "
-                         "equivalence currents in each part (default on)")
-    ap.add_argument("--no_extras", dest="extras", action="store_false")
+    gc.add_extras_args(ap)
     ap.add_argument("--last_column_only", dest="full_sensor", action="store_false",
                     help="store only the far screen's last column instead of the whole map")
     gc.add_common_args(ap)
@@ -108,14 +105,7 @@ def main():
         # monitor_2 fields and near2far equivalence currents. Geometry keys
         # (ys, wy, freqs, x_line, dx) are identical in every run, so store one
         # copy; only the per-sample arrays are stacked.
-        extra = {}
-        for key in sorted(set(parts[0]) - {"idx", "output", "inp", "amp", "label"}):
-            vals = [np.asarray(p[key]) for p in parts if key in p]
-            if len(vals) != len(parts):
-                continue
-            same = all(v.shape == vals[0].shape and np.array_equal(v, vals[0])
-                       for v in vals[1:])
-            extra[key] = vals[0] if same else np.stack(vals)
+        extra = gc.collect_extras(parts, reserved=("output", "inp", "amp", "label"))
 
         np.savez(out_path,
                  inputs=np.stack([p["inp"] for p in parts]),
@@ -126,11 +116,7 @@ def main():
                  sensor_shape=np.asarray(shape),
                  amp_range=np.asarray([args.amp_min, args.amp_max]),
                  **extra)
-        if extra:
-            per = [k for k, v in extra.items() if np.asarray(v).shape[:1] == (len(parts),)]
-            print(f"[balance] extras: {len(per)} per-sample arrays "
-                  f"({', '.join(per[:6])}{'…' if len(per) > 6 else ''}), "
-                  f"{len(extra) - len(per)} shared", flush=True)
+        gc.report_extras("balance", extra, len(parts))
         print(f"[balance] assembled → {out_path}  ({len(parts)} samples, "
               f"outputs {outputs.shape}, per-sample layout {shape})", flush=True)
 

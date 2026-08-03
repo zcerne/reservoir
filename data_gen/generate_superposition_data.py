@@ -41,6 +41,7 @@ def main():
     ap.add_argument("--n_base", type=int, default=8)
     ap.add_argument("--n_trials", type=int, default=40)
     ap.add_argument("--scale", type=float, default=1.0)
+    gc.add_extras_args(ap)
     gc.add_common_args(ap)
     args = ap.parse_args()
 
@@ -56,18 +57,23 @@ def main():
         if args.assemble:                                     # assemble: no reservoir needed
             is_master = True
         else:
-            forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor, n_sources=args.n_sources)
+            forward, n_strips, is_master = gc.open_reservoir(
+                args.path, comps, out_sensor=args.out_sensor,
+                n_sources=args.n_sources, with_extras=args.extras)
             E_base, combos = _plan(args.seed, args.n_base, args.n_trials, n_strips, args.scale)
 
     def run_one(k):
         if k < args.n_base:
+            out = forward(E_base[k])
             gc.save_part(out_path, k, is_master, kind="base",
-                         output=forward(E_base[k]), inp=E_base[k])
+                         output=out, inp=E_base[k],
+                         **getattr(forward, "extras", {}))
         else:
             i, j, a, b = combos[k - args.n_base]
+            out = forward(a * E_base[i] + b * E_base[j])
             gc.save_part(out_path, k, is_master, kind="combo",
-                         output=forward(a * E_base[i] + b * E_base[j]),
-                         i=i, j=j, alpha=a, beta=b)
+                         output=out, i=i, j=j, alpha=a, beta=b,
+                         **getattr(forward, "extras", {}))
 
     def assemble():
         parts = gc.load_parts(out_path)
@@ -84,7 +90,10 @@ def main():
                  alpha=np.asarray(alpha), beta=np.asarray(beta),
                  out1=np.stack(out1), out2=np.stack(out2), out_combo=np.stack(out_combo),
                  components=np.asarray(comps),
-                 out_sensor=np.asarray(args.out_sensor or "monitor_2"))
+                 out_sensor=np.asarray(args.out_sensor or "monitor_2"),
+                 **gc.collect_extras(
+                     [p for p in parts if str(p["kind"]) == "combo"],
+                     reserved=("output", "inp", "kind", "i", "j", "alpha", "beta")))
         print(f"[supdata] assembled → {out_path}  ({len(out_combo)} trials from {len(parts)} parts)", flush=True)
 
     return gc.run_mode(args, n_items, run_one, assemble, is_master,

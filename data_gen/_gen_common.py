@@ -200,6 +200,49 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
     return forward, n_strips, is_master
 
 
+def collect_extras(parts, reserved=()):
+    """Fold per-part `extras` (monitor_2 spectra + near2far equivalence
+    currents, written when open_reservoir(with_extras=True)) into savez kwargs.
+
+    Geometry keys (ys, wy, freqs, x_line, dx) are identical in every run, so a
+    single copy is stored; genuinely per-sample arrays are stacked along a new
+    leading axis. Keys missing from any part are skipped, so a set assembled
+    from a mix of extras/no-extras parts degrades gracefully instead of raising.
+    Shared by every generator — balance grew this first, the others inherited it
+    2026-08-03 so harmonics/ipc/superposition/ampsweep also keep the full
+    0.4-0.6 spectrum (the pump line included) rather than the single n2f column.
+    """
+    skip = set(reserved) | {"idx"}
+    out = {}
+    for key in sorted(set(parts[0]) - skip):
+        vals = [np.asarray(p[key]) for p in parts if key in p]
+        if len(vals) != len(parts):
+            continue
+        same = all(v.shape == vals[0].shape and np.array_equal(v, vals[0])
+                   for v in vals[1:])
+        out[key] = vals[0] if same else np.stack(vals)
+    return out
+
+
+def report_extras(tag, extra, n_parts):
+    if not extra:
+        return
+    per = [k for k, v in extra.items()
+           if np.asarray(v).shape[:1] == (n_parts,)]
+    print(f"[{tag}] extras: {len(per)} per-sample arrays "
+          f"({', '.join(per[:6])}{'…' if len(per) > 6 else ''}), "
+          f"{len(extra) - len(per)} shared", flush=True)
+
+
+def add_extras_args(ap, default=True):
+    """--extras / --no_extras, matching generate_balance_scale_data's spelling."""
+    ap.add_argument("--extras", action="store_true", default=default,
+                    help="also store monitor_2 fields (all 61 wavelengths) and "
+                         "the near2far equivalence currents in each part "
+                         f"(default {'on' if default else 'off'})")
+    ap.add_argument("--no_extras", dest="extras", action="store_false")
+
+
 def _parts_dir(out_path):
     return out_path + ".parts"
 
