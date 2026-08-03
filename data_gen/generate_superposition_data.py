@@ -56,7 +56,7 @@ def main():
         if args.assemble:                                     # assemble: no reservoir needed
             is_master = True
         else:
-            forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor)
+            forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor, n_sources=args.n_sources)
             E_base, combos = _plan(args.seed, args.n_base, args.n_trials, n_strips, args.scale)
 
     def run_one(k):
