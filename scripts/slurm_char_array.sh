@@ -41,11 +41,11 @@
 # as there are free nodes. Reduce the WORKLOAD (fewer probes / run_until), not
 # the cores per task.
 #SBATCH --nodes=1
-#SBATCH --partition=of
+#SBATCH --partition=of,xaos
 #SBATCH --qos=soft
 #SBATCH --time=2-00:00:00
-#SBATCH --mem=1900GB
-#SBATCH --cpus-per-task=96
+#SBATCH --mem=180GB
+#SBATCH --cpus-per-task=72
 #SBATCH --output=slurm_char_%A_%a.log
 
 set -e
@@ -53,7 +53,10 @@ set -e
 BASE_DIR="/home/cernez/resevoir"
 PYTHON_MEEP=/home/cernez/micromamba/envs/pmp/bin/python
 MPIRUN=/home/cernez/micromamba/envs/pmp/bin/mpirun
-NRANK=96                      # MPI ranks per forward run = full node
+NRANK=72                      # MPI ranks per forward run. 72 not 96 so the job
+                              # is schedulable on BOTH partitions: taurus (of) has
+                              # 96 cores/2 TB, xaos has 72 cores/191 GB. Asking 96
+                              # or 1900 GB silently excludes every xaos node.
 
 export SIMPLESIM_PATH=/home/cernez/SimpleSim
 export GPUMEEP_PATH=/home/cernez/GPUmeep/src
