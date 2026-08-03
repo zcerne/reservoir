@@ -44,7 +44,7 @@ def main():
     if args.count or args.assemble:
         is_master = True
     else:
-        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor)
+        forward, n_strips, is_master = gc.open_reservoir(args.path, comps, out_sensor=args.out_sensor, n_sources=args.n_sources)
         chans = ([int(c) for c in args.channels.split(",")] if args.channels
                  else list(range(len(tones))))
         if len(chans) != len(tones) or max(chans) >= n_strips:

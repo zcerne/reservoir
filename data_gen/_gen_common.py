@@ -63,7 +63,7 @@ def _load_extras(out_dir, out_sensor, suffix):
 
 
 def open_reservoir(path, components, out_sensor=None, full_sensor=False,
-                   with_extras=False):
+                   with_extras=False, n_sources=None):
     """Load the fixed reservoir; return (forward_fn, n_strips, is_master).
 
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
@@ -124,6 +124,12 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
                    and k != "source_2")
     amp0 = cfg[src_key].get("amplitude", [1.0])
     n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
+    # Source-count variant WITHOUT a design-folder copy (standing convention,
+    # 2026-08-03): forward() replaces the amplitude list wholesale on every run,
+    # and SimpleSim derives the strip layout from that list's length — so a
+    # different n_strips here IS the whole "4src" variant.
+    if n_sources is not None:
+        n_strips = int(n_sources)
 
     # Per-process scratch tag (matches the old GPUMEEP_SCRATCH_TAG use): two
     # concurrent characterization batches (e.g. split across smaug1/smaug2)
@@ -292,6 +298,10 @@ def add_common_args(ap):
     ap.add_argument("--out_sensor", default=None,
                     help="sensor key to read as output instead of monitor_2 "
                          "(near2far map -> E2 last column at max x, 1D over y)")
+    ap.add_argument("--n_sources", type=int, default=None,
+                    help="override the input strip count (e.g. 4 on a 2-strip "
+                         "design) — in-memory only, no design copy; SimpleSim "
+                         "lays out strips from the per-run amplitude list")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--reverse", action="store_true", help="serial: iterate indices high→low")
     ap.add_argument("--skip_existing", action="store_true", help="skip an index whose part file already exists")
