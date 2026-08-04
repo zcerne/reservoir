@@ -2,7 +2,8 @@
 #SBATCH --job-name=res_cpu
 #SBATCH --partition=F5
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=64
+# F5 nodes have 128 cores; 64 was leaving half the machine idle (confirmed 2026-08-04).
+#SBATCH --ntasks-per-node=128
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=700G
 #SBATCH --time=2-00:00:00
