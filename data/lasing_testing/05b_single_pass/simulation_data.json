@@ -1,0 +1,162 @@
+{
+  "_comment": "Single-pass gain test with the EXACT 05b LC block (same Q-tensor texture, copied lc cache): no mirrors, no pump, pre-inverted dye only \u2014 the ex4_1 mirror-free experiment transplanted onto the anisotropic 05b reservoir. Input 1Ddft on guide_1 + output 1Ddft on guide_2 for cross-solver gpumeep-vs-MEEP comparison. Created 2026-08-04.",
+  "resolution": 40,
+  "dimention": 2,
+  "periodic": false,
+  "pml_size": 2.0,
+  "background_index": 1.5,
+  "run_until": 300.0,
+  "source_off_decay": 0.0,
+  "dft_t_start": 0.0,
+  "dft_t_end": 600.0,
+  "courant": 0.5,
+  "fp": "fp64",
+  "solver": "gpumeep",
+  "object_order": [
+    "guide_1",
+    "reservoir",
+    "guide_2",
+    "source_1",
+    "monitor_in",
+    "monitor_2"
+  ],
+  "guide_1": {
+    "class": "guide",
+    "index": 1.5,
+    "sizes": [
+      0.5,
+      10.0
+    ]
+  },
+  "reservoir": {
+    "_comment": "res_lc_gain at last: the 05 cavity's reservoir made ANISOTROPIC with the 04b patch anchoring (patches_2d, 2 um random phi patches, seed 1, Q3D relax). Same sted gain and geometry as 05_adding_mirror; same LC constants as 04/04b (5CB n_o=1.531 n_e=1.706).",
+    "class": "reservoir",
+    "isotropic": false,
+    "n": 1.5,
+    "sizes": [
+      30,
+      10
+    ],
+    "resolution": 10,
+    "_comment_lc": "5CB (4-cyano-4'-pentylbiphenyl) at 25 C. n_o/n_e are the ones that matter here: they set the FDTD dielectric tensor (optical anisotropy eps_a = n_e^2 - n_o^2 = 0.566, since the molecules cannot reorient at optical frequencies). The Frank constants are 5CB's real values in pN and are consumed by the DIRECTOR relax methods \u2014 the Q3D path below deliberately ignores them, see lc_param.",
+    "n_o": 1.531,
+    "n_e": 1.706,
+    "elastic_constants": {
+      "K1": 6.4,
+      "K2": 3.0,
+      "K3": 10.0,
+      "q0": 0.0
+    },
+    "S": 1.0,
+    "_comment_relax": "Q-tensor (Landau-de Gennes) relaxation. NOTE: LCblock._relax_qtensor runs on the openQmin-style NON-DIMENSIONAL LdG scale (A=-1, B=-12.6, C=12, L=1) and derives S_eq from it \u2014 feeding it SI 5CB constants on a micron grid makes FIRE diverge to NaN in ~10 steps and silently cache an all-zero director. So elastic_constants/S above do NOT drive this path; they document the material and would apply if lc_param were switched to a director method.",
+    "lc_param": "Q3D",
+    "maxeval": 5000,
+    "f_tolerance": 1e-06,
+    "_comment_maxiter": "Newton-CG outer cap for the Q-tensor relax. The built-in default is min(maxeval, 200), which left this frustrated texture unconverged at |grad E| = 2e-01; the solver exits early on its own tolerance, so a high cap only costs time when it is actually needed.",
+    "qtensor_maxiter": 3000,
+    "director_n_ticks": 60,
+    "optimize_phi_theta": [
+      true,
+      false
+    ],
+    "boundary_conditions": [
+      "free",
+      "free",
+      "free"
+    ],
+    "_comment_faces": "Explicit per-face anchoring overrides (x_min, x_max, y_min, y_max, z_min, z_max); all null so every face comes from boundary_function below. Required keys \u2014 LCblockConfig.from_dict reads them unconditionally.",
+    "face_phi": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "face_theta": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ],
+    "_comment_boundary": "Random CONTINUOUS anchoring: sinus_random_2d with n_periods=0 drops the sinusoid entirely, leaving pure Gaussian-smoothed random noise \u2014 phi = clip(pi/2 + noise_level*pi*noise(x), 0, pi). noise_level 0.5 spans the full [0, pi] range; scale 2.0 um sets the correlation length, giving ~8 smooth undulations across the 30 um face with at most ~0.11 rad between adjacent grid points (the plain 'random' function is white noise and jumps up to pi point-to-point, which is NOT continuous). Independent noise on y_min/y_max; x faces and theta left free.",
+    "boundary_function": "patches_2d",
+    "boundary_scale": 2.0,
+    "boundary_seed": 1,
+    "_comment_bulk_seed": "Bulk (initial) director: phi0 = 0 everywhere plus a per-voxel uniform fluctuation of +/- bulk_seed_noise radians (0.1 rad ~ 5.7 deg). Near-uniform along x but symmetry-broken, so the relax settles into a smooth texture instead of the dense disclination tangle a full U(0,pi) random quench leaves behind. theta0 stays exactly pi/2 (planar) -- the noise is in-plane only. RNG seeded from boundary_seed, so it is reproducible.",
+    "bulk_seed": 0.0,
+    "bulk_seed_noise": 0.1,
+    "sted": {
+      "_comment": "4-level dye starting PRE-INVERTED: initial_populations = [N1_0, 0, N3_0, 0] = [0, 0, 30, 0], so the whole population already sits in upper lasing level 3 at t=0 and the signal at lbdE=0.55 sees gain immediately. source_pump (Ez, absorption line lbdA=0.45) therefore does not build the inversion, it sustains and tops up one that exists from t=0. Comment corrected 2026-07-30: it previously described a ground-state start (N1_0=30, N3_0=0) that these values never had -- 02_adding_pump is the design that genuinely does that, and 05_cav_unpumped is the deliberate ground-state control.",
+      "enabled": true,
+      "lbdA": 0.45,
+      "gammaA": 0.1,
+      "lbdE": 0.55,
+      "gammaE": 0.1,
+      "SGMA": 0.006,
+      "N1_0": 0.0,
+      "N3_0": 30.0,
+      "rate_43": 10.0,
+      "rate_21": 100.0
+    }
+  },
+  "guide_2": {
+    "class": "guide",
+    "index": 1.5,
+    "sizes": [
+      1.0,
+      10.0
+    ]
+  },
+  "source_1": {
+    "_comment": "Uniform full-height Ey seed line, scalar amplitude (ex4_1 convention).",
+    "class": "source",
+    "position": {
+      "on_object": "guide_1",
+      "position": "left",
+      "size": [
+        0.0,
+        10.0,
+        0.0
+      ]
+    },
+    "amplitude": 10.0,
+    "component": "Ey",
+    "source_type": "gaussian",
+    "lam": 0.55,
+    "dlam": 0.1,
+    "start_time": 0.0
+  },
+  "monitor_2": {
+    "_comment": "output sensor, middle of guide_2",
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_2",
+    "position": {
+      "position": "center",
+      "size": 10.0
+    },
+    "lam_range": [
+      0.4,
+      0.6
+    ],
+    "n_lam": 61
+  },
+  "monitor_in": {
+    "_comment": "input sensor: middle of guide_1, between source and reservoir",
+    "class": "monitor",
+    "type": "1Ddft",
+    "on_object": "guide_1",
+    "position": {
+      "position": "center",
+      "size": 10.0
+    },
+    "lam_range": [
+      0.4,
+      0.6
+    ],
+    "n_lam": 61
+  }
+}
