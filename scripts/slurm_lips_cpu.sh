@@ -17,7 +17,7 @@
 #       ipc /project/cerneziga/reservoir_runs/05_cav_4src \
 #       --n 400 --scale 10 --out_sensor n2f_map --components Ex,Ey,Ez
 #
-#   method = superposition | harmonics | ampsweep | ipc | balance
+#   method = superposition | harmonics | ampsweep | ipc | gr | balance
 #
 # ---------------------------------------------------------------- the hardware
 # f02..f07, six nodes, from scontrol 2026-07-31:
@@ -103,6 +103,7 @@ case "$METHOD" in
     harmonics)     GEN=data_gen/generate_harmonics_data.py ;;
     ampsweep)      GEN=data_gen/generate_amplitude_sweep_data.py ;;
     ipc)           GEN=data_gen/generate_ipc_data.py ;;
+    gr)            GEN=data_gen/generate_gr_data.py ;;
     balance)       GEN=data_gen/generate_balance_scale_data.py ;;
     *) echo "unknown method '$METHOD'"; exit 1 ;;
 esac

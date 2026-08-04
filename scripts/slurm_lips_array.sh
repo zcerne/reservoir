@@ -19,7 +19,7 @@
 #       --n 1000 --scale 50 --out_sensor n2f_map --components Ex,Ey,Ez
 #   sbatch --array=1-19%2  --export=ALL,BATCH_SIZE=50 scripts/slurm_lips_array.sh  … (same args)
 #
-#   method = superposition | harmonics | ampsweep | ipc | balance
+#   method = superposition | harmonics | ampsweep | ipc | gr | balance
 #
 # ---------------------------------------------------------------- the hardware
 # `F5-gpu` — 2 nodes, h01/h02, 1 GPU each (confirmed 2026-07-31 from a running
@@ -101,6 +101,7 @@ case "$METHOD" in
     harmonics)     GEN=data_gen/generate_harmonics_data.py ;;
     ampsweep)      GEN=data_gen/generate_amplitude_sweep_data.py ;;
     ipc)           GEN=data_gen/generate_ipc_data.py ;;
+    gr)            GEN=data_gen/generate_gr_data.py ;;
     balance)       GEN=data_gen/generate_balance_scale_data.py ;;
     *) echo "unknown method '$METHOD'"; exit 1 ;;
 esac
