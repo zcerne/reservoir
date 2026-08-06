@@ -159,14 +159,14 @@
       0.0
     ],
     "size": [
-      100.0,
-      40.0
+      1.0,
+      200.0
     ],
     "n_points": [
-      2,
+      1,
       200
     ],
     "_comment_lam": "61-frequency comb 0.4-0.6, matching monitor_1/monitor_2 so all three sensors share one wavelength axis (SimpleSim de2b284: near2far takes lam_range+n_lam like the 1Ddft monitors, EH gains a leading frequency axis).",
-    "_comment_npoints": "2x200, not 200x200: the generators read only the LAST column (EH[-1,:]), and xs=linspace(cx-w/2, cx+w/2, nx) puts that column at the same x for nx=2 as for nx=200 — so the readout is byte-identical while the transform costs ~100x less. Critical here because cost scales with n_points x n_lam: at 200x200 x 61 freqs one sample is hours (the single-frequency 200x200 map was already ~40 min, 2026-07-30). Shrinking `size` moves the screen, it does NOT reduce the point count."
+    "_comment_npoints": "Single 1x200 column at x=199.5 um spanning y in [-100, 100]: the generators read EH[-1,:], so one column is all that is used, and the far-field transform cost scales with n_points x n_lam — 1x200 x 61 freqs is affordable where 200x200 x 61 would be hours per sample (the single-frequency 200x200 map was already ~40 min, 2026-07-30). NOTE this is NOT byte-identical to the old 200x200/size-200 map: that one read its last column at x=300; this reads at x=199.5, and the full 200 um y span is kept so the captured angular range is unchanged."
   }
 }
