@@ -44,6 +44,12 @@ def _load_extras(out_dir, out_sensor, suffix):
             be re-rendered at any distance, angle or resolution without ever
             re-running FDTD, which the far-field map alone cannot do because
             its screen geometry is baked in.
+      pop_* the population monitor: t, N (the 4-level traces) and, when the
+            design sets snap_interval > 0, snap_t / snap_N / snap_E — whole-cell
+            level populations AND the instantaneous field on the same grid at
+            the same instants, so snap_N[k] pairs with snap_E[k]. That pairing
+            is what lets inversion depletion be read against the local field.
+            Only picked up when the design HAS a population monitor.
 
     Missing files are skipped rather than fatal (the MEEP backend does not
     emit equivalence currents at all)."""
@@ -59,6 +65,15 @@ def _load_extras(out_dir, out_sensor, suffix):
         if os.path.exists(eq):
             with np.load(eq) as d:
                 extras.update({f"eq_{k}": d[k] for k in d.files})
+    # population monitor — snapshots are large (n_snaps x 4 x Nx x Ny for snap_N
+    # plus n_snaps x 3 x Nx x Ny for snap_E), so this only fires on designs that
+    # actually declare a population sensor with snap_interval > 0.
+    pop = os.path.join(out_dir, f"pop_monitor_{suffix}.npz")
+    if not os.path.exists(pop):                         # pre-suffix fallback
+        pop = os.path.join(out_dir, "pop_monitor.npz")
+    if os.path.exists(pop):
+        with np.load(pop) as d:
+            extras.update({f"pop_{k}": d[k] for k in d.files})
     return extras
 
 
