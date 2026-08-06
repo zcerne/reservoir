@@ -78,7 +78,7 @@ def _load_extras(out_dir, out_sensor, suffix):
 
 
 def open_reservoir(path, components, out_sensor=None, full_sensor=False,
-                   with_extras=False, n_sources=None):
+                   with_extras=False, n_sources=None, n2f_lam=0.55):
     """Load the fixed reservoir; return (forward_fn, n_strips, is_master).
 
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
@@ -88,6 +88,11 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
     with_extras: after each run, populate `forward.extras` with monitor_2's
     fields and the near2far equivalence currents, so a generator can store them
     in the part file (see _load_extras).
+
+    n2f_lam: which wavelength the readout takes when the near2far monitor was
+    given lam_range+n_lam (EH then has a leading frequency axis). Default 0.55,
+    the signal line. The FULL comb is still stored in the part file via extras,
+    so a multi-frequency analysis needs no regeneration.
 
     full_sensor: with out_sensor, return the sensor's ENTIRE array per component
     (the whole near2far map, nx*ny values each) instead of just its last column.
@@ -191,6 +196,27 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
             if "EH" in d.files:
                 ci = {"Ex": 0, "Ey": 1, "Ez": 2, "Hx": 3, "Hy": 4, "Hz": 5}
                 EH = np.asarray(d["EH"])
+                # A near2far monitor given lam_range+n_lam returns EH with a
+                # LEADING frequency axis, (n_lam, nx, ny, 6) instead of
+                # (nx, ny, 6). Collapse it here, or every index below silently
+                # shifts by one axis: EH[-1] then means "last FREQUENCY" rather
+                # than "last x-column", and the ny axis gets read as the
+                # component axis. That produced 18-element outputs instead of
+                # 600 on the first block_iso_gain/01 amplitude sweep
+                # (2026-08-06) — wrong data, no error raised.
+                if EH.ndim == 4:
+                    lams = np.asarray(d["lams"]) if "lams" in d.files else None
+                    if lams is None:
+                        fi = 0
+                    else:                       # nearest bin to the wanted line
+                        fi = int(np.argmin(np.abs(lams - float(n2f_lam))))
+                        if not getattr(open_reservoir, "_lam_note", False):
+                            print(f"[reservoir] n2f has {EH.shape[0]} frequencies; "
+                                  f"readout takes lam={lams[fi]:.4f} "
+                                  f"(nearest to {n2f_lam}). Full comb kept in "
+                                  f"extras.", flush=True)
+                            open_reservoir._lam_note = True
+                    EH = EH[fi]
                 if full_sensor:
                     # the WHOLE far-field map per component, (nx, ny) each,
                     # flattened C-order and concatenated in `components` order
@@ -256,6 +282,10 @@ def add_extras_args(ap, default=True):
                          "the near2far equivalence currents in each part "
                          f"(default {'on' if default else 'off'})")
     ap.add_argument("--no_extras", dest="extras", action="store_false")
+    ap.add_argument("--n2f_lam", type=float, default=0.55,
+                    help="wavelength the n2f readout takes when the design gives "
+                         "the near2far monitor lam_range+n_lam (default 0.55, the "
+                         "signal line). The whole comb is kept in extras either way.")
 
 
 def _parts_dir(out_path):

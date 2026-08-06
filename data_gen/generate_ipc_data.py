@@ -48,7 +48,8 @@ def main():
     else:
         forward, n_strips, is_master = gc.open_reservoir(
             args.path, comps, out_sensor=args.out_sensor,
-            n_sources=args.n_sources, with_extras=args.extras)
+            n_sources=args.n_sources, with_extras=args.extras,
+            n2f_lam=args.n2f_lam)
         rng = np.random.default_rng(args.seed)
         U = rng.uniform(-1.0, 1.0, size=(args.n, n_strips))   # i.i.d. Uniform[-1,1] (real)
 

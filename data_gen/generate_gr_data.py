@@ -79,7 +79,8 @@ def main():
     else:
         forward, n_strips, is_master = gc.open_reservoir(
             args.path, comps, out_sensor=args.out_sensor,
-            n_sources=args.n_sources, with_extras=args.extras)
+            n_sources=args.n_sources, with_extras=args.extras,
+            n2f_lam=args.n2f_lam)
         # Deterministic from --seed alone: every array task rebuilds the identical
         # probe table, so parts from different tasks belong to one coherent set.
         rng = np.random.default_rng(args.seed)

@@ -84,7 +84,7 @@ def main():
         forward, n_strips, is_master = gc.open_reservoir(
             args.path, comps, out_sensor=args.out_sensor,
             full_sensor=args.full_sensor, with_extras=args.extras,
-            n_sources=args.n_sources)
+            n_sources=args.n_sources, n2f_lam=args.n2f_lam)
         if n_strips != X.shape[1]:
             raise SystemExit(
                 f"design has {n_strips} source strips but Balance Scale has "

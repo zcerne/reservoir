@@ -59,7 +59,8 @@ def main():
         else:
             forward, n_strips, is_master = gc.open_reservoir(
                 args.path, comps, out_sensor=args.out_sensor,
-                n_sources=args.n_sources, with_extras=args.extras)
+                n_sources=args.n_sources, with_extras=args.extras,
+            n2f_lam=args.n2f_lam)
             E_base, combos = _plan(args.seed, args.n_base, args.n_trials, n_strips, args.scale)
 
     def run_one(k):

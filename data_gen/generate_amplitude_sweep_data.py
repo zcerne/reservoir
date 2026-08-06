@@ -40,7 +40,8 @@ def main():
     else:
         forward, n_strips, is_master = gc.open_reservoir(
             args.path, comps, out_sensor=args.out_sensor,
-            n_sources=args.n_sources, with_extras=args.extras)
+            n_sources=args.n_sources, with_extras=args.extras,
+            n2f_lam=args.n2f_lam)
         rng = np.random.default_rng(args.seed)
         dirs = rng.normal(size=(M, n_strips))                 # REAL directions
         dirs /= (np.linalg.norm(dirs, axis=1, keepdims=True) + 1e-30)
