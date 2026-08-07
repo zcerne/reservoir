@@ -74,6 +74,15 @@ def _load_extras(out_dir, out_sensor, suffix):
     if os.path.exists(pop):
         with np.load(pop) as d:
             extras.update({f"pop_{k}": d[k] for k in d.files})
+    # line_snap — the TIME-DOMAIN line record at monitor_2's location
+    # ({t, Ex, Ey, Ez}, (n_t, ny) each). This is what resolves the cavity's
+    # circulating pulse per input level (2026-08-07: the per-run snap files
+    # overwrite one another within a batch, so without this only the last
+    # run of every array task survived).
+    ls = os.path.join(out_dir, f"line_snap_{suffix}.npz")
+    if os.path.exists(ls):
+        with np.load(ls) as d:
+            extras.update({f"ls_{k}": d[k] for k in d.files})
     return extras
 
 
