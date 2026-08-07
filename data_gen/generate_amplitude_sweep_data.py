@@ -28,6 +28,15 @@ def main():
     gc.add_common_args(ap)
     args = ap.parse_args()
 
+    # Amplitude sweep drives ONE uniform strip across the whole guide face by
+    # default, regardless of the JSON's amplitude-list length: the sweep varies
+    # drive LEVEL, and a multi-strip probe would fold input-direction structure
+    # into what is supposed to be a pure amplitude axis (2026-08-07 — the first
+    # 01/05 sweeps were run with the JSON's 2 strips and had to be discarded).
+    # --n_sources still overrides for a deliberate multi-strip sweep.
+    if args.n_sources is None:
+        args.n_sources = 1
+
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
     levels = np.array([float(x) for x in args.levels.split(",")], dtype=float)
     out_path = args.out or os.path.join(args.path, "datasets", "amp_sweep.npz")
