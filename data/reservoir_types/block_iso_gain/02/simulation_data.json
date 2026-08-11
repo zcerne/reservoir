@@ -1,0 +1,185 @@
+{
+ "_comment": "Variant of 01 with the CW pump replaced by a long inverting PULSE that the signal DELIBERATELY OVERLAPS. Revised 2026-08-11. Two earlier settings were wrong and are worth recording: dlam=0.1 made both pulses 1.5-2.3 um slivers that crossed the 30 um block without ever bleaching it, leaving a 75%->9% inversion ramp; and pump amplitude 200 with the long pulse over-corrected, bleaching the whole block to 98.8% so that it became transparent and the pump stopped responding to the population at all. amplitude 50 lands at 53% block mean with a gradient (96% at entry, ~23% at the far wall), which is the useful geometry: the entry half has the gain the signal amplifies from and depletes, the far half still holds the N1 that absorbs the pump. source_1.start_time=60 puts the signal peak at t~154, while the bleaching front is still sweeping (it freezes near t~170), so signal and pump coexist in the medium. That coupling is the POINT, not contamination: the signal depletes N3 by stimulated emission, depletion goes as signal INTENSITY, and the extra N1 left behind absorbs more pump -- so the transmitted Ez acquires an A^2, A^4 ... dependence. It is an EVEN-order readout channel by construction, which is what 01 lacks entirely (0.014% of its variance at degree 2, against a 1.8% noise floor).",
+ "resolution": 40,
+ "dimention": 2,
+ "cell_size_y": 20.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.5,
+ "run_until": 330.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 0.0,
+ "dft_t_end": 330.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "reservoir",
+  "guide_2",
+  "source_1",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "pop_monitor",
+  "n2f_map",
+  "line_snap"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.5,
+  "sizes": [
+   0.5,
+   10.0
+  ]
+ },
+ "reservoir": {
+  "_comment": "Isotropic dye-doped medium: uniform n=1.5, no LC constants, no relaxation, no lc_fields.npz. Gain via the sted block, inverted by source_pump's single PULSE rather than by a CW pump or a pre-inverted start -- see sted.N1_0/N3_0 below.",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.5,
+  "sizes": [
+   30,
+   10
+  ],
+  "resolution": 10,
+  "sted": {
+   "_comment": "4-level dye starting in the GROUND state: initial_populations = [N1_0, 0, N3_0, 0] = [30, 0, 0, 0], the opposite of 01 which starts pre-inverted at [0, 0, 30, 0]. There is no CW pump here, so the ENTIRE inversion is built by source_pump's single Ez pulse on the absorption line lbdA=0.45, and the signal at lbdE=0.55 (start_time=210) sees only what that pulse left behind as it passed. If a run shows no gain, check pop_monitor's N3(t) actually rises before reading it as physics.",
+   "enabled": true,
+   "lbdA": 0.45,
+   "gammaA": 0.1,
+   "lbdE": 0.55,
+   "gammaE": 0.1,
+   "SGMA": 0.006,
+   "N1_0": 30.0,
+   "N3_0": 0.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.5,
+  "sizes": [
+   1.0,
+   10.0
+  ]
+ },
+ "source_1": {
+  "_comment": "The reservoir INPUT: plain (non-beam) Gaussian-envelope pulse on the emission line lbdE=0.55, at the LEFT edge of guide_1. source_type is deliberately not gaussianbeam -- that beam type's amplitude is a NO-OP by design (it divides by a norm computed from the SAME amplitude-scaled field, cancelling |E0|; confirmed against MEEP's GaussianBeam2DSource.get_fields), which silently breaks any amplitude sweep. dlam=0.008 gives sigma=18.9 tu, FWHM 44.5 tu = 29.7 um, matching the pump's block-spanning length. start_time=60 -> peak at t~154, inside the pump's 0-202 window, so the two overlap on purpose. The amplitude LIST sets the strip count via return_quadrosource; data_gen replaces it wholesale, so the 2 entries here are only the default.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    10.0,
+    0.0
+   ]
+  },
+  "amplitude": [
+   10.0,
+   10.0
+  ],
+  "component": "Ey",
+  "source_type": "gaussian",
+  "lam": 0.55,
+  "dlam": 0.008,
+  "start_time": 60.0
+ },
+ "source_pump": {
+  "_comment": "The INVERTING PULSE -- despite the key name this is not a CW pump (01 has that version). Plain Gaussian-envelope Ez pulse on the absorption line lbdA=0.45, launched at t=0 at the LEFT edge of guide_1. dlam=0.005 gives sigma=20.25 tu, FWHM 47.7 tu = 31.8 um in the n=1.5 block, so the pulse spans the whole reservoir; it switches off at t=202. amplitude=50 (not 200) is chosen so the bleaching front STALLS partway and leaves a partially inverted far half: at 200 the block goes transparent and the pump carries no information about the population. Ez is orthogonal to source_1's Ey so the two do not interfere in the FIELDS -- they couple only through the dye populations, which is what makes Ez a clean even-order channel rather than a mixed one. Scalar amplitude keeps it one uniform line source instead of being split into strips.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    10.0,
+    0.0
+   ]
+  },
+  "amplitude": 50.0,
+  "component": "Ez",
+  "source_type": "gaussian",
+  "lam": 0.45,
+  "dlam": 0.005,
+  "start_time": 0.0
+ },
+ "monitor_1": {
+  "_comment": "input sensor, middle of guide_1",
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 10.0
+  },
+  "lam_range": [
+   0.4,
+   0.6
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "_comment": "output sensor, middle of guide_2",
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 10.0
+  },
+  "lam_range": [
+   0.4,
+   0.6
+  ],
+  "n_lam": 61
+ },
+ "pop_monitor": {
+  "_comment": "Atom-level sensor: saves N(t) for all 4 dye levels over the reservoir; snap_interval in MEEP time units (1 unit = 3.336 fs)",
+  "class": "monitor",
+  "type": "population",
+  "on_object": "reservoir",
+  "snap_interval": 2
+ },
+ "n2f_map": {
+  "class": "monitor",
+  "type": "near2far",
+  "on_object": "guide_2",
+  "position": {
+   "position": "right",
+   "size": 8.0
+  },
+  "lam_range": [
+   0.4,
+   0.6
+  ],
+  "n_lam": 61,
+  "center": [
+   200.0,
+   0.0
+  ],
+  "size": [
+   1.0,
+   200.0
+  ],
+  "n_points": [
+   1,
+   200
+  ],
+  "_comment_lam": "61-frequency comb 0.4-0.6, matching monitor_1/monitor_2 so all three sensors share one wavelength axis (SimpleSim de2b284: near2far takes lam_range+n_lam like the 1Ddft monitors, EH gains a leading frequency axis).",
+  "_comment_npoints": "Single 1x200 column at x=199.5 um spanning y in [-100, 100]: the generators read EH[-1,:], so one column is all that is used, and the far-field transform cost scales with n_points x n_lam \u2014 1x200 x 61 freqs is affordable where 200x200 x 61 would be hours per sample (the single-frequency 200x200 map was already ~40 min, 2026-07-30). NOTE this is NOT byte-identical to the old 200x200/size-200 map: that one read its last column at x=300; this reads at x=199.5, and the full 200 um y span is kept so the captured angular range is unchanged."
+ },
+ "line_snap": {
+  "_comment": "Time-domain LINE record at monitor_2's location, all 3 components ({t, Ex, Ey, Ez}, dt=0.1 ~ 5 samples/optical period). Added 2026-08-07 to resolve the cavity's circulating pulse per drive level; picked up into part files as ls_* by data_gen/_gen_common._load_extras.",
+  "class": "monitor",
+  "type": "1Dsnap",
+  "on_object": "guide_2",
+  "dt": 0.1,
+  "position": {
+   "position": "center",
+   "size": 10.0
+  }
+ }
+}

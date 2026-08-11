@@ -87,7 +87,7 @@ def _load_extras(out_dir, out_sensor, suffix):
 
 
 def open_reservoir(path, components, out_sensor=None, full_sensor=False,
-                   with_extras=False, n_sources=None, n2f_lam=0.55):
+                   with_extras=False, n_sources=None, n2f_lam="0.55"):
     """Load the fixed reservoir; return (forward_fn, n_strips, is_master).
 
     forward(E): real/complex input amplitudes (n_strips,) → stacked complex sensor
@@ -213,27 +213,46 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
                 # component axis. That produced 18-element outputs instead of
                 # 600 on the first block_iso_gain/01 amplitude sweep
                 # (2026-08-06) — wrong data, no error raised.
+                sel = None
                 if EH.ndim == 4:
                     lams = np.asarray(d["lams"]) if "lams" in d.files else None
                     if lams is None:
-                        fi = 0
-                    else:                       # nearest bin to the wanted line
-                        fi = int(np.argmin(np.abs(lams - float(n2f_lam))))
+                        sel = [0]
+                    else:
+                        # n2f_lam selects WHICH of the monitor's frequencies reach
+                        # the readout: a single wavelength (default, back-compatible),
+                        # a comma-separated list, or "all". Keeping more than one
+                        # matters whenever the design puts different physics on
+                        # different lines -- e.g. block_iso_gain/02 carries the signal
+                        # at 0.55 and the pump (its EVEN-order channel) at 0.45, and a
+                        # single-wavelength readout silently discards the latter.
+                        spec = str(n2f_lam).strip().lower()
+                        if spec == "all":
+                            sel = list(range(len(lams)))
+                        else:
+                            sel = [int(np.argmin(np.abs(lams - float(w))))
+                                   for w in spec.split(",") if w]
                         if not getattr(open_reservoir, "_lam_note", False):
                             print(f"[reservoir] n2f has {EH.shape[0]} frequencies; "
-                                  f"readout takes lam={lams[fi]:.4f} "
-                                  f"(nearest to {n2f_lam}). Full comb kept in "
+                                  f"readout takes {len(sel)} of them: "
+                                  f"{np.round(lams[sel], 4).tolist()} "
+                                  f"(from --n2f_lam {n2f_lam}). Full comb kept in "
                                   f"extras.", flush=True)
                             open_reservoir._lam_note = True
-                    EH = EH[fi]
+                else:
+                    EH = EH[None]
+                    sel = [0]
                 if full_sensor:
                     # the WHOLE far-field map per component, (nx, ny) each,
                     # flattened C-order and concatenated in `components` order
                     # (reshape with sensor_shape from the assembled npz)
-                    return np.concatenate([EH[:, :, ci[c]].ravel()
-                                           for c in components])
-                return np.concatenate([EH[-1, :, ci[c]].ravel()
-                                       for c in components])
+                    return np.concatenate([EH[k][:, :, ci[c]].ravel()
+                                           for c in components for k in sel])
+                # Component-major so `output` still splits into len(components)
+                # equal blocks, as every downstream reader assumes; each block is
+                # now len(sel) wavelengths laid end to end.
+                return np.concatenate([EH[k][-1, :, ci[c]].ravel()
+                                       for c in components for k in sel])
             m2 = d
         else:
             m2 = np.load(os.path.join(out_dir, f"monitor_2_{suffix}.npz"))
@@ -291,10 +310,18 @@ def add_extras_args(ap, default=True):
                          "the near2far equivalence currents in each part "
                          f"(default {'on' if default else 'off'})")
     ap.add_argument("--no_extras", dest="extras", action="store_false")
-    ap.add_argument("--n2f_lam", type=float, default=0.55,
-                    help="wavelength the n2f readout takes when the design gives "
-                         "the near2far monitor lam_range+n_lam (default 0.55, the "
-                         "signal line). The whole comb is kept in extras either way.")
+    ap.add_argument("--n2f_lam", default="0.55",
+                    help="which of the near2far monitor's wavelengths reach the "
+                         "READOUT, when the design gives it lam_range+n_lam. One "
+                         "wavelength (default 0.55, the signal line), a "
+                         "comma-separated list ('0.45,0.55'), or 'all' for the whole "
+                         "comb. Use more than one whenever the design puts different "
+                         "physics on different lines: block_iso_gain/02 carries the "
+                         "signal at 0.55 and its even-order pump channel at 0.45, and "
+                         "the default would silently discard the latter. `output` "
+                         "still splits into one equal block per component; each block "
+                         "is the selected wavelengths laid end to end. The whole comb "
+                         "is kept in extras either way.")
 
 
 def _parts_dir(out_path):

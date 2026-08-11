@@ -34,6 +34,18 @@ def main():
                          "what gets saved as 'inputs' -- lets the device operate at any real "
                          "drive level without breaking the [-1,1] orthonormality the capacity "
                          "decomposition (n6_dambre) assumes.")
+    ap.add_argument("--encode", default="amplitude", choices=["amplitude", "intensity"],
+                    help="what u drives. 'amplitude' (default): physical amplitude = "
+                         "scale*u. 'intensity': u sets the drive INTENSITY instead, so "
+                         "amplitude = scale*sqrt((u+1)/2) and the drive is non-negative. "
+                         "This matters for PARITY: an intensity readout is even in the "
+                         "amplitude, so under amplitude encoding it can only reach even "
+                         "polynomial degrees (odd capacities come out exactly 0.00). Under "
+                         "intensity encoding, even-in-amplitude == arbitrary polynomial in "
+                         "the encoded variable, so the same readout spans the WHOLE basis. "
+                         "u itself stays Uniform[-1,1] either way, so `inputs` and the "
+                         "Legendre orthonormality that n6_dambre assumes are unchanged and "
+                         "every existing analysis still applies.")
     gc.add_extras_args(ap)
     gc.add_common_args(ap)
     args = ap.parse_args()
@@ -58,7 +70,11 @@ def main():
             part = os.path.join(gc._parts_dir(out_path), f"part_{int(m):06d}.npz")
             if os.path.exists(part):
                 return
-        v = forward((args.scale * U[m]).astype(complex))
+        # Intensity encoding: u sets |E|^2, so the amplitude is the square root.
+        # (u+1)/2 maps [-1,1] -> [0,1], keeping u itself uniform on [-1,1] so the
+        # Legendre basis downstream is untouched.
+        drive = np.sqrt((U[m] + 1.0) / 2.0) if args.encode == "intensity" else U[m]
+        v = forward((args.scale * drive).astype(complex))
         gc.save_part(out_path, m, is_master, output=v, inp=U[m],
                      **getattr(forward, "extras", {}))
 
@@ -70,7 +86,8 @@ def main():
             outputs = np.abs(outputs) ** 2
         extra = gc.collect_extras(parts, reserved=("output", "inp"))
         np.savez(out_path, inputs=inputs, outputs=outputs, scale=args.scale,
-                 readout=np.asarray(args.readout), components=np.asarray(comps),
+                 readout=np.asarray(args.readout), encode=np.asarray(args.encode),
+                 components=np.asarray(comps),
                  out_sensor=np.asarray(args.out_sensor or "monitor_2"), **extra)
         gc.report_extras("ipcdata", extra, len(parts))
         print(f"[ipcdata] assembled → {out_path}  ({len(parts)} probes, readout={args.readout})", flush=True)
