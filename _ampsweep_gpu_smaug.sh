@@ -33,8 +33,14 @@ export XLA_PYTHON_CLIENT_PREALLOCATE=false
 # would otherwise write the same scratch monitor npz and clobber each other.
 export SIMPLESIM_SCRATCH_TAG="asw_$(hostname)_$(basename "$DESIGN")"
 
+# N2FLAM: which n2f wavelengths reach the readout. Unset keeps the historical
+# single-wavelength default (0.55, the signal line) -- which contains NO pump line,
+# so any pump-channel analysis then has to fall back on the monitor_2 extras.
+# Set N2FLAM=all to put the whole comb in `output` itself.
 COMMON=(--path "$DESIGN" --levels "$LEVELS" --n_probes 1
-        --out_sensor n2f_map --components Ex,Ey,Ez ${OUTNAME:+--out "$DESIGN/datasets/$OUTNAME"})
+        --out_sensor n2f_map --components Ex,Ey,Ez
+        ${N2FLAM:+--n2f_lam "$N2FLAM"}
+        ${OUTNAME:+--out "$DESIGN/datasets/$OUTNAME"})
 
 if [ "$BATCH" = "assemble" ]; then
     "$HOME"/micromamba/envs/pmp/bin/python -u \
