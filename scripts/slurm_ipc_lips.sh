@@ -19,16 +19,19 @@
 #   ssh -J cerneziga@f1login.ijs.si cerneziga@lips
 #   cd /home/cerneziga/resevoir
 #   mkdir -p /project/cerneziga/reservoir_runs/logs
-#   N=$(/project/cerneziga/micromamba/envs/opt/bin/python \
-#         data_gen/generate_ipc_data.py \
-#         --path data/reservoir_types/res_sigmoid_gate --n 1000 --count)
-#   sbatch --array=0-$((N-1))%8 scripts/slurm_ipc_lips.sh
+#   sbatch --array=0-999%8 scripts/slurm_ipc_lips.sh
 #
-#   (%8 = one task per grace GPU. First tasks pay the JAX compile; the shared
+#   (For ipc, work items = samples, so the array is simply 0..n-1 — no --count
+#    step. NOTE the count/assemble helpers CANNOT run on the login node with
+#    the opt env: opt is aarch64 (GH200) and the login node is x86_64 ->
+#    "Exec format error". Use the x86 env for login-node helpers:
+#    /project/cerneziga/mamba_x86/envs/pmp/bin/python.
+#    %8 = one task per grace GPU. First tasks pay the JAX compile; the shared
 #    compile cache on /project makes the rest start fast.)
 #
-# ASSEMBLE when the array is done (login node, 1 rank, seconds):
-#   /project/cerneziga/micromamba/envs/opt/bin/python \
+# ASSEMBLE when the array is done (login node, 1 rank, seconds — x86 env,
+# NOT opt, see note above):
+#   /project/cerneziga/mamba_x86/envs/pmp/bin/python \
 #       data_gen/generate_ipc_data.py \
 #       --path data/reservoir_types/res_sigmoid_gate --n 1000 --scale 30 \
 #       --n_sources 4 --out_sensor monitor_2 --components Ex,Ey,Ez --assemble
