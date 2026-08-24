@@ -1,6 +1,8 @@
 #!/bin/bash
 # IPC dataset for the res_sigmoid_gate reservoir type on lips — GPU array on
-# the `grace` partition (8× GH200 nodes), gpumeep backend.
+# the F5-gpu partition (2x GH200 nodes), gpumeep backend.
+#
+# PARTITION RULE (user, 2026-08-24): only F5 and F5-gpu are ever used on lips.
 #
 # WHY GPU AND NOT THE F5 CPU PARTITION (first version of this script,
 # 2026-08-24): the 19i-b element uses PER-TRANSITION DIPOLE ORIENTATIONS
@@ -19,14 +21,14 @@
 #   ssh -J cerneziga@f1login.ijs.si cerneziga@lips
 #   cd /home/cerneziga/resevoir
 #   mkdir -p /project/cerneziga/reservoir_runs/logs
-#   sbatch --array=0-999%8 scripts/slurm_ipc_lips.sh
+#   sbatch --array=0-999%2 scripts/slurm_ipc_lips.sh
 #
 #   (For ipc, work items = samples, so the array is simply 0..n-1 — no --count
 #    step. NOTE the count/assemble helpers CANNOT run on the login node with
 #    the opt env: opt is aarch64 (GH200) and the login node is x86_64 ->
 #    "Exec format error". Use the x86 env for login-node helpers:
 #    /project/cerneziga/mamba_x86/envs/pmp/bin/python.
-#    %8 = one task per grace GPU. First tasks pay the JAX compile; the shared
+#    %2 = one task per F5-gpu GPU. First tasks pay the JAX compile; the shared
 #    compile cache on /project makes the rest start fast.)
 #
 # ASSEMBLE when the array is done (login node, 1 rank, seconds — x86 env,
@@ -45,7 +47,7 @@
 #   * design is isotropic: no LC relax cache needed
 #
 #SBATCH --job-name=ipc_sigmoid
-#SBATCH --partition=grace
+#SBATCH --partition=F5-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
