@@ -1,0 +1,245 @@
+{
+ "_comment": "RESERVOIR TYPE res_sigmoid_gate: the LogicGates 19i-b realizable gate element used as a reservoir nonlinearity (registered 2026-08-24 on user request: 'sigmoid reservoir'). Provenance: LogicGates data/19ib_highsigma2, the 2026-08 weekend-campaign Pareto point (gap 7.0x). Stack: 20um cyanine-class saturable absorber (sigma 0.108, N1_0 13.3) -> 25um 45-deg-director gain dye (Ey->Ez converter) -> 24um z-director gain dye (amplifier), single Ez pump 0.40 amp 200 (gaussian, start 0, off ~202); drive Ey 0.55 start 60 rides the charging pump = the exact protocol the transfer curve was measured with. MEASURED TRANSFER (Sigma|Ey|^2 in at 0.55 -> Sigma|Ez|^2 out): linear foot ratio ~0.20 (a 0.3-3), avalanche knee / unstable decision crossing S_in 6.3e5 (a~13), peak ratio 2.82 at a20, stable ON crossing S_in 4.4e6 (a~34), depletion fold beyond a~50 -> the sigmoid + fold nonlinearity this type contributes. PUMP MUST STAY Ez: the z-amp pump line is [0,0,1]-oriented. Monitors kept MINIMAL for 1000-sample dataset generation (two 1Ddft lines only - no pop monitor, no snaps; the LogicGates originals carry the diagnostics). IPC datasets: 4 input strips via generate_ipc_data.py --n_sources 4 (in-memory amplitude-list override, no design copy - amplitude here stays the faithful 2-strip [10,10] of the sweep design); --scale 30 puts the per-strip drive u*30 (u~U[-1,1]) mid-transition: mean total S_in ~ 3734*scale^2/3 = 1.1e6 sits between decision (6.3e5) and ON (4.4e6), max ~3.4e6 reaches saturation, small |u| samples the linear foot. Solver key says gpumeep; the lips CPU script forces RESERVOIR_SOLVER=meep. See scripts/slurm_ipc_lips.sh.",
+ "resolution": 40,
+ "dimention": 2,
+ "cell_size_y": 20.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.5,
+ "run_until": 380.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 0.0,
+ "dft_t_end": 380.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "absorber",
+  "gain_conv",
+  "gain_amp",
+  "guide_2",
+  "source_1",
+  "source_pump",
+  "monitor_1",
+  "monitor_2"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.5,
+  "sizes": [
+   0.5,
+   10.0
+  ]
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.5,
+  "sizes": [
+   1.0,
+   10.0
+  ]
+ },
+ "source_1": {
+  "_comment": "DRIVE: Ey gaussian at 0.55, start 60 (rides the charging pump - the measured-transfer protocol). 2-element amplitude = 2 x 5um strips (faithful to the sweep design); IPC generation overrides to 4 x 2.5um strips via --n_sources 4.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    10.0,
+    0.0
+   ]
+  },
+  "amplitude": [
+   10.0,
+   10.0
+  ],
+  "component": "Ey",
+  "source_type": "gaussian",
+  "lam": 0.55,
+  "dlam": 0.008,
+  "start_time": 60.0
+ },
+ "source_pump": {
+  "_comment": "PUMP: Ez@0.40 amp 200 (15-series style): 50% coupling to the 45-deg region, 100% to the z-region.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    10.0,
+    0.0
+   ]
+  },
+  "amplitude": 200.0,
+  "component": "Ez",
+  "source_type": "gaussian",
+  "lam": 0.4,
+  "dlam": 0.005,
+  "start_time": 0.0
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 10.0
+  },
+  "lam_range": [
+   0.4,
+   0.6
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 10.0
+  },
+  "lam_range": [
+   0.4,
+   0.6
+  ],
+  "n_lam": 61
+ },
+ "absorber": {
+  "_comment": "SA dye, 20 um, sigma 0.108 / N1_0 13.3 (empirical OD match to 19g's foot).",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.5,
+  "sizes": [
+   20,
+   10
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.55,
+   "gammaA": 0.1,
+   "lbdE": 0.65,
+   "gammaE": 0.1,
+   "SGMA": 0.108,
+   "N1_0": 13.3,
+   "N3_0": 0.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0
+  }
+ },
+ "gain_conv": {
+  "_comment": "45-deg converter region (same dye as gain_amp, local director tilted 45 deg).",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.5,
+  "sizes": [
+   25,
+   10
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "SGMA": 0.006,
+   "initial_populations": [
+    30,
+    0,
+    0,
+    0
+   ],
+   "transitions": [
+    {
+     "from": 1,
+     "to": 4,
+     "lam": 0.4,
+     "gamma": 0.1,
+     "orientation": [
+      0.0,
+      0.7071067811865476,
+      0.7071067811865476
+     ]
+    },
+    {
+     "from": 4,
+     "to": 3,
+     "rate": 10.0
+    },
+    {
+     "from": 2,
+     "to": 3,
+     "lam": 0.55,
+     "gamma": 0.1,
+     "orientation": [
+      0.0,
+      0.7071067811865476,
+      0.7071067811865476
+     ]
+    },
+    {
+     "from": 2,
+     "to": 1,
+     "rate": 100.0
+    }
+   ]
+  }
+ },
+ "gain_amp": {
+  "_comment": "FULL-z amplifier: same dye, director along z. 24 um (19e 18 + 6 for peak ~2.6).",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.5,
+  "sizes": [
+   24,
+   10
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "SGMA": 0.006,
+   "initial_populations": [
+    30,
+    0,
+    0,
+    0
+   ],
+   "transitions": [
+    {
+     "from": 1,
+     "to": 4,
+     "lam": 0.4,
+     "gamma": 0.1,
+     "orientation": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    {
+     "from": 4,
+     "to": 3,
+     "rate": 10.0
+    },
+    {
+     "from": 2,
+     "to": 3,
+     "lam": 0.55,
+     "gamma": 0.1,
+     "orientation": [
+      0.0,
+      0.0,
+      1.0
+     ]
+    },
+    {
+     "from": 2,
+     "to": 1,
+     "rate": 100.0
+    }
+   ]
+  }
+ }
+}
