@@ -67,11 +67,24 @@ drive_of = {}
 for ch, key in enumerate(cfg.get("sweep_sources", [])):
     drive_of[str(cfg[key].get("component", "Ey"))] = ch
 
+# Sweep points where BOTH drives pass through zero (t = pi/2 and 3pi/2 for tones
+# 3 and 5) give a direct measurement of the zero-drive background: whatever
+# reaches the readout bin when neither channel is driving. Here that is mainly
+# the CW 808 pump's spectral skirt leaking into the 1.064 bin, and it is CONSTANT
+# across the sweep — so it lands entirely in bin 0 and cannot contaminate the
+# fundamentals or the intermods. It does mean a non-zero DC bin is expected and
+# is NOT by itself evidence of an even-order nonlinearity; the even-order bins
+# (2, 4, 6, ...) stay the clean control, since a constant offset never reaches them.
+inputs = np.abs(np.asarray(d0["inputs"]))
+amps = np.abs(np.asarray(d0["amps"]).reshape(-1))
+zero_j = np.where((inputs <= 1e-6 * amps[None, :]).all(axis=1))[0]
+
 col = {"dc": "0.6", "fundamental": "tab:green", "harmonic": "tab:red",
        "intermod": "tab:orange", "other": "tab:blue"}
 fig, axes = plt.subplots(len(comps), 1, figsize=(11, 3.6 * len(comps)),
                          squeeze=False)
 rows = []
+bgs = []
 for r, c in enumerate(comps):
     d = dict(d0)
     d["outputs"] = Y[:, r * per_comp:(r + 1) * per_comp].reshape(N_t, n_lam, -1)[:, k, :]
@@ -103,6 +116,11 @@ for r, c in enumerate(comps):
     rows.append((c, own, fund, res["power_by_kind"]["harmonic"],
                  res["power_by_kind"]["intermod"], cross, even, dc, total, ok))
 
+    Yc = Y[:, r * per_comp:(r + 1) * per_comp].reshape(N_t, n_lam, -1)[:, k, :]
+    bg = float(np.abs(Yc[zero_j]).mean()) if len(zero_j) else float("nan")
+    drive_lvl = float(np.abs(Yc).max())
+    bgs.append((c, bg, drive_lvl, len(zero_j)))
+
     ax = axes[r][0]
     floor = max(P.max() * 1e-14, 1e-300)
     ax.bar(nu, np.maximum(P, floor), width=0.8,
@@ -126,6 +144,16 @@ fig.tight_layout()
 os.makedirs(os.path.dirname(os.path.abspath(OUT)), exist_ok=True)
 fig.savefig(OUT, dpi=140)
 print("wrote", OUT)
+
+if len(zero_j):
+    print(f"[background] {len(zero_j)} sweep points have BOTH drives at zero "
+          f"(j = {zero_j.tolist()}) — measured pedestal at the readout bin:")
+    for c, bg, mx, n in bgs:
+        print(f"    {c}: |field| {bg:.4e}   vs {mx:.4e} at full drive "
+              f"({bg / (mx + 1e-300):.2e} of it)")
+    print("    This is constant across the sweep, so it lands in bin 0 only. A "
+          "non-zero DC bin is therefore expected and is NOT evidence of an "
+          "even-order nonlinearity; bins 2, 4, 6 ... remain the clean control.")
 
 print(f"{'out':>4} {'tone':>5} {'fundamental':>12} {'harmonic':>11} {'intermod':>11} "
       f"{'CROSS':>11} {'even(>=2)':>11} {'dc':>11}")
