@@ -51,6 +51,12 @@ DESIGN=data/signal_modulation/design01
 
 export SIMPLESIM_PATH=/home/cerneziga/SimpleSim
 export GPUMEEP_PATH=/home/cerneziga/GPUmeep/src
+# LCrelax FIRST on PYTHONPATH: SimpleSim's lc_block imports
+# `src.class_meep_blocks` from it for ANY 'reservoir' object, isotropic
+# or not — omitting this is what killed arrays 29721821/29721842 with
+# ModuleNotFoundError before the geometry was even built (2026-09-01).
+# The path must be the repo ROOT (which contains src/), not src/.
+export PYTHONPATH=/home/cerneziga/LCrelax${PYTHONPATH:+:$PYTHONPATH}
 export JAX_PLATFORMS=cuda,cpu
 export XLA_PYTHON_CLIENT_PREALLOCATE=false
 export XLA_PYTHON_CLIENT_ALLOCATOR=platform
