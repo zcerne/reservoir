@@ -130,8 +130,18 @@ if extra:                                              # IMD3 vs drive
     a = np.array([s[0] for s in summary])
     ax.loglog(a, [s[2] for s in summary], "o-", color="tab:red", label="IMD3 (3rd order)")
     ax.loglog(a, [s[3] for s in summary], "s-", color="tab:orange", label="IMD5 (5th order)")
-    ref = np.array([s[2] for s in summary])[0] * (a / a[0]) ** 2
-    ax.loglog(a, ref, "k:", lw=1, label="drive^2 (weakly-nonlinear slope)")
+    # Perturbative third order: sideband amplitude goes as E^3, so its POWER goes
+    # as E^6 while the fundamentals' power goes as E^2 — the RATIO plotted here
+    # therefore rises as E^4, not E^2. (Equivalently the textbook "IMD3 rises 2 dB
+    # per 1 dB of input power".) Both references drawn, because a saturating
+    # amplifier is not perturbative and generally falls short of E^4.
+    imd3 = np.array([s[2] for s in summary])
+    ax.loglog(a, imd3[0] * (a / a[0]) ** 4, "k:", lw=1,
+              label="drive^4 (perturbative 3rd order)")
+    ax.loglog(a, imd3[0] * (a / a[0]) ** 2, color="0.6", ls="--", lw=1,
+              label="drive^2")
+    ax.axhline(imd3[0], color="0.4", ls="-.", lw=1,
+               label=f"floor at lowest rung ({imd3[0]:.1e})")
     ax.set_xlabel("beat-peak drive amplitude")
     ax.set_ylabel("power / fundamentals")
     ax.grid(alpha=0.25, which="both")
