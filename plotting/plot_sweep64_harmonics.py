@@ -94,9 +94,14 @@ for r, c in enumerate(comps):
                 cross += float(p)
     even = float(P[(order >= 2) & (order % 2 == 0)].sum())
     dc = float(P[nu == 0].sum())
-    fund = res["power_by_kind"]["fundamental"] or 1e-300
+    fund = res["power_by_kind"]["fundamental"]
+    # A ratio to an empty fundamental is meaningless, and printing it as 1e+306
+    # reads like a colossal nonlinearity rather than a missing denominator.
+    # Guard explicitly: this fires if the drive never reached the readout bin.
+    ok = fund > 1e-12 * total
+    fund = fund or 1e-300
     rows.append((c, own, fund, res["power_by_kind"]["harmonic"],
-                 res["power_by_kind"]["intermod"], cross, even, dc, total))
+                 res["power_by_kind"]["intermod"], cross, even, dc, total, ok))
 
     ax = axes[r][0]
     floor = max(P.max() * 1e-14, 1e-300)
@@ -107,7 +112,9 @@ for r, c in enumerate(comps):
     ax.set_ylabel(f"{c} out\npower at {1.0 / freqs[k]:.4f} um")
     ax.grid(alpha=0.25, axis="y")
     drv = "" if own is None else f" (driven on tone {tones[own]})"
-    ax.set_title(f"{c} output{drv} — cross-channel {cross / fund:.2e} x fundamental")
+    xchan = (f"{cross / fund:.2e} x fundamental" if ok
+             else "n/a — fundamental empty at this bin")
+    ax.set_title(f"{c} output{drv} — cross-channel {xchan}")
     for x, p, kk, ll in zip(nu, P, kind, label):
         if p > P.max() * 1e-9 and kk in ("fundamental", "harmonic", "intermod"):
             ax.text(x, p, ll or str(x), rotation=90, fontsize=7, ha="center",
@@ -122,9 +129,16 @@ print("wrote", OUT)
 
 print(f"{'out':>4} {'tone':>5} {'fundamental':>12} {'harmonic':>11} {'intermod':>11} "
       f"{'CROSS':>11} {'even(>=2)':>11} {'dc':>11}")
-for c, own, fu, ha, im, cr, ev, dc, tot in rows:
+for c, own, fu, ha, im, cr, ev, dc, tot, ok in rows:
     t = "-" if own is None else str(tones[own])
     print(f"{c:>4} {t:>5} {fu:>12.4e} {ha:>11.4e} {im:>11.4e} {cr:>11.4e} "
           f"{ev:>11.4e} {dc:>11.4e}")
-    print(f"{'':>10} relative to own fundamental: harmonic {ha/fu:.3e}  "
-          f"intermod {im/fu:.3e}  CROSS {cr/fu:.3e}  even {ev/fu:.3e}  dc {dc/fu:.3e}")
+    if ok:
+        print(f"{'':>10} relative to own fundamental: harmonic {ha/fu:.3e}  "
+              f"intermod {im/fu:.3e}  CROSS {cr/fu:.3e}  even {ev/fu:.3e}  "
+              f"dc {dc/fu:.3e}")
+    else:
+        print(f"{'':>10} NO FUNDAMENTAL at this bin — ratios suppressed. The drive "
+              f"never reached the readout, so nothing here is a nonlinearity "
+              f"measurement; check the readout wavelength and that the sweep "
+              f"covers a full period.")
