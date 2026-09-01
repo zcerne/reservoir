@@ -78,7 +78,7 @@ def harmonic_specter(harmonic_data, max_order=6, rel_thresh=1e-9):
 
     Returns dict: power_by_kind {dc,fundamental,harmonic,intermod,other},
         power_by_order {order: power}, thd (√(harmonic/fundamental)),
-        imd (intermod/fundamental), distortion_ratio ((total−dc−fund)/fund),
+        imd (intermod/fundamental), distortion_frac (nonlinear power / AC power),
         max_order (highest order with significant power), n_t, tones, linear,
         plus the resolved per-bin spectrum the classification is built from —
         spec_nu / spec_power / spec_kind / spec_order / spec_label over the

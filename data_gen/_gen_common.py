@@ -151,13 +151,42 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
     src_key = next(k for k, v in cfg.items()
                    if isinstance(v, dict) and v.get("class") == "source"
                    and k != "source_2")
-    amp0 = cfg[src_key].get("amplitude", [1.0])
-    n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
+    # SEPARATE-SOURCE CHANNELS (2026-09-01). The default above makes the channels
+    # spatial STRIPS of one segmented source: SimpleSim derives the strip layout
+    # from the length of that source's amplitude LIST, so strips necessarily tile
+    # an aperture and cannot overlap. A design that wants its channels to be
+    # distinct source OBJECTS instead — co-located, or differing in wavelength or
+    # polarisation rather than in position — declares them explicitly:
+    #     "sweep_sources": ["source_1", "source_2"]
+    # and each entry then takes one SCALAR amplitude per run. Opt-in by design
+    # key, so every existing strip-based design is untouched. Note the default
+    # src_key search deliberately skips "source_2"; without this branch a
+    # two-source design would silently drive only the first and report a
+    # nonlinearity that is really a missing input.
+    sweep_sources = cfg.get("sweep_sources")
+    if sweep_sources:
+        sweep_sources = [str(k) for k in sweep_sources]
+        missing = [k for k in sweep_sources
+                   if not (isinstance(cfg.get(k), dict)
+                           and cfg[k].get("class") == "source")]
+        if missing:
+            raise SystemExit(f"sweep_sources names non-source keys: {missing}")
+        n_strips = len(sweep_sources)
+    else:
+        amp0 = cfg[src_key].get("amplitude", [1.0])
+        n_strips = len(amp0) if isinstance(amp0, (list, tuple)) else 1
     # Source-count variant WITHOUT a design-folder copy (standing convention,
     # 2026-08-03): forward() replaces the amplitude list wholesale on every run,
     # and SimpleSim derives the strip layout from that list's length — so a
     # different n_strips here IS the whole "4src" variant.
     if n_sources is not None:
+        if sweep_sources:
+            # --n_sources reshapes ONE source's strip list; with sweep_sources the
+            # channel count is the number of named source objects and cannot be
+            # changed without editing the design. Fail loudly: silently ignoring
+            # it would run a different experiment than the command line asks for.
+            raise SystemExit("--n_sources cannot be combined with a design's "
+                             "sweep_sources (channels are source objects, not strips)")
         n_strips = int(n_sources)
 
     # Per-process scratch tag (matches the old GPUMEEP_SCRATCH_TAG use): two
@@ -180,7 +209,13 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
                and str(v.get("type", "")) == "population"}
 
     def forward(E):
-        ov = {src_key: {"amplitude": list(E)}}
+        if sweep_sources:
+            # one scalar per named source; np.real because the source casts to
+            # real anyway and a complex scalar would silently drop its phase
+            ov = {k: {"amplitude": float(np.real(E[i]))}
+                  for i, k in enumerate(sweep_sources)}
+        else:
+            ov = {src_key: {"amplitude": list(E)}}
         ov.update(pop_off)
         sim = ReservoirSimulation(path, backend=backend, suffix=suffix,
                                   overrides=ov)

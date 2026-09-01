@@ -55,7 +55,12 @@ def spectrum(suffix):
     """Hann-windowed power spectrum of the exit Ey trace. Returns (f, P, t, E)."""
     tag = f"_{suffix}" if suffix else ""
     d = np.load(os.path.join(SIMDIR, f"snap_point{tag}.npz"))
-    t, E = np.asarray(d["t"], float), np.asarray(d["Ey"], float)
+    t = np.asarray(d["t"], float).reshape(-1)
+    # 0Dsnap stores (N, 1), not (N,) — the point monitor returns a 1-element
+    # array per step. Left as-is, `E * w` broadcasts (N,1) against (N,) into an
+    # N x N matrix: 6.4 GB at N = 80000, which OOM-kills the process rather
+    # than erroring. Flatten to the point's own series first.
+    E = np.asarray(d["Ey"], float).reshape(len(t), -1)[:, 0]
     dt = float(np.median(np.diff(t)))
     w = np.hanning(len(E))
     # coherent gain of the Hann window, so bin heights stay comparable to the

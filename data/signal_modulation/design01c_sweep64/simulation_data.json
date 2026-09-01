@@ -1,0 +1,172 @@
+{
+    "_comment": "signal_modulation/design01c_sweep64 — NONLINEARITY BY THE ESTABLISHED 64-PAIR AMPLITUDE-SWEEP METHOD (characterization/n4_harmonics_distortion), on the design01 Nd:YAG amplifier with geometry, pump (Ez 808 from above, amp 50) and SGMA 1.86e-5 unchanged. This is the SAME protocol used for the reservoir designs, so the numbers are directly comparable to them: two sources driven simultaneously, 64 amplitude pairs, output read at one wavelength, DFT over the 64. HOW IT WORKS: sweep a parameter t over one period in 64 steps and give source_1 the amplitude cos(3t) and source_2 cos(5t). Each step is a SEPARATE static CW run held to steady state; what oscillates at 3 and 5 is the amplitude from run to run, NOT an optical frequency. DFT the 64 outputs: a linear amplitude map puts power only in bins 3 and 5, any nonlinearity creates harmonics (6, 9, 10, 15) and intermodulation (2, 8, 1, 7). Contrast design01b_twotone, which puts two genuinely different OPTICAL frequencies in at once and looks for mixing in the optical spectrum — a different quantity, and one this method structurally cannot see. WHY run_until IS 3000 HERE AND 18000 THERE: each run only has to reach steady state, and design01's relaxation oscillation is settled by ~2000 at every drive. The 18000 of the optical two-tone was forced by the gain linewidth capping the tone separation, and that constraint does not exist when the tones live in the sweep index. DEGENERACY, KNOWN AND DELIBERATE: the two sources are co-located, same size, same wavelength (user, 2026-09-01: 'same size same location'), so the crystal only ever sees A1+A2 — the map is a function of the SUM. That makes this a clean two-tone test of a single-input amplitude map; it is NOT two independent channels being mixed the way the reservoir's spatial strips were. Independent channels would have to differ in position, wavelength or polarisation. AMPLITUDE: pass --amps 40,40, so each source swings +-40 and the summed drive peaks at 80 — the agreed ceiling (drive 100 drove the population solver to level 3 = -0.40 during the first ring). READ OUT: monitor_2, component Ey, the 1.064 um bin (bin 29 of 61) — the full 61-bin spectrum is stored per run, so the readout wavelength can be re-chosen without regenerating. Created 2026-09-01 from design01.",
+    "resolution": 25,
+    "dimention": 2,
+    "cell_size_y": 9.0,
+    "periodic": false,
+    "pml_size": 2.0,
+    "background_index": 1.77,
+    "run_until": 3000.0,
+    "source_off_decay": 0.0,
+    "dft_t_start": 2000.0,
+    "dft_t_end": 3000.0,
+    "courant": 0.5,
+    "fp": "fp64",
+    "solver": "gpumeep",
+    "object_order": [
+        "guide_1",
+        "crystal",
+        "guide_2",
+        "source_1",
+        "source_2",
+        "source_pump",
+        "monitor_1",
+        "monitor_2",
+        "pop_monitor",
+        "snap_point"
+    ],
+    "guide_1": {
+        "class": "guide",
+        "index": 1.82,
+        "sizes": [
+            1.0,
+            5.0
+        ]
+    },
+    "guide_2": {
+        "class": "guide",
+        "index": 1.82,
+        "sizes": [
+            1.0,
+            5.0
+        ]
+    },
+    "crystal": {
+        "_comment": "the Nd:YAG block. sted = the same 4-level Maxwell-Bloch machinery as the dyes, with Nd:YAG's lines: lbdA 0.808, lbdE 1.064, REAL linewidths. SGMA x N is the scaled doping (see top comment).",
+        "class": "reservoir",
+        "isotropic": true,
+        "n": 1.82,
+        "sizes": [
+            20,
+            5.0
+        ],
+        "resolution": 10,
+        "sted": {
+            "enabled": true,
+            "lbdA": 0.808,
+            "gammaA": 0.0015,
+            "lbdE": 1.064,
+            "gammaE": 0.00053,
+            "SGMA": 1.86e-05,
+            "N1_0": 0.0,
+            "N3_0": 30.0,
+            "rate_43": 10.0,
+            "rate_21": 100.0,
+            "_comment": "4-level Nd:YAG starting FULLY INVERTED (N3_0=30, N1_0=0): the 230 us upper-level lifetime means a pre-pumped crystal simply IS in this state when a ps-scale signal arrives. SGMA 1.86e-5 = x30 the literal 1 at.% Nd:YAG value (6.2e-7), giving gL ~= 2.3 over the 20 um block — visible gain without free-running. CORRECTED 2026-09-01: the first pilot shipped SGMA 2e-3, which is gL ~= 249; the crystal dumped 97% of its inversion within 1000 t.u. REGARDLESS of drive (identical at amp 1 and amp 100) and amp 100 went non-finite at t=2281. That is parasitic free-running, not modulation. Calibration used: alpha ~ 1.1*(SGMA*N) /um at gamma=0.1, with the Lorentzian PEAK scaling as 1/gamma — the 1/gamma factor is what makes a narrow crystal line so much more sensitive to SGMA than our broad dyes (190x here)."
+        }
+    },
+    "source_1": {
+        "_comment": "channel 0 of the sweep: CW Ey at 1.064 um. Amplitude is a SCALAR and is overwritten every run by the generator with cos(3t_j); the 1.0 here is only a placeholder so the design is runnable on its own.",
+        "class": "source",
+        "position": {
+            "on_object": "guide_1",
+            "position": "left",
+            "size": [
+                0.0,
+                5.0,
+                0.0
+            ]
+        },
+        "amplitude": 1.0,
+        "component": "Ey",
+        "source_type": "continuous",
+        "lam": 1.064,
+        "dlam": 0.0
+    },
+    "source_pump": {
+        "_comment": "808 nm CW pump entering the crystal FROM ABOVE: y-normal sheet on the crystal's top edge radiating down (SimpleSim free source placement, 2026-09-01). Ez, orthogonal to the Ey signal, so they never interfere directly; the crystal is isotropic so the pump still drives 1->4.",
+        "class": "source",
+        "position": {
+            "on_object": "crystal",
+            "position": "center",
+            "y": "top",
+            "normal": "y",
+            "size": [
+                20.0,
+                0.0,
+                0.0
+            ]
+        },
+        "amplitude": 50.0,
+        "component": "Ez",
+        "source_type": "continuous",
+        "lam": 0.808,
+        "dlam": 0.0
+    },
+    "monitor_1": {
+        "class": "monitor",
+        "type": "1Ddft",
+        "on_object": "guide_1",
+        "position": {
+            "position": "center",
+            "size": 5.0
+        },
+        "lam_range": [
+            0.95,
+            1.2
+        ],
+        "n_lam": 61
+    },
+    "monitor_2": {
+        "class": "monitor",
+        "type": "1Ddft",
+        "on_object": "guide_2",
+        "position": {
+            "position": "center",
+            "size": 5.0
+        },
+        "lam_range": [
+            0.95,
+            1.2
+        ],
+        "n_lam": 61
+    },
+    "snap_point": {
+        "_comment": "exit time trace, dt 0.2. Cheap at 3000 t.u. (5000 samples) and kept as the settling check: if the envelope has not flattened by dft_t_start the run is being read during the transient and every sweep point is contaminated.",
+        "class": "monitor",
+        "type": "0Dsnap",
+        "on_object": "guide_2",
+        "dt": 0.2,
+        "position": {
+            "position": "right"
+        }
+    },
+    "pop_monitor": {
+        "_comment": "Level populations N_l(t) AVERAGED over the crystal — the modulator's own state variable, and the cleanest read of when emission balances refill (N3 flattens). NOTE: no snap_interval on purpose. With snap_interval > 0 this sensor also stores the whole-cell snap_N (n_snaps, n_levels, Nx, Ny) + snap_E, which at 6000 t.u. is GBs per task; without it save() writes only {t, N}, the summed per-level series (sensor.py:305).",
+        "class": "monitor",
+        "type": "population",
+        "on_object": "crystal"
+    },
+    "source_2": {
+        "_comment": "channel 1 of the sweep: driven with cos(5t_j). SAME position, SAME size, SAME wavelength as channel 0 — they overlap, so the crystal sees A1+A2. See the degeneracy note in the top comment.",
+        "class": "source",
+        "position": {
+            "on_object": "guide_1",
+            "position": "left",
+            "size": [
+                0.0,
+                5.0,
+                0.0
+            ]
+        },
+        "amplitude": 1.0,
+        "component": "Ey",
+        "source_type": "continuous",
+        "lam": 1.064,
+        "dlam": 0.0
+    },
+    "sweep_sources": [
+        "source_1",
+        "source_2"
+    ]
+}
