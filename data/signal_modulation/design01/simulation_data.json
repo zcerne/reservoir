@@ -21,6 +21,7 @@
   "source_pump",
   "monitor_1",
   "monitor_2",
+  "pop_monitor",
   "snap_point"
  ],
  "guide_1": {
@@ -138,5 +139,11 @@
   "position": {
    "position": "right"
   }
+ },
+ "pop_monitor": {
+  "_comment": "Level populations N_l(t) AVERAGED over the crystal — the modulator's own state variable, and the cleanest read of when emission balances refill (N3 flattens). NOTE: no snap_interval on purpose. With snap_interval > 0 this sensor also stores the whole-cell snap_N (n_snaps, n_levels, Nx, Ny) + snap_E, which at 6000 t.u. is GBs per task; without it save() writes only {t, N}, the summed per-level series (sensor.py:305).",
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
  }
 }
