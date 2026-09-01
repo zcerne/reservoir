@@ -1,0 +1,142 @@
+{
+ "_comment": "signal_modulation/design01 — Nd:YAG crystal as a pump-controlled signal modulator: CW 1064 nm signal through a side-pumped (808 nm, from above) crystal; the pump sets the inversion, the inversion sets the gain the signal sees. Design 01 starts PRE-INVERTED (see sted) — physically right, since the 230 us storage time means the crystal is simply full when the signal arrives; the pump's job is refilling burned inversion, not building it. modulating the pump to imprint a signal comes in design 02. REALISM NOTES: wavelengths, level structure (4-level: 808 absorb 4I9/2->4F5/2, fast decay to 4F3/2, 1064 emit 4F3/2->4I11/2, fast decay to ground) and the LINEWIDTHS are real Nd:YAG (gammaE 5.3e-4 = 159 GHz, gammaA 1.5e-3 = 459 GHz in MEEP units — 190x narrower than the dyes we've used; consequence: polarization ringdown ~600 t.u., so run_until must be a few thousand, and the modulation ceiling is the 159 GHz gain bandwidth = nothing faster than ~6 ps imprints). The DOPING is deliberately scaled: literal 1 at.% Nd (sigma_em 2.8e-19 cm2, N 1.38e20 /cm3) gives gL = 0.077 over 20 um — invisible. SGMA*N here is chosen ~30x that so single-pass gain is O(10): equivalent to a highly-doped numerical crystal, same line shapes. Lifetimes NOT literal either: real tau(4F3/2) = 230 us = 7e10 t.u. can never reach steady state in-sim; rate_43/rate_21 keep the dye-model convention (fast feeder/drain), and the upper level effectively does not decay over the run — which is the correct 230-us-limit behaviour at these timescales. YAG n = 1.82; background 1.77 = weak guiding with 0.02% facet reflection (real YAG-in-air facets are 8% and would make a cavity — that is a DIFFERENT experiment, do it deliberately or not at all). SGMA/pump amplitude need the usual first-run calibration sweep. Created 2026-09-01.",
+ "resolution": 25,
+ "dimention": 2,
+ "cell_size_y": 9.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 6000.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 0.0,
+ "dft_t_end": 6000.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_1",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "snap_point"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   5.0
+  ]
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   5.0
+  ]
+ },
+ "crystal": {
+  "_comment": "the Nd:YAG block. sted = the same 4-level Maxwell-Bloch machinery as the dyes, with Nd:YAG's lines: lbdA 0.808, lbdE 1.064, REAL linewidths. SGMA x N is the scaled doping (see top comment).",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   20,
+   5.0
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 0.002,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0,
+   "_comment": "4-level Nd:YAG START­ING FULLY INVERTED (N3_0=30, N1_0=0, user 2026-09-01): the 230 us upper-level lifetime means a pre-pumped crystal simply IS in this state when the signal arrives — no in-sim buildup needed. The CW pump then only REFILLS what stimulated emission burns (gain recovery), which is the dynamics that matters for modulation."
+  }
+ },
+ "source_1": {
+  "_comment": "CW 1064 nm signal, Ey, guided in from the left.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    5.0,
+    0.0
+   ]
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "808 nm CW pump entering the crystal FROM ABOVE: y-normal sheet on the crystal's top edge radiating down (SimpleSim free source placement, 2026-09-01). Ez, orthogonal to the Ey signal, so they never interfere directly; the crystal is isotropic so the pump still drives 1->4.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    20.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 50.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 5.0
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 5.0
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "_comment": "single-point time trace at the chain's exit — the settling diagnostic: steady state is reached when this envelope flattens. dt 0.2 = 17 samples per 1064 nm optical period.",
+  "class": "monitor",
+  "type": "0Dsnap",
+  "on_object": "guide_2",
+  "dt": 0.2,
+  "position": {
+   "position": "right"
+  }
+ }
+}

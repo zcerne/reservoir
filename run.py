@@ -71,6 +71,10 @@ def main() -> None:
                     help="selects/saves a distinct LC-relax design variant "
                          "(lc_fields_<key>_<design-suffix>.npz) — separate "
                          "from --suffix, which only tags output filenames")
+    ap.add_argument("--signal-amp", type=float, default=None,
+                    help="override source_1's amplitude in memory (scalar) "
+                         "for drive sweeps without touching the design JSON — "
+                         "same overrides mechanism as LogicGates' run.py")
     a = ap.parse_args()
 
     _ensure_simplesim()
@@ -78,8 +82,10 @@ def main() -> None:
     from symbols_source import register as _register_symbols
     _register_symbols()
 
+    ov = {"source_1": {"amplitude": a.signal_amp}} if a.signal_amp is not None else None
     sim = Simulation(a.design, backend=a.backend, precision=a.precision,
-                     suffix=a.suffix, design_suffix=a.design_suffix)
+                     suffix=a.suffix, design_suffix=a.design_suffix,
+                     overrides=ov)
     if a.plot:
         sim.plot()
         return
