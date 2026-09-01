@@ -75,6 +75,13 @@ def main() -> None:
                     help="override source_1's amplitude in memory (scalar) "
                          "for drive sweeps without touching the design JSON — "
                          "same overrides mechanism as LogicGates' run.py")
+    ap.add_argument("--tone-amp", type=float, default=None,
+                    help="two-tone drives: PER-TONE amplitude, applied to "
+                         "source_1 AND source_2 together. The crystal sees the "
+                         "beat, so the peak field is 2x this — pass half the "
+                         "ceiling you mean (40 -> beat peak 80). Mutually "
+                         "exclusive with --signal-amp, which moves source_1 alone "
+                         "and would leave the two tones unbalanced")
     a = ap.parse_args()
 
     _ensure_simplesim()
@@ -82,7 +89,15 @@ def main() -> None:
     from symbols_source import register as _register_symbols
     _register_symbols()
 
-    ov = {"source_1": {"amplitude": a.signal_amp}} if a.signal_amp is not None else None
+    if a.signal_amp is not None and a.tone_amp is not None:
+        raise SystemExit("pass --signal-amp OR --tone-amp, not both")
+    if a.tone_amp is not None:
+        ov = {"source_1": {"amplitude": a.tone_amp},
+              "source_2": {"amplitude": a.tone_amp}}
+    elif a.signal_amp is not None:
+        ov = {"source_1": {"amplitude": a.signal_amp}}
+    else:
+        ov = None
     sim = Simulation(a.design, backend=a.backend, precision=a.precision,
                      suffix=a.suffix, design_suffix=a.design_suffix,
                      overrides=ov)
