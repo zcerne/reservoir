@@ -75,6 +75,6 @@ echo "=== sweep64 task $IDX (items $((IDX*BATCH_SIZE))..$((IDX*BATCH_SIZE+BATCH_
 $PY -u data_gen/generate_harmonics_data.py \
     --path "$DESIGN" \
     --tones 3,5 --channels 0,1 --n_t 64 --amps 40,40 \
-    --components Ey \
+    --components Ey,Ez \
     --batch "$IDX" --batch_size "$BATCH_SIZE" --skip_existing
 echo "=== task $IDX done $(date) ==="
