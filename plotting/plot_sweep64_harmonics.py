@@ -75,7 +75,12 @@ for ch, key in enumerate(cfg.get("sweep_sources", [])):
 # fundamentals or the intermods. It does mean a non-zero DC bin is expected and
 # is NOT by itself evidence of an even-order nonlinearity; the even-order bins
 # (2, 4, 6, ...) stay the clean control, since a constant offset never reaches them.
-inputs = np.abs(np.asarray(d0["inputs"]))
+# The generator stores `inp` in complex exponential form, amps[k]*exp(i*tone*t),
+# whose MAGNITUDE is the constant amplitude — it is the REAL part the source
+# actually uses (SimpleSim casts the amplitude to real, so e^{i w t} drives as
+# cos(w t)). Taking np.abs here would make every row read as full drive and
+# silently find no zero-drive points at all.
+inputs = np.abs(np.real(np.asarray(d0["inputs"])))
 amps = np.abs(np.asarray(d0["amps"]).reshape(-1))
 zero_j = np.where((inputs <= 1e-6 * amps[None, :]).all(axis=1))[0]
 
