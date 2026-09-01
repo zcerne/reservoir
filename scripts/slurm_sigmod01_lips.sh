@@ -4,7 +4,7 @@
 #
 # PARTITION RULE (user, 2026-08-24): only F5 and F5-gpu are ever used on lips.
 #
-# WHY 3 AMPS + 6000 t.u. (user, 2026-09-01): the design is uncalibrated and
+# WHY THIS LADDER + 6000 t.u. (user, 2026-09-01): the design is uncalibrated and
 # the steady state (stimulated burn = pump refill) settles on an amplitude-
 # dependent timescale. This pilot brackets the ladder in one decade steps and
 # runs LONG (6000) so the settling time can be read directly off the
@@ -17,7 +17,7 @@
 #   ssh -J cerneziga@f1login.ijs.si cerneziga@lips
 #   cd /home/cerneziga/resevoir
 #   mkdir -p /project/cerneziga/reservoir_runs/logs
-#   sbatch --array=0-2%2 scripts/slurm_sigmod01_lips.sh
+#   sbatch --array=0-9%2 scripts/slurm_sigmod01_lips.sh
 #
 #   (%2 = one task per F5-gpu GPU. First task pays the JAX compile; the shared
 #    compile cache on /project makes the rest start fast.)
@@ -25,7 +25,7 @@
 # READ OUT after: settling time from snap_point (|Ez|/|Ey| envelope
 # flattening), gain from monitor_2/monitor_1 at 1.064 um, per amplitude.
 #
-#SBATCH --job-name=sigmod01
+#SBATCH --job-name=signalmod01
 #SBATCH --partition=F5-gpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
@@ -37,8 +37,10 @@
 
 set -euo pipefail
 
-# one-decade bracket around the (uncalibrated) unit signal
-AMPS=(1 10 100)
+# 10-point ladder, deliberately dense between 10 and 100 where the
+# pilot put the saturation knee (N3 burn 11.5% -> 88.8% across that
+# one jump); 160/250 anchor the plateau past it.
+AMPS=(1 5 15 22 32 46 68 100 160 250)
 IDX=${SLURM_ARRAY_TASK_ID:-0}
 AMP=${AMPS[$IDX]}
 
