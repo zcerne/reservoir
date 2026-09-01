@@ -56,12 +56,12 @@
    "gammaA": 0.0015,
    "lbdE": 1.064,
    "gammaE": 0.00053,
-   "SGMA": 0.002,
+   "SGMA": 1.86e-05,
    "N1_0": 0.0,
    "N3_0": 30.0,
    "rate_43": 10.0,
    "rate_21": 100.0,
-   "_comment": "4-level Nd:YAG START­ING FULLY INVERTED (N3_0=30, N1_0=0, user 2026-09-01): the 230 us upper-level lifetime means a pre-pumped crystal simply IS in this state when the signal arrives — no in-sim buildup needed. The CW pump then only REFILLS what stimulated emission burns (gain recovery), which is the dynamics that matters for modulation."
+   "_comment": "4-level Nd:YAG starting FULLY INVERTED (N3_0=30, N1_0=0): the 230 us upper-level lifetime means a pre-pumped crystal simply IS in this state when a ps-scale signal arrives. SGMA 1.86e-5 = x30 the literal 1 at.% Nd:YAG value (6.2e-7), giving gL ~= 2.3 over the 20 um block — visible gain without free-running. CORRECTED 2026-09-01: the first pilot shipped SGMA 2e-3, which is gL ~= 249; the crystal dumped 97% of its inversion within 1000 t.u. REGARDLESS of drive (identical at amp 1 and amp 100) and amp 100 went non-finite at t=2281. That is parasitic free-running, not modulation. Calibration used: alpha ~ 1.1*(SGMA*N) /um at gamma=0.1, with the Lorentzian PEAK scaling as 1/gamma — the 1/gamma factor is what makes a narrow crystal line so much more sensitive to SGMA than our broad dyes (190x here)."
   }
  },
  "source_1": {
