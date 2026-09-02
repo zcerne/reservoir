@@ -62,10 +62,19 @@ N_t = Y.shape[0]
 per_comp = Y.shape[1] // len(comps)
 
 # which source drives which polarisation, so "cross-channel" is read off the
-# design rather than assumed
+# design rather than assumed. If BOTH channels drive the SAME component (spatial
+# strips: two Ey sources at different y), per-polarisation "own vs other" stops
+# existing — the output component legitimately carries both fundamentals, and a
+# harmonic like 3f1 can come from one strip's separable pipe alone. In that case
+# the honest mixing certificate is the INTERMOD family only: bins whose
+# decomposition needs BOTH tones in one term (1, 7, 11, 13, ...).
 drive_of = {}
+shared_component = False
 for ch, key in enumerate(cfg.get("sweep_sources", [])):
-    drive_of[str(cfg[key].get("component", "Ey"))] = ch
+    comp = str(cfg[key].get("component", "Ey"))
+    if comp in drive_of:
+        shared_component = True
+    drive_of[comp] = ch
 
 # Sweep points where BOTH drives pass through zero (t = pi/2 and 3pi/2 for tones
 # 3 and 5) give a direct measurement of the zero-drive background: whatever
@@ -104,7 +113,11 @@ for r, c in enumerate(comps):
     own = drive_of.get(c)                       # channel this polarisation is driven on
     other = None if own is None else 1 - own
     cross = 0.0
-    if other is not None:
+    if shared_component and c in drive_of:
+        # both channels live in this component: mixing certificate = intermods
+        cross = float(res["power_by_kind"]["intermod"])
+        own = None
+    elif other is not None:
         for x, p, ll in zip(nu, P, label):
             # a bin counts as cross-channel if its lowest-order decomposition
             # uses the OTHER channel's tone at all
@@ -134,10 +147,13 @@ for r, c in enumerate(comps):
     ax.set_xlim(-0.5, min(nu.max(), 4 * max(tones)) + 0.5)
     ax.set_ylabel(f"{c} out\npower at {1.0 / freqs[k]:.4f} um")
     ax.grid(alpha=0.25, axis="y")
-    drv = "" if own is None else f" (driven on tone {tones[own]})"
     xchan = (f"{cross / fund:.2e} x fundamental" if ok
              else "n/a — fundamental empty at this bin")
-    ax.set_title(f"{c} output{drv} — cross-channel {xchan}")
+    if shared_component and c in drive_of:
+        ax.set_title(f"{c} output (both strip channels) — mixing (intermods) {xchan}")
+    else:
+        drv = "" if own is None else f" (driven on tone {tones[own]})"
+        ax.set_title(f"{c} output{drv} — cross-channel {xchan}")
     for x, p, kk, ll in zip(nu, P, kind, label):
         if p > P.max() * 1e-9 and kk in ("fundamental", "harmonic", "intermod"):
             ax.text(x, p, ll or str(x), rotation=90, fontsize=7, ha="center",
