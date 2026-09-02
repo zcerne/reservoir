@@ -1,0 +1,193 @@
+{
+    "_comment": "signal_modulation/design01d_strips — SPATIAL channels on the design01 Nd:YAG amplifier: two 1 um Ey strips at y = +1.25 and y = -1.25 on guide_1's entrance, same wavelength 1.064, same polarisation — position is the ONLY thing distinguishing them (user, 2026-09-02: encode in the spatial dimension). Everything else (geometry, pump, SGMA) unchanged from design01. PHYSICS UNDER TEST: the inversion is local — gain at r depends on total intensity AT r — so spatial channels mix only where their fields overlap in the gain volume. Parallel non-overlapping beams are two separable pipes, f1(E1)+f2(E2), no cross terms. The question this design measures is how much overlap DIFFRACTION alone buys: a 1 um strip at 1.064 um in n=1.82 diffracts strongly, and the 5 um guide is multimode, so the strips spread and beat as they propagate. CROSS from the 64-pair sweep (tones 3,5, one per strip) then quantifies diffraction-only spatial mixing, to be compared against the polarisation channels' CROSS ~ 3.8e-4 (design01c, where overlap was total). field_map: full-cell 2Ddft at 1.064 for the single-strip spread visual (source_2 amplitude defaults to 0 so a plain `run.py` shows ONE strip propagating; the sweep generator overrides both amplitudes per run and is unaffected). NOTE the monitor spans the whole cell INCLUDING the source plane — the source point dominates raw colour scales (known SimpleSim gotcha), so plots must clip/percentile the scale, not trust vmax. run_until 2000 / dft 1000-2000: the spread pattern needs steady state only loosely; for the sweep this design should be run with the same 3000/2000-3000 as design01c (update run_until and the window together before submitting the ladder). Created 2026-09-02 from design01c_sweep64.",
+    "resolution": 25,
+    "dimention": 2,
+    "cell_size_y": 9.0,
+    "periodic": false,
+    "pml_size": 2.0,
+    "background_index": 1.77,
+    "run_until": 2000.0,
+    "source_off_decay": 0.0,
+    "dft_t_start": 1000.0,
+    "dft_t_end": 2000.0,
+    "courant": 0.5,
+    "fp": "fp64",
+    "solver": "gpumeep",
+    "object_order": [
+        "guide_1",
+        "crystal",
+        "guide_2",
+        "source_1",
+        "source_2",
+        "source_pump",
+        "monitor_1",
+        "monitor_2",
+        "pop_monitor",
+        "snap_point",
+        "field_map"
+    ],
+    "guide_1": {
+        "class": "guide",
+        "index": 1.82,
+        "sizes": [
+            1.0,
+            5.0
+        ]
+    },
+    "guide_2": {
+        "class": "guide",
+        "index": 1.82,
+        "sizes": [
+            1.0,
+            5.0
+        ]
+    },
+    "crystal": {
+        "_comment": "the Nd:YAG block. sted = the same 4-level Maxwell-Bloch machinery as the dyes, with Nd:YAG's lines: lbdA 0.808, lbdE 1.064, REAL linewidths. SGMA x N is the scaled doping (see top comment).",
+        "class": "reservoir",
+        "isotropic": true,
+        "n": 1.82,
+        "sizes": [
+            20,
+            5.0
+        ],
+        "resolution": 10,
+        "sted": {
+            "enabled": true,
+            "lbdA": 0.808,
+            "gammaA": 0.0015,
+            "lbdE": 1.064,
+            "gammaE": 0.00053,
+            "SGMA": 1.86e-05,
+            "N1_0": 0.0,
+            "N3_0": 30.0,
+            "rate_43": 10.0,
+            "rate_21": 100.0,
+            "_comment": "4-level Nd:YAG starting FULLY INVERTED (N3_0=30, N1_0=0): the 230 us upper-level lifetime means a pre-pumped crystal simply IS in this state when a ps-scale signal arrives. SGMA 1.86e-5 = x30 the literal 1 at.% Nd:YAG value (6.2e-7), giving gL ~= 2.3 over the 20 um block — visible gain without free-running. CORRECTED 2026-09-01: the first pilot shipped SGMA 2e-3, which is gL ~= 249; the crystal dumped 97% of its inversion within 1000 t.u. REGARDLESS of drive (identical at amp 1 and amp 100) and amp 100 went non-finite at t=2281. That is parasitic free-running, not modulation. Calibration used: alpha ~ 1.1*(SGMA*N) /um at gamma=0.1, with the Lorentzian PEAK scaling as 1/gamma — the 1/gamma factor is what makes a narrow crystal line so much more sensitive to SGMA than our broad dyes (190x here)."
+        }
+    },
+    "source_1": {
+        "_comment": "strip channel 0: CW Ey at 1.064, 1 um wide, centred at y = +1.25 on guide_1's entrance. Default amplitude 40 so a plain run shows this strip alone (source_2 defaults to 0).",
+        "class": "source",
+        "position": {
+            "on_object": "guide_1",
+            "position": "left",
+            "y": 1.25,
+            "size": [
+                0.0,
+                1.0,
+                0.0
+            ]
+        },
+        "amplitude": 40.0,
+        "component": "Ey",
+        "source_type": "continuous",
+        "lam": 1.064,
+        "dlam": 0.0
+    },
+    "source_pump": {
+        "_comment": "808 nm CW pump entering the crystal FROM ABOVE: y-normal sheet on the crystal's top edge radiating down (SimpleSim free source placement, 2026-09-01). Ez, orthogonal to the Ey signal, so they never interfere directly; the crystal is isotropic so the pump still drives 1->4.",
+        "class": "source",
+        "position": {
+            "on_object": "crystal",
+            "position": "center",
+            "y": "top",
+            "normal": "y",
+            "size": [
+                20.0,
+                0.0,
+                0.0
+            ]
+        },
+        "amplitude": 50.0,
+        "component": "Ez",
+        "source_type": "continuous",
+        "lam": 0.808,
+        "dlam": 0.0
+    },
+    "monitor_1": {
+        "class": "monitor",
+        "type": "1Ddft",
+        "on_object": "guide_1",
+        "position": {
+            "position": "center",
+            "size": 5.0
+        },
+        "lam_range": [
+            0.95,
+            1.2
+        ],
+        "n_lam": 61
+    },
+    "monitor_2": {
+        "class": "monitor",
+        "type": "1Ddft",
+        "on_object": "guide_2",
+        "position": {
+            "position": "center",
+            "size": 5.0
+        },
+        "lam_range": [
+            0.95,
+            1.2
+        ],
+        "n_lam": 61
+    },
+    "snap_point": {
+        "_comment": "exit time trace, dt 0.2. Cheap at 3000 t.u. (5000 samples) and kept as the settling check: if the envelope has not flattened by dft_t_start the run is being read during the transient and every sweep point is contaminated.",
+        "class": "monitor",
+        "type": "0Dsnap",
+        "on_object": "guide_2",
+        "dt": 0.2,
+        "position": {
+            "position": "right"
+        }
+    },
+    "pop_monitor": {
+        "_comment": "Level populations N_l(t) AVERAGED over the crystal — the modulator's own state variable, and the cleanest read of when emission balances refill (N3 flattens). NOTE: no snap_interval on purpose. With snap_interval > 0 this sensor also stores the whole-cell snap_N (n_snaps, n_levels, Nx, Ny) + snap_E, which at 6000 t.u. is GBs per task; without it save() writes only {t, N}, the summed per-level series (sensor.py:305).",
+        "class": "monitor",
+        "type": "population",
+        "on_object": "crystal"
+    },
+    "source_2": {
+        "_comment": "strip channel 1: identical Ey strip at y = -1.25. Amplitude 0 by default (single-strip visual); the sweep generator drives it with cos(5t).",
+        "class": "source",
+        "position": {
+            "on_object": "guide_1",
+            "position": "left",
+            "y": -1.25,
+            "size": [
+                0.0,
+                1.0,
+                0.0
+            ]
+        },
+        "amplitude": 0.0,
+        "component": "Ey",
+        "source_type": "continuous",
+        "lam": 1.064,
+        "dlam": 0.0
+    },
+    "sweep_sources": [
+        "source_1",
+        "source_2"
+    ],
+    "field_map": {
+        "_comment": "full-cell steady-state field map at 1.064 — the spread visual. Covers guides + crystal + PML margins; clip the colour scale in plots.",
+        "class": "monitor",
+        "type": "2Ddft",
+        "on_object": "crystal",
+        "position": {
+            "position": "center",
+            "size": [
+                26.0,
+                9.0
+            ]
+        },
+        "lam_range": [
+            1.064,
+            1.064
+        ],
+        "n_lam": 1
+    }
+}
