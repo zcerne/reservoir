@@ -24,6 +24,10 @@
   "monitor_2",
   "pop_monitor"
  ],
+ "sweep_sources": [
+  "source_1",
+  "source_2"
+ ],
  "guide_1": {
   "class": "guide",
   "index": 1.82,
