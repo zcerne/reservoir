@@ -1,0 +1,151 @@
+{
+ "_comment": "signal_modulation/design03_realscale — design01's Nd:YAG amplifier rebuilt at REAL DOPING and fabricable scale, for the amplitude/saturation calibration. Created 2026-09-04 (user: 'Set it up. We will run it on lips. Amp sweep first.'). WHY A NEW NUMBER: design01a-d were one device measured four ways, so they shared letters; this changes the crystal itself (doping and length), which by the 2026-09-03 convention earns a number. 02 stays reserved for the pump-modulation experiment the design01 JSON names. WHAT CHANGED FROM design01, and only these: (1) SGMA 1.86e-5 -> 6.2e-7, the LITERAL 1 at.% Nd:YAG value — verified, not assumed: real alpha = sigma_em*N = 2.8e-19*1.38e20 = 38.6 /cm = 3.864e-3 /um, and back-solving design01's own calibration alpha = 1.1*SGMA*N3_0*(0.1/gamma) at N3_0=30, gamma 5.3e-4 gives 6.206e-7, matching the JSON's 6.2e-7 to 0.1%. (2) crystal 20 -> 600 um, which is exactly the 30x that keeps gL = 2.32 unchanged, so every gain number stays comparable to design01. (3) transverse scale x sqrt(30) = 5.48: guide 5 -> 27.5 um. The sqrt is not a typo — mixing length goes as w*p (L_mix = pi*n*w*p/lam), so a 30x longer device needs only sqrt(30) larger transverse features to keep the SAME diffraction geometry. That preserves design01d's L/L_mix = 1.49 exactly, which is the whole point: if CROSS survives here, it survives because the physics scaled, not because the geometry was re-tuned. NOTE this corrects the '10 um strips at 25 um pitch' quoted on Discord before the arithmetic was done — that pair has L_mix = 1343 um and belongs to a 1.9 mm crystal, not a 600 um one. Everything else — n 1.82, background 1.77, lbdA/lbdE, the REAL linewidths (gammaE 5.3e-4 = 159 GHz, matching Nd:YAG's 0.6 nm FWHM at 1064; gammaA 1.5e-3 = 450 GHz), N3_0 30, rate_43/rate_21, pump amplitude 50 — is byte-identical to design01 so the comparison is clean. THIS FOLDER IS THE design01 ANALOGUE: full-aperture source, one drive, amplitude sweep only. The two-strip analogue of design01d is design03b_strips, which must reuse this exact device block plus strips w=5.48 at y=+-6.85 (pitch 13.69). RUN LONGER THAN design01: transit is now 602*1.82 = 1096 t.u. instead of 36, and the burn is 30x slower per unit intensity because SGMA is 30x smaller, so run_until 10000 with the DFT window opening at 6000. dft_t_end == run_until deliberately — an explicit dft_t_end below run_until silently terminates the run there. AMPLITUDE LADDER: stimulated rate goes as SGMA*I, so 30x smaller SGMA needs 30x the intensity for the same saturation = sqrt(30) = 5.48x the FIELD amplitude. design01's knee sat between amp 10 and 100 with a ceiling near 80 (100 gave negative populations), so expect the knee near 55-550 and the ceiling near 440 here; the ladder in scripts/slurm_sigmod03_lips.sh brackets that. DO NOT read watts off the amp axis — MEEP amplitude is normalized and depends on source geometry; the physical bridge is stored energy (N3_0=30 <-> 25.8 J/cm3 = full inversion of 1 at.% Nd:YAG).",
+ "resolution": 20,
+ "dimention": 2,
+ "cell_size_y": 32.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 10000.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 6000.0,
+ "dft_t_end": 10000.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_1",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "pop_monitor",
+  "snap_point"
+ ],
+ "guide_1": {
+  "_comment": "input stub, 27.5 um tall = design01's 5 um x sqrt(30). n step 1.82/1.77 gives NA 0.42 (acceptance 25 deg), same as design01 — the strips in design03b will overrun it and bounce, exactly as the 1 um strips did in design01d (footprint/half-width ratio 2.19 in both).",
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "crystal": {
+  "_comment": "Nd:YAG at LITERAL 1 at.% doping. SGMA 6.2e-7 x N3_0 30 over 600 um -> gL = 2.32, identical to design01's scaled-doping gL. Population grid resolution stays 10.",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   600.0,
+   27.5
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 6.2e-07,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0,
+   "_comment": "Starts fully inverted (N3_0=30, N1_0=0), same justification as design01: 230 us storage means a pre-pumped crystal simply IS full when a ps-scale signal arrives, and 230 us = 7e10 t.u. is unreachable in-sim, so the upper level effectively does not decay over the run. Consequence for reading the sweep: saturation here is a FINITE STORED INVERSION being burned, not a steady-state tau balance. The real I_sat = h*nu/(sigma_em*tau) = 2.9 kW/cm2 comes from real constants, NOT from this axis."
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "source_1": {
+  "_comment": "CW 1064 nm signal, Ey, full aperture — the design01 analogue. Full aperture on purpose: this folder measures the saturation curve, and a full-aperture drive removes transverse diffraction so the amp axis is a pure drive axis. Local intensity for a given amplitude is aperture-independent, so the ladder calibrated here transfers to the narrow strips of design03b. Amplitude is overridden per task by run.py --signal-amp.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    27.5,
+    0.0
+   ]
+  },
+  "amplitude": 100.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "808 nm CW pump entering from above, y-normal sheet along the whole 600 um top edge. Ez, orthogonal to the Ey signal so they never interfere directly; the crystal is isotropic so the pump still drives 1->4. Amplitude 50 unchanged from design01 — the sheet is 30x longer but the per-unit-length pump intensity is the same, so the local refill rate matches.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    600.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 50.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "monitor_1": {
+  "_comment": "input reference line. Sensors kept deliberately minimal (two 1Ddft lines + one point): a 10000 t.u. run on a 606x32 um cell with line snapshots or population dumps would be many GB per task.",
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "_comment": "output line. monitor_2/monitor_1 at 1.064 is the single-pass gain.",
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "_comment": "exit time trace — this is what the pilot is really for: the envelope flattening time sets dft_t_start for the production sweep. If it has not flattened by 6000, raise run_until before trusting any gain number.",
+  "class": "monitor",
+  "type": "0Dsnap",
+  "on_object": "guide_2",
+  "dt": 0.2,
+  "position": {
+   "position": "right"
+  }
+ },
+ "pop_monitor": {
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
+ }
+}
