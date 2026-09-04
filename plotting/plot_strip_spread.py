@@ -50,12 +50,18 @@ for x0, x1 in ((-cw / 2 - 1, -cw / 2), (cw / 2, cw / 2 + 1)):     # guides
 ax1.add_patch(plt.Rectangle((-cw / 2, -ch / 2), cw, ch,
                             fill=False, ec="w", lw=0.8, ls="--"))
 s1 = cfg["source_1"]["position"]
+# The OTHER strip: read it from source_2 rather than hardcoding, so the same
+# script serves design01d (1 um at +-1.25) and design03b (5.48 um at +-6.85).
+# Fall back to mirroring source_1 if the design has no second strip yet.
+_s2 = cfg.get("source_2", {}).get("position")
+s2y = float(_s2["y"]) if _s2 and "y" in _s2 else -float(s1["y"])
+sw = float(s1["size"][1])
 ax1.plot([-cw / 2 - 1] * 2,
-         [s1["y"] - s1["size"][1] / 2, s1["y"] + s1["size"][1] / 2],
+         [s1["y"] - sw / 2, s1["y"] + sw / 2],
          color="lime", lw=3, label="strip source")
 ax1.legend(loc="lower right", fontsize=8)
 ax1.set_ylabel("y [um]")
-ax1.set_title("single 1 um strip at y = +1.25 — steady-state |Ey|")
+ax1.set_title(f"single {sw:g} um strip at y = {s1['y']:+g} — steady-state |Ey|")
 
 stations = [-cw / 2 + 0.3, -cw / 4, 0.0, cw / 4, cw / 2 - 0.3]
 for xs in stations:
@@ -63,9 +69,9 @@ for xs in stations:
     prof = Ey[i]
     ax2.plot(y, prof / (prof.max() + 1e-30), lw=1.4,
              label=f"x = {x[i]:+.1f} um")
-ax2.axvspan(s1["y"] - s1["size"][1] / 2, s1["y"] + s1["size"][1] / 2,
+ax2.axvspan(s1["y"] - sw / 2, s1["y"] + sw / 2,
             color="lime", alpha=0.15, label="source strip")
-ax2.axvline(-1.25, color="0.5", ls=":", lw=1, label="other strip's centre")
+ax2.axvline(s2y, color="0.5", ls=":", lw=1, label="other strip's centre")
 ax2.set_xlim(-sy / 2, sy / 2)
 ax2.set_xlabel("y [um]")
 ax2.set_ylabel("|Ey| / max (per station)")
@@ -80,7 +86,7 @@ fig.savefig(OUT, dpi=140)
 print("wrote", OUT)
 
 # quantify: intensity fraction reaching the OTHER strip's footprint vs x
-oy, w = -1.25, 1.0
+oy, w = s2y, sw
 mask_other = (y > oy - w / 2) & (y < oy + w / 2)
 mask_own = (y > s1["y"] - w / 2) & (y < s1["y"] + w / 2)
 for xs in stations:

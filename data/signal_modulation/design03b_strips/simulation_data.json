@@ -1,0 +1,186 @@
+{
+ "_comment": "signal_modulation/design03b_strips \u2014 the design01d analogue at real doping and fabricable scale. Created 2026-09-04 (user: 'First lets look at the spread of single source. Prepare lips sim. 2d dft across full cell.'). DEVICE BLOCK IS BYTE-IDENTICAL TO design03_realscale: same crystal 600 x 27.5 um, same SGMA 6.2e-7 (literal 1 at.% Nd:YAG, gL = 2.32), same n 1.82 / background 1.77, same real linewidths, same N3_0 30, same rates, same pump sheet at amplitude 50. Only the SOURCES differ, exactly as design01 -> design01d did, so the amplitude calibration from design03_realscale carries over unchanged. If any of the crystal or pump fields ever drift from design03_realscale, the comparison is void \u2014 diff them before trusting a CROSS number. THE STRIPS: w = 5.48 um at y = +-6.85 (pitch 13.69). These are design01d's 1 um / 2.5 um pitch scaled by sqrt(30) = 5.477, NOT by 30. The sqrt is the whole point: mixing length is L_mix = pi*n*w*p/lam, i.e. it goes as w*p, so a 30x longer crystal needs only sqrt(30) larger transverse features to hold the diffraction geometry fixed. Result: L/L_mix = 1.49 here and 1.49 in design01d, and the exit footprint over guide half-width is 2.19 in both. So the strips overrun the 27.5 um guide and bounce, which is what produced design01d's multimode beating and the partial re-sorting at the readout (overlap 0.575 mid-crystal falling to 0.175 at the exit). This corrects the '10 um at 25 um pitch' figure quoted on Discord before the arithmetic was done \u2014 that pair has L_mix = 1343 um and belongs to a 1.9 mm crystal. THIS RUN (spread probe): source_2 amplitude is 0, so only strip A is driven and the field_map shows one strip spreading \u2014 the direct analogue of design01d's 'onestrip' run. Drive both (--tone-amp) for the 64-pair sweep later. FIELD_MAP IS BIG: 2Ddft over the whole 606 x 32 um cell at resolution 20 is 7.76 M points, and the monitor stores Ex/Ey/Ez complex128, so the npz is ~370 MB per run (design01d's was 7 MB \u2014 53x more grid). That is why there is exactly one 2Ddft and no line snapshots here. It also includes the source plane, whose singular column owns vmax and blacks out the plot; plotting/plot_strip_spread.py clips at the 99th percentile to handle it (known SimpleSim gotcha). TIMING: run_until 10000, window 6000-10000 \u2014 DELIBERATELY IDENTICAL TO design03_realscale, not a shorter guess. Transit is 602*1.82 = 1096 t.u. (design01d: 36) and inversion settling should land near design01's ~3000 t.u. in absolute terms (SGMA is 30x smaller but the working-point intensity is ~30x higher, so the burn RATE is comparable), which would put steady state near 4100. An earlier draft used 4000-6000 on that estimate; it was raised because THIS folder now runs FIRST, so nothing has yet measured the settling time it would have been relying on, and a field_map DFT taken over a still-evolving window smears rather than failing loudly \u2014 an expensive silent error at ~370 MB per run. Keeping both designs on one window also means the spread map and the saturation curve describe the same steady state. dft_t_end == run_until on purpose: an explicit dft_t_end below run_until silently terminates the run there. Read the snap_point envelope first; if it is still moving at 6000, raise run_until rather than trusting the map.",
+ "resolution": 20,
+ "dimention": 2,
+ "cell_size_y": 32.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 10000.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 6000.0,
+ "dft_t_end": 10000.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_1",
+  "source_2",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "pop_monitor",
+  "snap_point",
+  "field_map"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "crystal": {
+  "_comment": "identical to design03_realscale \u2014 do not edit one without the other.",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   600.0,
+   27.5
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 6.2e-07,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "source_1": {
+  "_comment": "strip A: 5.48 um wide, centred at y = +6.85. Ey, 1.064, same polarisation and wavelength as strip B \u2014 position is the ONLY thing distinguishing the channels, which is what makes it a clean test of spatial encoding. Amplitude 219 = design01d's 40 x sqrt(30), the scaled working point; override per run with --signal-amp.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": 6.85,
+   "size": [
+    0.0,
+    5.48,
+    0.0
+   ]
+  },
+  "amplitude": 219.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_2": {
+  "_comment": "strip B: mirror of A at y = -6.85. AMPLITUDE 0 FOR THE SPREAD PROBE \u2014 the geometry stays defined so plot_strip_spread.py can mark the other strip's footprint and the later two-strip runs need no geometry change.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": -6.85,
+   "size": [
+    0.0,
+    5.48,
+    0.0
+   ]
+  },
+  "amplitude": 0.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "identical to design03_realscale.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    600.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 50.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "class": "monitor",
+  "type": "0Dsnap",
+  "on_object": "guide_2",
+  "dt": 0.2,
+  "position": {
+   "position": "right"
+  }
+ },
+ "pop_monitor": {
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
+ },
+ "field_map": {
+  "_comment": "the deliverable: steady-state field over the FULL cell at 1.064. ~370 MB per run, see the top comment.",
+  "class": "monitor",
+  "type": "2Ddft",
+  "on_object": "crystal",
+  "position": {
+   "position": "center",
+   "size": [
+    606.0,
+    32.0
+   ]
+  },
+  "lam_range": [
+   1.064,
+   1.064
+  ],
+  "n_lam": 1
+ }
+}
