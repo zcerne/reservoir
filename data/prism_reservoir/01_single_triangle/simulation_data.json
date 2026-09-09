@@ -67,11 +67,11 @@
   "f_tolerance": 1e-06,
   "optimize_phi_theta": [
    true,
-   false
+   true
   ],
   "bulk_seed": [
    1.5708,
-   1.5708
+   0.0
   ],
   "boundary_seed": 0,
   "polygons": [
@@ -106,7 +106,7 @@
     "lc_side": "outside"
    }
   ],
-  "_comment": "LC config (2026-09-09): 5CB, PLANAR EVERYWHERE \u2014 zero out-of-plane tilt, i.e. code-theta pinned at pi/2 (the repo's 2D-planar convention: 'theta 0 deg tilt' = theta_code=pi/2, NOT 0 \u2014 theta_code=0 would point the director out of plane along z). optimize_phi_theta [true,false]: only phi relaxes, under the same boundaries as before (tangent anchoring on all prism edges, outer faces free/periodic). phi seed 90 deg (the fan seed)."
+  "_comment": "LC config v2 (user): director ALONG Z everywhere \u2014 code-theta seed 0 (n = z-hat), both phi and theta free in the relax. Expectation: uniform n||z is a zero-torque equilibrium (elastically uniform; the prism's tangent phi-anchoring is moot at theta=0 since the in-plane component vanishes), so the relaxation should NOT move it \u2014 this run verifies that. Note optically (2D TE, Ey): n||z presents the ordinary index n_o=1.531 everywhere, nearly matching the prism's n=1.5."
  },
  "guide_2": {
   "class": "guide",
