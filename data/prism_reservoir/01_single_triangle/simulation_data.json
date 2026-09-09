@@ -1,5 +1,5 @@
 {
- "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 25 x 15 um. Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; anchoring on its edges copied from focusProject's triangle designs (normal on the vertical face, tangent on base+slant) - tune as needed. LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. Sources/monitors are simple placeholders (one Ey strip in, 1Ddft out) so the design runs as-is; geometry is the point right now.",
+ "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 25 x 15 um. Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; tangent anchoring on all prism edges (LCrelax convention); bulk seed phi=90deg planar (theta=pi/2). LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. Sources/monitors are simple placeholders (one Ey strip in, 1Ddft out) so the design runs as-is; geometry is the point right now.",
  "dimension": 2,
  "resolution": 25,
  "backend": "gpumeep",
@@ -70,13 +70,13 @@
    true
   ],
   "bulk_seed": [
-   1.57,
-   0.8
+   1.5708,
+   1.5708
   ],
   "boundary_seed": 0,
   "polygons": [
    {
-    "_comment": "the prism: base 15 (floor), slant up to (15,3), vertical face at x=15. tan(phi)=0.2.",
+    "_comment": "the prism, oriented per the LCrelax single-triangle lineage (example_06 / the original n=1.5-in-LC image): VERTICAL face (height 3) against the LEFT/entrance edge, base 15 along the floor, hypotenuse from (0,3) down to (15,0) \u2014 light enters onto the vertical face and exits through the slant. tan(phi)=3/15=0.2. Tangent anchoring on all edges (LCrelax convention).",
     "points": [
      [
       0.0,
@@ -87,7 +87,7 @@
       0.0
      ],
      [
-      15.0,
+      0.0,
       3.0
      ]
     ],
@@ -95,7 +95,7 @@
     "n": 1.5,
     "anchoring_phi": [
      "tangent",
-     "normal",
+     "tangent",
      "tangent"
     ],
     "anchoring_theta": [
