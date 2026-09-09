@@ -1,0 +1,173 @@
+{
+ "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 25 x 15 um. Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; anchoring on its edges copied from focusProject's triangle designs (normal on the vertical face, tangent on base+slant) - tune as needed. LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. Sources/monitors are simple placeholders (one Ey strip in, 1Ddft out) so the design runs as-is; geometry is the point right now.",
+ "dimension": 2,
+ "resolution": 25,
+ "backend": "gpumeep",
+ "run_until": 300.0,
+ "periodic": false,
+ "pml_size": 1.5,
+ "background_index": 1.0,
+ "object_order": [
+  "guide_1",
+  "lc_1",
+  "guide_2",
+  "source_1",
+  "monitor_1",
+  "monitor_2",
+  "snap_point"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.0,
+  "sizes": [
+   1.0,
+   15.0
+  ]
+ },
+ "lc_1": {
+  "class": "lcblock",
+  "sizes": [
+   25.0,
+   15.0
+  ],
+  "resolution": 12,
+  "lc_param": "Q3D",
+  "relax_solver": "newton",
+  "boundary_conditions": [
+   "free",
+   "periodic",
+   "periodic"
+  ],
+  "face_phi": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "face_theta": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "elastic_constants": {
+   "K1": 6.4,
+   "K2": 3.0,
+   "K3": 10.0,
+   "q0": 0.0
+  },
+  "n_o": 1.531,
+  "n_e": 1.706,
+  "S": 1.0,
+  "maxeval": 4000,
+  "f_tolerance": 1e-06,
+  "optimize_phi_theta": [
+   true,
+   true
+  ],
+  "bulk_seed": [
+   1.57,
+   0.8
+  ],
+  "boundary_seed": 0,
+  "polygons": [
+   {
+    "_comment": "the prism: base 15 (floor), slant up to (15,3), vertical face at x=15. tan(phi)=0.2.",
+    "points": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      15.0,
+      0.0
+     ],
+     [
+      15.0,
+      3.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "normal",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     null,
+     null,
+     null
+    ],
+    "lc_side": "outside"
+   }
+  ]
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.0,
+  "sizes": [
+   1.0,
+   15.0
+  ]
+ },
+ "source_1": {
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    15.0,
+    0.0
+   ]
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 15.0
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 15.0
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "class": "monitor",
+  "type": "1Dsnap",
+  "on_object": "guide_2",
+  "dt": 20.0,
+  "position": {
+   "position": "right",
+   "size": 15.0
+  }
+ }
+}
