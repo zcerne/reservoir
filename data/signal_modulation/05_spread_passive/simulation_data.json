@@ -1,0 +1,144 @@
+{
+ "_comment": "signal_modulation/05_spread_passive (2026-09-09): PASSIVE DIFFRACTION DIAGNOSTIC \u2014 how far does ONE strip spread crossing the 20 um crystal? Upper strip (source_4, y=+10.3125) only, NO pump, gain DISABLED (sted.enabled=false -> plain n=1.82 dielectric), no populations. Answers whether neighbouring strips can overlap INSIDE the gain region (z_R ~ 20 um for a 4 um strip): if the beam barely widens by the crystal exit, in-gain cross-mixing is impossible at this length and the I(y)-shape invariance under matched drive is explained. field_map = full-cell 2Ddft at 1.064 over the settled half of a short run. Linear physics -> amplitude irrelevant.",
+ "resolution": 25,
+ "dimention": 2,
+ "cell_size_y": 32.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 600.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 300.0,
+ "dft_t_end": 600.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_4",
+  "monitor_1",
+  "monitor_2",
+  "field_map",
+  "snap_point"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "crystal": {
+  "_comment": "Nd:YAG gain, design-05 model: emission (stimulated 3->2) + pump only, NO rate_32. Scaled doping SGMA 1.86e-5 over 20 um -> same gL (3.72e-4*N3) as design04's literal doping over 600 um, so single-pass gain matches. Widened to 27.5 um so the four 4-um strips fit (design04's transverse layout).",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   20.0,
+   27.5
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": false,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 1.86e-05,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "_comment": "output y-LINE time record (1Dsnap = line in y). The multi-strip output is y-dependent, so a single point misses the transverse profile; this records the whole output-guide y-line vs time. dt 20 (coarse on purpose) keeps storage modest for long/many runs \u2014 tune down toward the 1.064 carrier period (~1.06 t.u.) if you need the field phase rather than the envelope.",
+  "class": "monitor",
+  "type": "1Dsnap",
+  "on_object": "guide_2",
+  "dt": 20.0,
+  "position": {
+   "position": "right",
+   "size": 27.5
+  }
+ },
+ "source_4": {
+  "_comment": "upper strip only, y=+10.3125, passive run",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": 10.3125,
+   "size": [
+    0.0,
+    4.0,
+    0.0
+   ]
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "sweep_sources": [
+  "source_4"
+ ],
+ "field_map": {
+  "class": "monitor",
+  "type": "2Ddft",
+  "on_object": "crystal",
+  "position": {
+   "position": "center",
+   "size": [
+    26.0,
+    32.0
+   ]
+  },
+  "lam_range": [
+   1.064,
+   1.064
+  ],
+  "n_lam": 1,
+  "_comment": "full-cell |E|(x,y) at 1.064 over 300-600. Includes the source point \u2014 clip the colour scale when plotting (known full-domain-2Ddft gotcha)."
+ }
+}
