@@ -1,15 +1,15 @@
 {
- "_comment": "signal_modulation/05_spread_passive (2026-09-09): PASSIVE DIFFRACTION DIAGNOSTIC \u2014 how far does ONE strip spread crossing the 20 um crystal? Upper strip (source_4, y=+10.3125) only, NO pump, gain DISABLED (sted.enabled=false -> plain n=1.82 dielectric), no populations. Answers whether neighbouring strips can overlap INSIDE the gain region (z_R ~ 20 um for a 4 um strip): if the beam barely widens by the crystal exit, in-gain cross-mixing is impossible at this length and the I(y)-shape invariance under matched drive is explained. Y SIZE 10 (user, 2026-09-09): single centred strip in a 10-um slab, cell_y 14. field_map = full-cell 2Ddft at 1.064 over the settled half of a short run. Linear physics -> amplitude irrelevant.",
+ "_comment": "signal_modulation/05b_ampsweep (2026-09-09): CW amplitude sweep of the MIXING 4-source design-05 reservoir. Geometry from 05_spread_passive v3: 10-um slab (cell_y 14), four 2-um Ey strips at y=+-1.25,+-3.75 (pitch 2.5) \u2014 chosen because the passive map shows the beams interleaving within the 20-um crystal (2-um strip: FWHM 1.4->5.3 um; half-pitch crossed ~12 um in), so with gain ON the channels share/burn common inversion = real spatial nonlinearity, unlike the old 27.5-um/4-um layout whose beams never met (I(y) shapes collapsed under normalisation). Pump 100, no rate_32, gpumeep, settled window 3000-6000 (validated on the old geometry at drive 20; per-level pop traces confirm in-window flatness here too). All 4 strips at the SAME level per run; ladder passed to scripts/slurm_sat4src_gpu_lips.sh. field_map (full-cell 2Ddft @1.064) kept per level: it shows the internal mixed pattern reshaping with drive \u2014 the direct visual of the nonlinearity. NEW FOLDER deliberately: level-named npz must not merge with 05_ampsweep's old-geometry results.",
  "resolution": 25,
  "dimention": 2,
  "cell_size_y": 14.0,
  "periodic": false,
  "pml_size": 2.0,
  "background_index": 1.77,
- "run_until": 600.0,
+ "run_until": 6000.0,
  "source_off_decay": 0.0,
- "dft_t_start": 300.0,
- "dft_t_end": 600.0,
+ "dft_t_start": 3000.0,
+ "dft_t_end": 6000.0,
  "courant": 0.5,
  "fp": "fp64",
  "solver": "gpumeep",
@@ -21,9 +21,11 @@
   "source_2",
   "source_3",
   "source_4",
+  "source_pump",
   "monitor_1",
   "monitor_2",
   "field_map",
+  "pop_monitor",
   "snap_point"
  ],
  "guide_1": {
@@ -35,7 +37,7 @@
   ]
  },
  "crystal": {
-  "_comment": "Nd:YAG gain, design-05 model: emission (stimulated 3->2) + pump only, NO rate_32. Scaled doping SGMA 1.86e-5 over 20 um -> same gL (3.72e-4*N3) as design04's literal doping over 600 um, so single-pass gain matches. Widened to 27.5 um so the four 4-um strips fit (design04's transverse layout).",
+  "_comment": "Nd:YAG gain ON (design-05 model: emission+pump, no rate_32) over the 10-um slab. With 2-um strips at 2.5-um pitch the beams interleave INSIDE the crystal (passive v3 map), so saturation is shared between channels -> genuine cross-mixing.",
   "class": "reservoir",
   "isotropic": true,
   "n": 1.82,
@@ -45,7 +47,7 @@
   ],
   "resolution": 10,
   "sted": {
-   "enabled": false,
+   "enabled": true,
    "lbdA": 0.808,
    "gammaA": 0.0015,
    "lbdE": 1.064,
@@ -203,5 +205,31 @@
   "source_type": "continuous",
   "lam": 1.064,
   "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "808 nm CW pump from above, Ez, whole 20-um crystal top edge. Amp 100 (the 'set pump so stationary comes quickly' knob, 2026-09-09): with no rate_32 the pump is the recharge and its rate sets how fast the inversion reaches steady state.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    20.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 100.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "pop_monitor": {
+  "_comment": "inversion vs time - THE key plot for this toy: N3 should be seen bleaching on each strong symbol and RECHARGING between them (tau_32 = 5000 t.u.), i.e. actually recovering within the run, which no prior design could show.",
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
  }
 }
