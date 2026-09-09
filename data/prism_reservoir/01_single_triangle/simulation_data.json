@@ -78,7 +78,7 @@
   "boundary_seed": 0,
   "polygons": [
    {
-    "_comment": "the prism, rotated so the BOTTOM (15-um longer side) lies on the LEFT wall of the reservoir: vertical long edge spans the full 15-um height at x=0, short 3-um edge along the floor, hypotenuse from (3,0) up to (0,15). tan(phi)=3/15=0.2 from vertical (phi=11.31 deg) \u2014 the example_06 arrangement. Tangent anchoring on all edges.",
+    "_comment": "the prism, rotated so the BOTTOM (15-um longer side) lies on the LEFT wall of the reservoir: vertical long edge spans the full 15-um height at x=0, short 3-um edge along the floor, hypotenuse from (3,0) up to (0,15). tan(phi)=3/15=0.2 from vertical (phi=11.31 deg) \u2014 the example_06 arrangement. Anchoring: theta=0 (director along z, matching the bulk) on ALL edges \u2014 removes the in-plane pin that dragged the boundary layer + corner defect; phi anchoring kept tangent but moot at theta=0.",
     "points": [
      [
       0.0,
@@ -101,9 +101,9 @@
      "tangent"
     ],
     "anchoring_theta": [
-     null,
-     null,
-     null
+     0.0,
+     0.0,
+     0.0
     ],
     "lc_side": "outside"
    }
