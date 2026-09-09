@@ -1,0 +1,235 @@
+{
+ "_comment": "signal_modulation/05d_ampsweep (2026-09-09, = 05c-prime): amp sweep of the LONG mixing reservoir, one notch back from 05c. Geometry: four 2-um Ey strips at y=+-1.25,+-3.75, 10-um slab, crystal 60 um; SGMA 1.86e-5 (05b's), pump 100, no rate_32, gpumeep. gL x3 vs 05b via length only -> strong output nonlinearity without 05c's pathologies (neg pops at 120, pump starvation, unsettled 3000-6000 window). Window EXTENDED per the 05c lesson: run 9000, DFT 6000-9000; per-level pop traces must be flat in-window (05c drifted +-5-18%). Ladder 0.3-90 (120 stays out until the ceiling is re-checked at this SGMA/length). All 4 strips equal per run via scripts/slurm_sat4src_gpu_lips.sh.",
+ "resolution": 25,
+ "dimention": 2,
+ "cell_size_y": 14.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 9000.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 6000.0,
+ "dft_t_end": 9000.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_1",
+  "source_2",
+  "source_3",
+  "source_4",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "field_map",
+  "pop_monitor",
+  "snap_point"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   10.0
+  ]
+ },
+ "crystal": {
+  "_comment": "Nd:YAG gain, 05c-prime: crystal 60 um (mixing path + gain-length x3 vs 05b) but SGMA back to the known-good 1.86e-5 \u2014 05c's SGMA x3 pulled the negative-population ceiling below drive 120, starved the pump crossing the slab (low-drive N3 only 0.64-0.76), and slowed settling (pump-depletion equilibrium). Emission+pump model, no rate_32.",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   60.0,
+   10.0
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 1.86e-05,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   10.0
+  ]
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 10.0
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 10.0
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "_comment": "output y-LINE time record (1Dsnap = line in y). The multi-strip output is y-dependent, so a single point misses the transverse profile; this records the whole output-guide y-line vs time. dt 20 (coarse on purpose) keeps storage modest for long/many runs \u2014 tune down toward the 1.064 carrier period (~1.06 t.u.) if you need the field phase rather than the envelope.",
+  "class": "monitor",
+  "type": "1Dsnap",
+  "on_object": "guide_2",
+  "dt": 20.0,
+  "position": {
+   "position": "right",
+   "size": 10.0
+  }
+ },
+ "source_4": {
+  "_comment": "strip 4: 2 um wide at y=3.75 (pitch 2.5) \u2014 passive 4-strip overlap test",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    2.0,
+    0.0
+   ],
+   "y": 3.75
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "sweep_sources": [
+  "source_1",
+  "source_2",
+  "source_3",
+  "source_4"
+ ],
+ "field_map": {
+  "class": "monitor",
+  "type": "2Ddft",
+  "on_object": "crystal",
+  "position": {
+   "position": "center",
+   "size": [
+    66.0,
+    14.0
+   ]
+  },
+  "lam_range": [
+   1.064,
+   1.064
+  ],
+  "n_lam": 1,
+  "_comment": "full-cell |E|(x,y) at 1.064 over 300-600. Includes the source point \u2014 clip the colour scale when plotting (known full-domain-2Ddft gotcha)."
+ },
+ "source_1": {
+  "_comment": "strip 1: 2 um wide at y=-3.75 (pitch 2.5) \u2014 passive 4-strip overlap test",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    2.0,
+    0.0
+   ],
+   "y": -3.75
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_2": {
+  "_comment": "strip 2: 2 um wide at y=-1.25 (pitch 2.5) \u2014 passive 4-strip overlap test",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    2.0,
+    0.0
+   ],
+   "y": -1.25
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_3": {
+  "_comment": "strip 3: 2 um wide at y=1.25 (pitch 2.5) \u2014 passive 4-strip overlap test",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    2.0,
+    0.0
+   ],
+   "y": 1.25
+  },
+  "amplitude": 1.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "808 nm CW pump from above, Ez, whole 20-um crystal top edge. Amp 100 (the 'set pump so stationary comes quickly' knob, 2026-09-09): with no rate_32 the pump is the recharge and its rate sets how fast the inversion reaches steady state.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    60.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 100.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "pop_monitor": {
+  "_comment": "inversion vs time - THE key plot for this toy: N3 should be seen bleaching on each strong symbol and RECHARGING between them (tau_32 = 5000 t.u.), i.e. actually recovering within the run, which no prior design could show.",
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
+ }
+}
