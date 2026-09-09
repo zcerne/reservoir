@@ -1,0 +1,216 @@
+{
+ "_comment": "signal_modulation/05_pilot_amp20 (2026-09-09): SETTLING PILOT for the 4-source design-05 reservoir - how fast do inversion and output reach the stationary state at pump 100? All four strips CW at amp 20 (mid-ladder: exercises pump-vs-stimulated, well under the ~80 ceiling), sensors armed from t=0 (dft_t_start 0) so pop_monitor records the N3 approach and snap_point (1Dsnap dt 20) the output y-line from the start. The measured settling time sets 05_ampsweep's dft_t_start (currently 3000; design01 with pump 50 settled by ~1200-2900 across its drive ladder, and worst case is at LOW drive - re-check at the ladder bottom if it looks marginal). gpumeep on lips F5-gpu via scripts/slurm_lips_run.sh.",
+ "resolution": 25,
+ "dimention": 2,
+ "cell_size_y": 32.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 6000.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 0.0,
+ "dft_t_end": 6000.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "gpumeep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_1",
+  "source_2",
+  "source_3",
+  "source_4",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "pop_monitor",
+  "snap_point"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "crystal": {
+  "_comment": "Nd:YAG gain, design-05 model: emission (stimulated 3->2) + pump only, NO rate_32. Scaled doping SGMA 1.86e-5 over 20 um -> same gL (3.72e-4*N3) as design04's literal doping over 600 um, so single-pass gain matches. Widened to 27.5 um so the four 4-um strips fit (design04's transverse layout).",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   20.0,
+   27.5
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 1.86e-05,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   27.5
+  ]
+ },
+ "source_1": {
+  "_comment": "input strip 1, y=-10.3125 um, width 4 \u2014 CW for the amp sweep (all strips driven at the SAME level by single_source_sweep).",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": -10.3125,
+   "size": [
+    0.0,
+    4.0,
+    0.0
+   ]
+  },
+  "amplitude": 20.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "808 nm CW pump from above, Ez, whole 20-um crystal top edge. Amp 100 (the 'set pump so stationary comes quickly' knob, 2026-09-09): with no rate_32 the pump is the recharge and its rate sets how fast the inversion reaches steady state.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    20.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 100.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 27.5
+  },
+  "lam_range": [
+   0.95,
+   1.2
+  ],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "_comment": "output y-LINE time record (1Dsnap = line in y). The multi-strip output is y-dependent, so a single point misses the transverse profile; this records the whole output-guide y-line vs time. dt 20 (coarse on purpose) keeps storage modest for long/many runs \u2014 tune down toward the 1.064 carrier period (~1.06 t.u.) if you need the field phase rather than the envelope.",
+  "class": "monitor",
+  "type": "1Dsnap",
+  "on_object": "guide_2",
+  "dt": 20.0,
+  "position": {
+   "position": "right",
+   "size": 27.5
+  }
+ },
+ "pop_monitor": {
+  "_comment": "inversion vs time - THE key plot for this toy: N3 should be seen bleaching on each strong symbol and RECHARGING between them (tau_32 = 5000 t.u.), i.e. actually recovering within the run, which no prior design could show.",
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
+ },
+ "source_2": {
+  "_comment": "input strip 2, y=-3.4375 um, width 4 \u2014 CW for the amp sweep (all strips driven at the SAME level by single_source_sweep).",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": -3.4375,
+   "size": [
+    0.0,
+    4.0,
+    0.0
+   ]
+  },
+  "amplitude": 20.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_3": {
+  "_comment": "input strip 3, y=3.4375 um, width 4 \u2014 CW for the amp sweep (all strips driven at the SAME level by single_source_sweep).",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": 3.4375,
+   "size": [
+    0.0,
+    4.0,
+    0.0
+   ]
+  },
+  "amplitude": 20.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_4": {
+  "_comment": "input strip 4, y=10.3125 um, width 4 \u2014 CW for the amp sweep (all strips driven at the SAME level by single_source_sweep).",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "y": 10.3125,
+   "size": [
+    0.0,
+    4.0,
+    0.0
+   ]
+  },
+  "amplitude": 20.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "sweep_sources": [
+  "source_1",
+  "source_2",
+  "source_3",
+  "source_4"
+ ]
+}

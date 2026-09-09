@@ -1,10 +1,13 @@
 #!/bin/bash
-# 4-SOURCE saturation sweep on the lips F5-gpu partition (GH200 / gpumeep).
-# All 4 input strips driven at the same amplitude (single_source_sweep.py),
-# settled single-pass gain read over the design's DFT window; the 4-source
-# saturation amplitude = the per-strip level where gain drops to ~half its
-# small-signal value. ONE ARRAY TASK PER LEVEL, so the 5 levels run across the
-# free F5-gpu GPUs.
+# Saturation amp sweep on the lips F5-gpu partition (GH200 / gpumeep).
+# Every input strip driven at the same amplitude (single_source_sweep.py),
+# settled single-pass gain read over the design's DFT window; the saturation
+# amplitude = the level where gain drops to ~half its small-signal value.
+# ONE ARRAY TASK PER LEVEL, so the ladder runs across the free F5-gpu GPUs.
+# Default design: 05_ampsweep (the design-05 reservoir model, emission + pump
+# 100, no rate_32) with its ladder 0.3,1,3,10,30,80 (design01-geometry
+# saturation lives at drive ~1-80; drive ~100 once produced negative
+# populations, so watch the top level).
 #
 # Backend is gpumeep (the design's solver), which is MEEP-validated (2% RMS in
 # 2D, exact in 3D). NOTE gpumeep ignores rate_32, so this is the emission+pump
@@ -12,17 +15,19 @@
 # stimulated). Do NOT point this at a rate_32 design expecting recharge; use the
 # MEEP CPU script (slurm_sat4src_lips.sh) for that.
 #
-# $1 = design dir (default design04_4source).
+# $1 = design dir (default 05_ampsweep)
+# $2 = comma-separated ladder (default 0.3,1,3,10,30,80) — array size must match:
+#      N levels -> --array=0-(N-1)
 #
 # SUBMIT (the user submits; the assistant never runs sbatch):
 #   ssh -J cerneziga@f1login.ijs.si cerneziga@lips
 #   cd /home/cerneziga/resevoir && git pull
 #   mkdir -p /project/cerneziga/reservoir_runs/logs
-#   sbatch --array=0-4%2 scripts/slurm_sat4src_gpu_lips.sh data/signal_modulation/design04_4source
+#   sbatch --array=0-5%2 scripts/slurm_sat4src_gpu_lips.sh data/signal_modulation/05_ampsweep
 #   squeue --me
 #   # once all 5 finish, merge the per-level npz (no FDTD):
 #   /project/cerneziga/micromamba/envs/opt/bin/python single_source_sweep.py \
-#       --path data/signal_modulation/design04_4source --assemble
+#       --path data/signal_modulation/05_ampsweep --assemble
 #   # -> <design>/datasets/single_source_sweep.npz {levels,out_norm,gain}, sorted.
 #
 # PARTITION RULE (user, 2026-08-24): only F5 / F5-gpu on lips.
@@ -38,12 +43,12 @@
 #SBATCH --output=/project/cerneziga/reservoir_runs/logs/sat4src_gpu_%A_%a.log
 
 set -euo pipefail
-LEVELS=(0.01 0.035 0.1 0.35 1)          # per-strip amplitudes, brackets the 0.035 estimate
+IFS=',' read -r -a LEVELS <<< "${2:-0.3,1,3,10,30,80}"   # drive ladder (per-strip)
 IDX=${SLURM_ARRAY_TASK_ID:-0}
 LV=${LEVELS[$IDX]}
 [ -n "${LV:-}" ] || { echo "no level for array idx $IDX (ladder has ${#LEVELS[@]}: 0-$(( ${#LEVELS[@]} - 1 )))"; exit 1; }
 
-D=${1:-data/signal_modulation/design04_4source}
+D=${1:-data/signal_modulation/05_ampsweep}
 BASE_DIR=${BASE_DIR:-/home/cerneziga/resevoir}
 PY=/project/cerneziga/micromamba/envs/opt/bin/python
 [ -d "$BASE_DIR/$D" ] || { echo "ERROR: $BASE_DIR/$D missing — git pull on lips first"; exit 1; }
