@@ -389,7 +389,7 @@
   ]
  },
  "source_1": {
-  "_comment": "gaussian beam w0=40 um across the full 100-um aperture, 550 nm",
+  "_comment": "gaussian beam w0=40 um across the full 100-um aperture, 550 nm POLARISATION Ez (2D TM): with the director along z, Ez sees the EXTRAORDINARY index n_e=1.706 vs prism 1.50 -> dn=0.206, the strong-contrast state.",
   "class": "source",
   "position": {
    "on_object": "guide_1",
@@ -401,7 +401,7 @@
    ]
   },
   "amplitude": 1.0,
-  "component": "Ey",
+  "component": "Ez",
   "source_type": "gaussianbeam",
   "w0": 40.0,
   "focus": [
