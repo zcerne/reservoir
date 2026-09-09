@@ -18,16 +18,19 @@
 # LEVEL so the 5 levels run in parallel across F5 nodes (wall time = one level,
 # not the ~12 h the serial smaug/gpu run would have taken).
 #
+# $1 = design dir (optional, default design04_4source). For the FAST-RECHARGE amp
+# sweep (rate_32 finite, MEEP-only) pass data/signal_modulation/design04_4source_fast.
+#
 # SUBMIT (the user submits; the assistant never runs sbatch):
 #   ssh -J cerneziga@f1login.ijs.si cerneziga@lips
-#   cd /home/cerneziga/resevoir && git pull            # get design04_4source + this script
+#   cd /home/cerneziga/resevoir && git pull            # get the design + this script
 #   mkdir -p /project/cerneziga/reservoir_runs/logs
-#   sbatch --array=0-4 scripts/slurm_sat4src_lips.sh
+#   sbatch --array=0-4 scripts/slurm_sat4src_lips.sh data/signal_modulation/design04_4source_fast
 #   squeue --me
 #   # once all 5 tasks finish, merge the per-level npz into one curve (no FDTD):
 #   /project/cerneziga/mamba_x86/envs/pmp/bin/python single_source_sweep.py \
-#       --path data/signal_modulation/design04_4source --assemble
-#   # -> datasets/single_source_sweep.npz {levels,out_norm,gain}, sorted.
+#       --path data/signal_modulation/design04_4source_fast --assemble
+#   # -> <design>/datasets/single_source_sweep.npz {levels,out_norm,gain}, sorted.
 #
 # NEEDS the x86_64 pmp env built once on /project (aarch64 'opt' from F5-gpu
 # will NOT run on these AMD nodes): sbatch scripts/lips_build_pmp_env.sh
@@ -62,7 +65,7 @@ if [ ! -x "$MPI" ]; then
 fi
 
 cd "$CODE"
-D=data/signal_modulation/design04_4source
+D=${1:-data/signal_modulation/design04_4source}
 [ -d "$D" ] || { echo "missing $D -- git pull on lips first"; exit 1; }
 NP=${SLURM_NTASKS:-64}
 mkdir -p "$D/datasets"
