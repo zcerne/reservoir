@@ -201,12 +201,12 @@
   "n_lam": 1
  },
  "n2f_map": {
-  "_comment": "far field from the exit line",
+  "_comment": "far field from the n2f line at the CENTER of guide_2 (moved off the guide/PML edge)",
   "class": "monitor",
   "type": "near2far",
   "on_object": "guide_2",
   "position": {
-   "position": "right",
+   "position": "center",
    "size": 15.0
   },
   "lam": 0.55,
