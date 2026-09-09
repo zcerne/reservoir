@@ -1,5 +1,5 @@
 {
- "_comment": "signal_modulation/05_test_design (2026-09-09): TOY reservoir to PROVE the fading-memory mechanism inside a single FDTD run. The real device is blocked by two timescales 8 orders apart: optics ~ps vs. pump recharge tau(4F3/2)=230 us = 7e10 t.u., so in every prior design the pre-loaded inversion only ever DEPLETES and never recovers within the run (rate_32 defaulted to 0 = frozen upper level). Here we deliberately shorten the excited-state lifetime to ps scale (rate_32 finite) so the full charge -> deplete -> recharge cycle fits in the FDTD window. Then a symbols drive (piecewise-constant random amplitudes, one per symbol_length) exercises the reservoir: each strong symbol bleaches the gain, the recharge partially refills it before the next, and the output carries a NONLINEAR, FADING-MEMORY dependence on recent inputs. UNITS: a=1 um so 1 t.u. = 3.33 fs. TIMESCALES: gammaE 5.3e-4 = 159 GHz gain bandwidth => modulation no faster than ~6 ps (~1800 t.u.), so symbol_length=2000 t.u. (6.7 ps). rate_32=2e-4 => excited-state lifetime tau_32 = 1/rate_32 = 5000 t.u. = 16.7 ps ~ 2.5 symbols, giving fading memory over a few symbols (the knob we set: memory depth ~ tau_32/symbol_length). This is UNPHYSICAL for real Nd:YAG (tau is really 230 us) but that is the point: it validates the pipeline in pure MEEP; the real us device is the same physics with the recharge adiabatically eliminated (self-consistent stationary approach, characterization/i_sat_search.py). PILOT: this run needs the usual first-run calibration - watch pop_monitor for the pumped steady inversion and its recharge time, and snap_point for the output responding to the symbol sequence; amp_range and pump amplitude will likely need one tuning pass to sit in the saturating regime. Backend MUST be meep (symbols = mp.CustomSource, no gpumeep equivalent). Based on design01 geometry (small crystal 20 um, single Ey signal guide, 808 nm pump from above).",
+ "_comment": "signal_modulation/05_test_design (updated 2026-09-09): AM reservoir on the EMISSION+PUMP model. rate_32 REMOVED \u2014 the recharge is done by the PUMP (1->4->3), NOT the spontaneous upper-state decay. The real 230 us lifetime (=rate_32) is simply omitted (it is 6.9e10 t.u., not FDTD-simulable); the inversion's recovery / fading-memory timescale is set instead by the PUMP rate, which is fast and FDTD-feasible. Pump amplitude raised 50->100 so the inversion reaches its (input-dependent) STATIONARY state quickly (design01: N3 settles by ~1200 t.u. at pump 100 vs ~2900 at pump 10) \u2014 fast enough to track the drive within the run. Mechanism: no signal -> pump drives N3 up (toward full); signal on -> stimulated 3->2 (emission) depletes it; the balance is the reservoir state. Drive is source_type 'symbols' (piecewise-constant random amplitudes, symbol_length 2000 t.u.) for the fading-memory / AM demo. Backend MUST be meep for symbols (CustomSource); gpumeep has no rate_32 anyway but that no longer matters since rate_32 is gone. UNITS a=1um, 1 t.u.=3.33 fs. PILOT: watch pop_monitor for the settling time and snap_point for the output tracking the symbols; if stationary is not reached fast enough, raise the pump further (it is the speed knob).",
  "resolution": 25,
  "dimention": 2,
  "cell_size_y": 9.0,
@@ -33,7 +33,7 @@
   ]
  },
  "crystal": {
-  "_comment": "Nd:YAG gain, same 4-level SGMA coupling as design01 (SGMA 1.86e-5, N3_0 30 pre-inverted, gL ~ O(1) over 20 um). THE ONE CHANGE vs design01: rate_32=2e-4 gives the upper level a FINITE ps lifetime (16.7 t.u.*300... = 16.7 ps) instead of the frozen 230-us default, so the pump can actually recharge burned inversion within the run. rate_43/rate_21 stay the fast feeder/drain.",
+  "_comment": "Nd:YAG gain, emission (stimulated 3->2, the signal coupling) + pump only; rate_32 (spontaneous 3->2 decay) REMOVED. Recharge is pump-driven, so the pump amplitude sets how fast the stationary inversion is reached. rate_43/rate_21 stay the fast feeder/drain.",
   "class": "reservoir",
   "isotropic": true,
   "n": 1.82,
@@ -52,8 +52,7 @@
    "N1_0": 0.0,
    "N3_0": 30.0,
    "rate_43": 10.0,
-   "rate_21": 100.0,
-   "rate_32": 0.0002
+   "rate_21": 100.0
   }
  },
  "guide_2": {
@@ -102,7 +101,7 @@
     0.0
    ]
   },
-  "amplitude": 50.0,
+  "amplitude": 100.0,
   "component": "Ez",
   "source_type": "continuous",
   "lam": 0.808,
