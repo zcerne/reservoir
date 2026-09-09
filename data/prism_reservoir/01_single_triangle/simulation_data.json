@@ -76,19 +76,19 @@
   "boundary_seed": 0,
   "polygons": [
    {
-    "_comment": "the prism, oriented per the LCrelax single-triangle lineage (example_06 / the original n=1.5-in-LC image): VERTICAL face (height 3) against the LEFT/entrance edge, base 15 along the floor, hypotenuse from (0,3) down to (15,0) \u2014 light enters onto the vertical face and exits through the slant. tan(phi)=3/15=0.2. Tangent anchoring on all edges (LCrelax convention).",
+    "_comment": "the prism, rotated so the BOTTOM (15-um longer side) lies on the LEFT wall of the reservoir: vertical long edge spans the full 15-um height at x=0, short 3-um edge along the floor, hypotenuse from (3,0) up to (0,15). tan(phi)=3/15=0.2 from vertical (phi=11.31 deg) \u2014 the example_06 arrangement. Tangent anchoring on all edges.",
     "points": [
      [
       0.0,
       0.0
      ],
      [
-      15.0,
+      3.0,
       0.0
      ],
      [
       0.0,
-      3.0
+      15.0
      ]
     ],
     "material": "isotropic",
