@@ -1,5 +1,5 @@
 {
- "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 25 x 15 um. Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; tangent anchoring on all prism edges (LCrelax convention); bulk seed phi=90deg planar (theta=pi/2). LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. Sources/monitors are simple placeholders (one Ey strip in, 1Ddft out) so the design runs as-is; geometry is the point right now.",
+ "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 6 x 15 um (shortened from 25, user 2026-09-09). Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; tangent anchoring on all prism edges (LCrelax convention); bulk seed phi=90deg planar (theta=pi/2). LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. Sources/monitors are simple placeholders (one Ey strip in, 1Ddft out) so the design runs as-is; geometry is the point right now.",
  "dimension": 2,
  "resolution": 25,
  "backend": "gpumeep",
@@ -27,7 +27,7 @@
  "lc_1": {
   "class": "lcblock",
   "sizes": [
-   25.0,
+   6.0,
    15.0
   ],
   "resolution": 12,
