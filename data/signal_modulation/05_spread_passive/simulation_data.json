@@ -1,8 +1,8 @@
 {
- "_comment": "signal_modulation/05_spread_passive (2026-09-09): PASSIVE DIFFRACTION DIAGNOSTIC \u2014 how far does ONE strip spread crossing the 20 um crystal? Upper strip (source_4, y=+10.3125) only, NO pump, gain DISABLED (sted.enabled=false -> plain n=1.82 dielectric), no populations. Answers whether neighbouring strips can overlap INSIDE the gain region (z_R ~ 20 um for a 4 um strip): if the beam barely widens by the crystal exit, in-gain cross-mixing is impossible at this length and the I(y)-shape invariance under matched drive is explained. field_map = full-cell 2Ddft at 1.064 over the settled half of a short run. Linear physics -> amplitude irrelevant.",
+ "_comment": "signal_modulation/05_spread_passive (2026-09-09): PASSIVE DIFFRACTION DIAGNOSTIC \u2014 how far does ONE strip spread crossing the 20 um crystal? Upper strip (source_4, y=+10.3125) only, NO pump, gain DISABLED (sted.enabled=false -> plain n=1.82 dielectric), no populations. Answers whether neighbouring strips can overlap INSIDE the gain region (z_R ~ 20 um for a 4 um strip): if the beam barely widens by the crystal exit, in-gain cross-mixing is impossible at this length and the I(y)-shape invariance under matched drive is explained. Y SIZE 10 (user, 2026-09-09): single centred strip in a 10-um slab, cell_y 14. field_map = full-cell 2Ddft at 1.064 over the settled half of a short run. Linear physics -> amplitude irrelevant.",
  "resolution": 25,
  "dimention": 2,
- "cell_size_y": 32.0,
+ "cell_size_y": 14.0,
  "periodic": false,
  "pml_size": 2.0,
  "background_index": 1.77,
@@ -28,7 +28,7 @@
   "index": 1.82,
   "sizes": [
    1.0,
-   27.5
+   10.0
   ]
  },
  "crystal": {
@@ -38,7 +38,7 @@
   "n": 1.82,
   "sizes": [
    20.0,
-   27.5
+   10.0
   ],
   "resolution": 10,
   "sted": {
@@ -59,7 +59,7 @@
   "index": 1.82,
   "sizes": [
    1.0,
-   27.5
+   10.0
   ]
  },
  "monitor_1": {
@@ -68,7 +68,7 @@
   "on_object": "guide_1",
   "position": {
    "position": "center",
-   "size": 27.5
+   "size": 10.0
   },
   "lam_range": [
    0.95,
@@ -82,7 +82,7 @@
   "on_object": "guide_2",
   "position": {
    "position": "center",
-   "size": 27.5
+   "size": 10.0
   },
   "lam_range": [
    0.95,
@@ -98,19 +98,18 @@
   "dt": 20.0,
   "position": {
    "position": "right",
-   "size": 27.5
+   "size": 10.0
   }
  },
  "source_4": {
-  "_comment": "upper strip only, y=+10.3125, passive run",
+  "_comment": "single 2-um strip, centred, passive spread test in the 10-um slab",
   "class": "source",
   "position": {
    "on_object": "guide_1",
    "position": "left",
-   "y": 10.3125,
    "size": [
     0.0,
-    4.0,
+    2.0,
     0.0
    ]
   },
@@ -131,7 +130,7 @@
    "position": "center",
    "size": [
     26.0,
-    32.0
+    14.0
    ]
   },
   "lam_range": [
