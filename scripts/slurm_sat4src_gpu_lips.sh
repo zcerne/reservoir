@@ -70,5 +70,5 @@ cd "$BASE_DIR"
 mkdir -p "$D/datasets"
 echo "=== sat4src_gpu $D level $LV (array idx $IDX) on $(hostname) $(date) ==="
 $PY -u single_source_sweep.py --path "$D" --levels "$LV" \
-    --out "$D/datasets/sat4src_${IDX}.npz"
+    --out "$D/datasets/sat4src_L${LV}.npz"   # level-named: reruns/extra ladders never clobber, --assemble globs them all
 echo "=== idx $IDX (level $LV) done $(date) ==="
