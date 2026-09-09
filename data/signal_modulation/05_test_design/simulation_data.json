@@ -79,7 +79,10 @@
   "component": "Ey",
   "source_type": "symbols",
   "symbol_length": 2000.0,
-  "amp_range": [0.3, 1.8],
+  "amp_range": [
+   0.3,
+   1.8
+  ],
   "seed": 0,
   "amplitude": 1.0,
   "lam": 1.064,
@@ -113,7 +116,10 @@
    "position": "center",
    "size": 5.0
   },
-  "lam_range": [0.95, 1.2],
+  "lam_range": [
+   0.95,
+   1.2
+  ],
   "n_lam": 61
  },
  "monitor_2": {
@@ -124,17 +130,21 @@
    "position": "center",
    "size": 5.0
   },
-  "lam_range": [0.95, 1.2],
+  "lam_range": [
+   0.95,
+   1.2
+  ],
   "n_lam": 61
  },
  "snap_point": {
-  "_comment": "exit output time trace - the reservoir readout. dt 2.0 resolves the symbol steps (symbol_length 2000) while keeping the trace light; envelope offline. This vs the input sequence is the fading-memory / nonlinearity proof.",
+  "_comment": "output y-LINE time record (1Dsnap = line in y). The multi-strip output is y-dependent, so a single point misses the transverse profile; this records the whole output-guide y-line vs time. dt 20 (coarse on purpose) keeps storage modest for long/many runs \u2014 tune down toward the 1.064 carrier period (~1.06 t.u.) if you need the field phase rather than the envelope.",
   "class": "monitor",
-  "type": "0Dsnap",
+  "type": "1Dsnap",
   "on_object": "guide_2",
-  "dt": 2.0,
+  "dt": 20.0,
   "position": {
-   "position": "right"
+   "position": "right",
+   "size": 5.0
   }
  },
  "pop_monitor": {

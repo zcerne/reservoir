@@ -135,13 +135,14 @@
   "n_lam": 61
  },
  "snap_point": {
-  "_comment": "exit time trace \u2014 this is what the pilot is really for: the envelope flattening time sets dft_t_start for the production sweep. If it has not flattened by 6000, raise run_until before trusting any gain number.",
+  "_comment": "output y-LINE time record (1Dsnap = line in y). The multi-strip output is y-dependent, so a single point misses the transverse profile; this records the whole output-guide y-line vs time. dt 20 (coarse on purpose) keeps storage modest for long/many runs \u2014 tune down toward the 1.064 carrier period (~1.06 t.u.) if you need the field phase rather than the envelope.",
   "class": "monitor",
-  "type": "0Dsnap",
+  "type": "1Dsnap",
   "on_object": "guide_2",
-  "dt": 0.2,
+  "dt": 20.0,
   "position": {
-   "position": "right"
+   "position": "right",
+   "size": 27.5
   }
  },
  "pop_monitor": {
