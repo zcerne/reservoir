@@ -1,0 +1,146 @@
+{
+ "_comment": "signal_modulation/05_test_design (2026-09-09): TOY reservoir to PROVE the fading-memory mechanism inside a single FDTD run. The real device is blocked by two timescales 8 orders apart: optics ~ps vs. pump recharge tau(4F3/2)=230 us = 7e10 t.u., so in every prior design the pre-loaded inversion only ever DEPLETES and never recovers within the run (rate_32 defaulted to 0 = frozen upper level). Here we deliberately shorten the excited-state lifetime to ps scale (rate_32 finite) so the full charge -> deplete -> recharge cycle fits in the FDTD window. Then a symbols drive (piecewise-constant random amplitudes, one per symbol_length) exercises the reservoir: each strong symbol bleaches the gain, the recharge partially refills it before the next, and the output carries a NONLINEAR, FADING-MEMORY dependence on recent inputs. UNITS: a=1 um so 1 t.u. = 3.33 fs. TIMESCALES: gammaE 5.3e-4 = 159 GHz gain bandwidth => modulation no faster than ~6 ps (~1800 t.u.), so symbol_length=2000 t.u. (6.7 ps). rate_32=2e-4 => excited-state lifetime tau_32 = 1/rate_32 = 5000 t.u. = 16.7 ps ~ 2.5 symbols, giving fading memory over a few symbols (the knob we set: memory depth ~ tau_32/symbol_length). This is UNPHYSICAL for real Nd:YAG (tau is really 230 us) but that is the point: it validates the pipeline in pure MEEP; the real us device is the same physics with the recharge adiabatically eliminated (self-consistent stationary approach, characterization/i_sat_search.py). PILOT: this run needs the usual first-run calibration - watch pop_monitor for the pumped steady inversion and its recharge time, and snap_point for the output responding to the symbol sequence; amp_range and pump amplitude will likely need one tuning pass to sit in the saturating regime. Backend MUST be meep (symbols = mp.CustomSource, no gpumeep equivalent). Based on design01 geometry (small crystal 20 um, single Ey signal guide, 808 nm pump from above).",
+ "resolution": 25,
+ "dimention": 2,
+ "cell_size_y": 9.0,
+ "periodic": false,
+ "pml_size": 2.0,
+ "background_index": 1.77,
+ "run_until": 20000.0,
+ "source_off_decay": 0.0,
+ "dft_t_start": 0.0,
+ "dft_t_end": 20000.0,
+ "courant": 0.5,
+ "fp": "fp64",
+ "solver": "meep",
+ "object_order": [
+  "guide_1",
+  "crystal",
+  "guide_2",
+  "source_1",
+  "source_pump",
+  "monitor_1",
+  "monitor_2",
+  "pop_monitor",
+  "snap_point"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   5.0
+  ]
+ },
+ "crystal": {
+  "_comment": "Nd:YAG gain, same 4-level SGMA coupling as design01 (SGMA 1.86e-5, N3_0 30 pre-inverted, gL ~ O(1) over 20 um). THE ONE CHANGE vs design01: rate_32=2e-4 gives the upper level a FINITE ps lifetime (16.7 t.u.*300... = 16.7 ps) instead of the frozen 230-us default, so the pump can actually recharge burned inversion within the run. rate_43/rate_21 stay the fast feeder/drain.",
+  "class": "reservoir",
+  "isotropic": true,
+  "n": 1.82,
+  "sizes": [
+   20.0,
+   5.0
+  ],
+  "resolution": 10,
+  "sted": {
+   "enabled": true,
+   "lbdA": 0.808,
+   "gammaA": 0.0015,
+   "lbdE": 1.064,
+   "gammaE": 0.00053,
+   "SGMA": 1.86e-05,
+   "N1_0": 0.0,
+   "N3_0": 30.0,
+   "rate_43": 10.0,
+   "rate_21": 100.0,
+   "rate_32": 0.0002
+  }
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.82,
+  "sizes": [
+   1.0,
+   5.0
+  ]
+ },
+ "source_1": {
+  "_comment": "reservoir input drive: piecewise-constant random amplitudes u(n) ~ U(amp_range), one per symbol_length, on the 1.064 um carrier. seed 0 => analysis regenerates the exact sequence (symbols_source.symbol_sequence) to build regression targets. amp_range spans ~linear to ~saturating around design01's amp 1.0 - tune after the pilot.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    5.0,
+    0.0
+   ]
+  },
+  "component": "Ey",
+  "source_type": "symbols",
+  "symbol_length": 2000.0,
+  "amp_range": [0.3, 1.8],
+  "seed": 0,
+  "amplitude": 1.0,
+  "lam": 1.064,
+  "dlam": 0.0
+ },
+ "source_pump": {
+  "_comment": "808 nm CW pump from above (y-normal sheet on the crystal top edge), Ez orthogonal to the Ey signal. With rate_32 finite the pump now sets a STEADY inversion (pump-in vs rate_32-out balance) instead of just pre-loading it; amp 50 from design01, tune if the steady N3 sits too low/high.",
+  "class": "source",
+  "position": {
+   "on_object": "crystal",
+   "position": "center",
+   "y": "top",
+   "normal": "y",
+   "size": [
+    20.0,
+    0.0,
+    0.0
+   ]
+  },
+  "amplitude": 50.0,
+  "component": "Ez",
+  "source_type": "continuous",
+  "lam": 0.808,
+  "dlam": 0.0
+ },
+ "monitor_1": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_1",
+  "position": {
+   "position": "center",
+   "size": 5.0
+  },
+  "lam_range": [0.95, 1.2],
+  "n_lam": 61
+ },
+ "monitor_2": {
+  "class": "monitor",
+  "type": "1Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": 5.0
+  },
+  "lam_range": [0.95, 1.2],
+  "n_lam": 61
+ },
+ "snap_point": {
+  "_comment": "exit output time trace - the reservoir readout. dt 2.0 resolves the symbol steps (symbol_length 2000) while keeping the trace light; envelope offline. This vs the input sequence is the fading-memory / nonlinearity proof.",
+  "class": "monitor",
+  "type": "0Dsnap",
+  "on_object": "guide_2",
+  "dt": 2.0,
+  "position": {
+   "position": "right"
+  }
+ },
+ "pop_monitor": {
+  "_comment": "inversion vs time - THE key plot for this toy: N3 should be seen bleaching on each strong symbol and RECHARGING between them (tau_32 = 5000 t.u.), i.e. actually recovering within the run, which no prior design could show.",
+  "class": "monitor",
+  "type": "population",
+  "on_object": "crystal"
+ }
+}
