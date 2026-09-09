@@ -146,8 +146,10 @@ def main():
 
     # operating point: mean depletion closest to 0.5 (half-saturated = graded)
     s_op = min(rows, key=lambda r: abs(r[1] - 0.5))[0]
-    print(f"\noperating drive (mean depletion ~0.5): I_in ~ {s_op:.3f} I_sat  "
-          f"=> per-channel ~ {s_op/N:.3f} I_sat for {N} co-driven channels")
+    print(f"\noperating point (mean depletion ~0.5): per-strip drive I_in ~ {s_op:.3f} I_sat "
+          f"(all {N} strips co-driven equally). NOTE: this is the PER-STRIP input intensity; "
+          f"where the beams overlap in the gain region the local sum is higher, which is what "
+          f"pulls the mean depletion to ~0.5 at a per-strip drive above I_sat.")
     print("useful sweep ladder around it (x I_sat):",
           [round(s_op * f, 3) for f in (0.1, 0.25, 0.5, 1, 2, 4, 8)])
 
