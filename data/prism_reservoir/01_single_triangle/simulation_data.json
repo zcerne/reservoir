@@ -1,7 +1,7 @@
 {
- "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 6 x 15 um (shortened from 25, user 2026-09-09). Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; tangent anchoring on all prism edges (LCrelax convention); bulk seed phi=90deg planar (theta=pi/2). LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. Sources/monitors are simple placeholders (one Ey strip in, 1Ddft out) so the design runs as-is; geometry is the point right now.",
+ "_comment": "prism_reservoir/01_single_triangle (2026-09-09): the blazed prism from the STL work moved into an LC reservoir. ONE right triangle, tan(phi)=20/100=0.2 (phi=11.31 deg, same slope as the printed prisms): longer side (base) 15 um along x on the reservoir FLOOR, height 15*0.2=3 um, vertical face at x=15, then 10 um of free LC after it -> reservoir 6 x 15 um (shortened from 25, user 2026-09-09). Triangle is an isotropic n=1.5 inclusion (polymer prism) in 5CB; tangent anchoring on all prism edges (LCrelax convention); bulk seed phi=90deg planar (theta=pi/2). LC: Q3D, three-constant 5CB, no E-field (reservoir conventions), planar theta=pi/2 seed. OPTICS (2026-09-09): wide gaussian beam (w0=6 um, full 15-um aperture) at 550 nm from a 1-um AIR guide; behind the reservoir a 0.5-um air guide carrying the near2far line (far box 160x80 um centred 120 um downstream) and the DFT monitors (plus a full-cell 2Ddft at 0.55). Resolution 40 (8->13 px per in-medium wavelength).",
  "dimension": 2,
- "resolution": 25,
+ "resolution": 40,
  "backend": "gpumeep",
  "run_until": 300.0,
  "periodic": false,
@@ -14,7 +14,9 @@
   "source_1",
   "monitor_1",
   "monitor_2",
-  "snap_point"
+  "snap_point",
+  "cell_dft",
+  "n2f_map"
  ],
  "guide_1": {
   "class": "guide",
@@ -112,25 +114,35 @@
   "class": "guide",
   "index": 1.0,
   "sizes": [
-   1.0,
+   0.5,
    15.0
   ]
  },
  "source_1": {
+  "_comment": "wide gaussian beam across the full cell height, 550 nm, from the 1-um air guide",
   "class": "source",
   "position": {
    "on_object": "guide_1",
-   "position": "left",
+   "position": "center",
    "size": [
-    0.0,
     15.0,
     0.0
    ]
   },
   "amplitude": 1.0,
   "component": "Ey",
-  "source_type": "continuous",
-  "lam": 1.064,
+  "source_type": "gaussianbeam",
+  "w0": 6.0,
+  "focus": [
+   50.0,
+   0.0
+  ],
+  "kdir": [
+   1.0,
+   0.0,
+   0.0
+  ],
+  "lam": 0.55,
   "dlam": 0.0
  },
  "monitor_1": {
@@ -142,10 +154,10 @@
    "size": 15.0
   },
   "lam_range": [
-   0.95,
-   1.2
+   0.55,
+   0.55
   ],
-  "n_lam": 61
+  "n_lam": 1
  },
  "monitor_2": {
   "class": "monitor",
@@ -156,10 +168,10 @@
    "size": 15.0
   },
   "lam_range": [
-   0.95,
-   1.2
+   0.55,
+   0.55
   ],
-  "n_lam": 61
+  "n_lam": 1
  },
  "snap_point": {
   "class": "monitor",
@@ -170,5 +182,45 @@
    "position": "right",
    "size": 15.0
   }
+ },
+ "cell_dft": {
+  "class": "monitor",
+  "type": "2Ddft",
+  "on_object": "lc_1",
+  "position": {
+   "position": "center",
+   "size": [
+    6.0,
+    15.0
+   ]
+  },
+  "lam_range": [
+   0.55,
+   0.55
+  ],
+  "n_lam": 1
+ },
+ "n2f_map": {
+  "_comment": "far field from the exit line",
+  "class": "monitor",
+  "type": "near2far",
+  "on_object": "guide_2",
+  "position": {
+   "position": "right",
+   "size": 15.0
+  },
+  "lam": 0.55,
+  "center": [
+   120.0,
+   0.0
+  ],
+  "size": [
+   160.0,
+   80.0
+  ],
+  "n_points": [
+   160,
+   480
+  ]
  }
 }
