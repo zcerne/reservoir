@@ -67,7 +67,7 @@
   "f_tolerance": 1e-06,
   "optimize_phi_theta": [
    true,
-   true
+   false
   ],
   "bulk_seed": [
    1.5708,
@@ -105,7 +105,8 @@
     ],
     "lc_side": "outside"
    }
-  ]
+  ],
+  "_comment": "LC config (2026-09-09): 5CB, PLANAR EVERYWHERE \u2014 zero out-of-plane tilt, i.e. code-theta pinned at pi/2 (the repo's 2D-planar convention: 'theta 0 deg tilt' = theta_code=pi/2, NOT 0 \u2014 theta_code=0 would point the director out of plane along z). optimize_phi_theta [true,false]: only phi relaxes, under the same boundaries as before (tangent anchoring on all prism edges, outer faces free/periodic). phi seed 90 deg (the fan seed)."
  },
  "guide_2": {
   "class": "guide",
