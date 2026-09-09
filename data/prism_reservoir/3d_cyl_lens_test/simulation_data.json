@@ -1,5 +1,5 @@
 {
- "_comment": "prism_reservoir/3d_cyl_lens_test (2026-09-09): 3D CAPABILITY TEST \u2014 cylindrical lens stretching a gaussian spot into a line. Air background; 1-um air guide -> 6-um vacuum-LC block (n_o=n_e=1 so the LC is optically absent, design06 trick) holding a plano-convex CYLINDRICAL lens: n=1.5 polygon (flat back x=1, convex front R=10 um, aperture 12 um in y, t_center 2.5) extruded along z by mp.Prism -> curved in y only, f=R/(n-1)=20 um. w0=6 um gaussianbeam at 550 nm, Ey. Behind: 0.5-um air guide with a yz 2Ddft output plane and a 3D near2far to a far plane at x=+100 um. Expected: y-focusing only -> output cross-section compressed in y, far field widened in theta_y, unchanged in z = the line/1D-extension. Transverse 14 um objects in an 18-um cell (3D-mnist proportions). res 25 (user: for 550 nm) = production on lips F5 CPU; local smoke ran at 12.",
+ "_comment": "prism_reservoir/3d_cyl_lens_test (2026-09-09): 3D CAPABILITY TEST \u2014 cylindrical lens stretching a gaussian spot into a line. Air background; 1-um air guide -> 6-um vacuum-LC block (n_o=n_e=1 so the LC is optically absent, design06 trick) holding a plano-convex CYLINDRICAL lens: n=1.5 polygon (flat back x=1, convex front R=10 um, aperture 12 um in y, t_center 2.5) extruded along z by mp.Prism -> curved in y only, f=R/(n-1)=20 um. w0=6 um gaussianbeam at 550 nm, Ey. Behind: 0.5-um air guide with a yz 2Ddft output plane and a 3D near2far to a far plane at x=+100 um. Expected: y-focusing only -> output cross-section compressed in y, far field widened in theta_y, unchanged in z = the line/1D-extension. Transverse 14 um objects in an 18-um cell (3D-mnist proportions). res 25 (user: for 550 nm) = production on lips F5 CPU; local smoke ran at 12. SUBPIXEL OFF (2026-09-09): MEEP subpixel-averaging of the 3D Prism lens ran >2 h without finishing at res 25 \u2014 subpixel_smoothing:false skips it (staircased surface, dx=40 nm << lambda, fine for this test).",
  "dimention": 3,
  "resolution": 25,
  "backend": "meep",
@@ -274,5 +274,6 @@
    160
   ],
   "_comment": "3D n2f to a far yz plane at x=+100 um \u2014 SCHEMA UNTESTED in 3D, the smoke test probes it"
- }
+ },
+ "subpixel_smoothing": false
 }
