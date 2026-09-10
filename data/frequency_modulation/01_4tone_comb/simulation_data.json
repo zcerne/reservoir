@@ -1,5 +1,5 @@
 {
- "_comment": "frequency_modulation/01_4tone_comb (2026-09-10): FREQUENCY-ENCODED reservoir input \u2014 the 05d production crystal (60 um, SGMA 1.86e-5, pump 100, no rate_32) driven by a 4-TONE COMB instead of 4 spatial strips: four co-located full-height CW Ey sources at f0+{-8,-3,+2,+7}x1e-4 \u2014 uniform 5-bin (150 GHz) tone spacing with 4 EMPTY BINS between adjacent tones (user 2026-09-10). CAVEAT: span 15e-4 ~ 3x gammaE (5.3e-4), so the outer tones sit on the gain-line flanks and see much less gain \u2014 expect a visible gain tilt across the comb (real line physics). All tones and their integer-combination IMD products still land on exact 1e-4 bins. No spatial separation -> slab shrunk to 6 um (cell_y 10). Amplitude 35/tone => mean total intensity ~ 4*35^2 = 70^2 = the 05d knee. The saturable gain mixes the tones -> intermodulation products at integer comb multiples; monitor_1/2 carry 61 frequency-LINEAR bins spaced exactly 1e-4 so tones and IMD land on exact bins (design01b_twotone lesson). TIMING: resolving 1e-4 spacing needs T_int >= 2/df -> window 4000-24000 (2 beat periods; freq resolution 5e-5). Backend gpumeep-compatible (plain continuous sources). Settling: <3000 at these powers (05d pilot), window starts 4000. pop_monitor RESTORED (2026-09-10): the populations ARE the mixing mechanism (beat-driven N3 oscillations); SimpleSim sensor.py now no-ops it gracefully on --empty runs.",
+ "_comment": "frequency_modulation/01_4tone_comb (2026-09-10): FREQUENCY-ENCODED reservoir input \u2014 the 05d production crystal (60 um, SGMA 1.86e-5, pump 100, no rate_32) driven by a 4-TONE COMB instead of 4 spatial strips: four co-located full-height CW Ey sources at f0+{-2,-1,+1,+2}x1e-4 (TIGHT comb, restored 2026-09-10 for the amp sweep \u2014 the validated configuration; the 150-GHz spaced variant is parked, its outer tones only see ~10% of peak gain). No spatial separation -> slab shrunk to 6 um (cell_y 10). Amplitude 35/tone => mean total intensity ~ 4*35^2 = 70^2 = the 05d knee. The saturable gain mixes the tones -> intermodulation products at integer comb multiples; monitor_1/2 carry 61 frequency-LINEAR bins spaced exactly 1e-4 so tones and IMD land on exact bins (design01b_twotone lesson). TIMING: resolving 1e-4 spacing needs T_int >= 2/df -> window 4000-24000 (2 beat periods; freq resolution 5e-5). Backend gpumeep-compatible (plain continuous sources). Settling: <3000 at these powers (05d pilot), window starts 4000. pop_monitor RESTORED (2026-09-10): the populations ARE the mixing mechanism (beat-driven N3 oscillations); SimpleSim sensor.py now no-ops it gracefully on --empty runs.",
  "resolution": 25,
  "dimention": 2,
  "cell_size_y": 10.0,
@@ -153,7 +153,7 @@
   "dlam": 0.0
  },
  "source_1": {
-  "_comment": "tone 1: k=-8 bins (f0-8e-4, lam 1.064906 um), full-height, co-located",
+  "_comment": "tone 1: k=-2 (f0-2e-4, lam 1.064226 um) \u2014 TIGHT comb, the validated configuration",
   "class": "source",
   "position": {
    "on_object": "guide_1",
@@ -167,11 +167,11 @@
   "amplitude": 35.0,
   "component": "Ey",
   "source_type": "continuous",
-  "lam": 1.064906448,
+  "lam": 1.064226467,
   "dlam": 0.0
  },
  "source_2": {
-  "_comment": "tone 2: k=-3 bins (f0-3e-4, lam 1.064340 um), full-height, co-located",
+  "_comment": "tone 2: k=-1 (f0-1e-4, lam 1.064113 um) \u2014 TIGHT comb, the validated configuration",
   "class": "source",
   "position": {
    "on_object": "guide_1",
@@ -185,11 +185,29 @@
   "amplitude": 35.0,
   "component": "Ey",
   "source_type": "continuous",
-  "lam": 1.064339737,
+  "lam": 1.064113222,
   "dlam": 0.0
  },
  "source_3": {
-  "_comment": "tone 3: k=+2 bins (f0+2e-4, lam 1.063774 um), full-height, co-located",
+  "_comment": "tone 3: k=+1 (f0+1e-4, lam 1.063887 um) \u2014 TIGHT comb, the validated configuration",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "left",
+   "size": [
+    0.0,
+    6.0,
+    0.0
+   ]
+  },
+  "amplitude": 35.0,
+  "component": "Ey",
+  "source_type": "continuous",
+  "lam": 1.063886802,
+  "dlam": 0.0
+ },
+ "source_4": {
+  "_comment": "tone 4: k=+2 (f0+2e-4, lam 1.063774 um) \u2014 TIGHT comb, the validated configuration",
   "class": "source",
   "position": {
    "on_object": "guide_1",
@@ -204,24 +222,6 @@
   "component": "Ey",
   "source_type": "continuous",
   "lam": 1.063773629,
-  "dlam": 0.0
- },
- "source_4": {
-  "_comment": "tone 4: k=+7 bins (f0+7e-4, lam 1.063208 um), full-height, co-located",
-  "class": "source",
-  "position": {
-   "on_object": "guide_1",
-   "position": "left",
-   "size": [
-    0.0,
-    6.0,
-    0.0
-   ]
-  },
-  "amplitude": 35.0,
-  "component": "Ey",
-  "source_type": "continuous",
-  "lam": 1.063208123,
   "dlam": 0.0
  },
  "pop_monitor": {
