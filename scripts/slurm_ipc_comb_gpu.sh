@@ -8,10 +8,12 @@
 #
 # PARTITION RULE (user, 2026-08-24): only F5 and F5-gpu are ever used on lips.
 #
-# SCALE 20/tone: the measured comb sweet spot (job 29782513) — IMD peaks ~4%
-# at 10-20/tone with clean populations; the beat-driven runaway starts ~40
-# (L35 already rings at t~21k, L50 diverges). Random |u|<=1 keeps every probe
-# at <=20/tone, worst coherent peak 80 << the ~140-200 static ceiling.
+# SCALE 35/tone (user: "amp 35 is max"): the comb amp_sat. Random |u|<=1
+# keeps typical probes near the 10-20 IMD sweet spot; the all-tones-at-+-35
+# worst case matches sweep rung L35 — no divergence (populations positive,
+# N3 trough 0.21), though its N3 shows fast-ringing onset from t~21k, so the
+# hottest few probes carry some late-window ringing in the DFT tail. The
+# runaway proper starts ~40-50/tone.
 #
 # COST: run 24000 (window 4000-24000 = 2 beat periods of the 1/Delta_f =
 # 10000 t.u. beat — the standing >=2-beat rule for comb-aligned bins),
@@ -25,7 +27,7 @@
 # ASSEMBLE when done (login node, x86 pmp env):
 #   /project/cerneziga/mamba_x86/envs/pmp/bin/python \
 #       data_gen/generate_ipc_data.py \
-#       --path data/frequency_modulation/01_4tone_comb --n 1000 --scale 20 \
+#       --path data/frequency_modulation/01_4tone_comb --n 1000 --scale 35 \
 #       --out_sensor monitor_2 --components Ex,Ey,Ez \
 #       --out data/frequency_modulation/01_4tone_comb/datasets/ipc_wl.npz \
 #       --assemble
@@ -68,7 +70,7 @@ cd "$BASE_DIR"
 echo "=== ipc comb wavelength-channels task ${SLURM_ARRAY_TASK_ID:-?} host $(hostname) gpu $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1) tag $SIMPLESIM_SCRATCH_TAG $(date) ==="
 $PY -u data_gen/generate_ipc_data.py \
     --path "$DESIGN" \
-    --n 1000 --scale 20 \
+    --n 1000 --scale 35 \
     --out_sensor monitor_2 --components Ex,Ey,Ez \
     --out "$OUT" \
     --skip_existing --index "${SLURM_ARRAY_TASK_ID}"
