@@ -14,10 +14,13 @@ train readouts on the RESERVOIR OUTPUT:
     MLP near 100% — sanity that the task is XOR and the models train);
   * shuffle control: labels permuted -> everything must drop to ~50%.
 
-Features from the reservoir: |E|^2 of the exit line at the signal bin
-(lam=1.064) by default — 252 real features; --features field uses Re/Im instead;
---features all uses every lambda bin. PCA is deliberately avoided: plain ridge-
-style standardisation only, split BEFORE any fitting.
+Features from the reservoir: AMPLITUDE |E| of the exit line at the signal bin
+(lam=1.064) by default — 252 real features. |E|^2 (--features intensity) is
+NOT the honest default: squaring at the detector manufactures the u_a*u_b
+cross term via interference, crediting the readout with the product. --features
+field uses Re/Im (strictly linear in E — the hardest test); --features all uses
+every lambda bin. PCA is deliberately avoided: plain standardisation only,
+split BEFORE any fitting.
 
   python train_xor_ipc.py --npz <path>/datasets/ipc.npz --strips 0 1
 """
@@ -28,7 +31,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--npz", default="/home/ziga/Lips/resevoir/data/signal_modulation/05d_ampsweep/datasets/ipc.npz")
 ap.add_argument("--strips", type=int, nargs=2, default=[0, 1],
                 help="strip pair (a b) whose sign-XOR is the label")
-ap.add_argument("--features", choices=["intensity", "field", "all"], default="intensity")
+ap.add_argument("--features", choices=["amplitude", "intensity", "field", "all"], default="amplitude")
 ap.add_argument("--test", type=int, default=200)
 ap.add_argument("--epochs", type=int, default=400)
 ap.add_argument("--seed", type=int, default=0)
@@ -46,11 +49,12 @@ nlam = len(freqs) if freqs is not None else 61
 ny = out.shape[1] // nlam
 E = out.reshape(M, nlam, ny)
 if args.features == "all":
-    X = np.abs(E).reshape(M, -1) ** 2
+    X = np.abs(E).reshape(M, -1)
 else:
     k = int(np.argmin(np.abs(freqs - 1/1.064))) if freqs is not None else nlam // 2
     Ek = E[:, k, :]
     X = (np.abs(Ek) ** 2) if args.features == "intensity" else \
+        np.abs(Ek) if args.features == "amplitude" else \
         np.concatenate([Ek.real, Ek.imag], axis=1)
 X = X.astype(np.float64)
 
