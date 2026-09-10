@@ -1,5 +1,5 @@
 {
- "_comment": "frequency_modulation/01_4tone_comb (2026-09-10): FREQUENCY-ENCODED reservoir input \u2014 the 05d production crystal (60 um, SGMA 1.86e-5, pump 100, no rate_32) driven by a 4-TONE COMB instead of 4 spatial strips: four co-located full-height CW Ey sources at f0+{-2,-1,+1,+2}x1e-4 (f0=1/1.064; 30-GHz spacing, total span 4e-4 < gammaE 5.3e-4 so all tones sit inside the gain line). No spatial separation -> slab shrunk to 6 um (cell_y 10). Amplitude 35/tone => mean total intensity ~ 4*35^2 = 70^2 = the 05d knee. The saturable gain mixes the tones -> intermodulation products at integer comb multiples; monitor_1/2 carry 61 frequency-LINEAR bins spaced exactly 1e-4 so tones and IMD land on exact bins (design01b_twotone lesson). TIMING: resolving 1e-4 spacing needs T_int >= 2/df -> window 4000-24000 (2 beat periods; freq resolution 5e-5). Backend gpumeep-compatible (plain continuous sources). Settling: <3000 at these powers (05d pilot), window starts 4000.",
+ "_comment": "frequency_modulation/01_4tone_comb (2026-09-10): FREQUENCY-ENCODED reservoir input \u2014 the 05d production crystal (60 um, SGMA 1.86e-5, pump 100, no rate_32) driven by a 4-TONE COMB instead of 4 spatial strips: four co-located full-height CW Ey sources at f0+{-2,-1,+1,+2}x1e-4 (f0=1/1.064; 30-GHz spacing, total span 4e-4 < gammaE 5.3e-4 so all tones sit inside the gain line). No spatial separation -> slab shrunk to 6 um (cell_y 10). Amplitude 35/tone => mean total intensity ~ 4*35^2 = 70^2 = the 05d knee. The saturable gain mixes the tones -> intermodulation products at integer comb multiples; monitor_1/2 carry 61 frequency-LINEAR bins spaced exactly 1e-4 so tones and IMD land on exact bins (design01b_twotone lesson). TIMING: resolving 1e-4 spacing needs T_int >= 2/df -> window 4000-24000 (2 beat periods; freq resolution 5e-5). Backend gpumeep-compatible (plain continuous sources). Settling: <3000 at these powers (05d pilot), window starts 4000. pop_monitor REMOVED (2026-09-10): --empty drops the crystal and add_population_monitor then refuses (no gain medium); the comb measurement is spectral, populations not needed here.",
  "resolution": 25,
  "dimention": 2,
  "cell_size_y": 10.0,
@@ -25,7 +25,6 @@
   "monitor_1",
   "monitor_2",
   "field_map",
-  "pop_monitor",
   "snap_point"
  ],
  "guide_1": {
@@ -151,12 +150,6 @@
   "source_type": "continuous",
   "lam": 0.808,
   "dlam": 0.0
- },
- "pop_monitor": {
-  "_comment": "inversion vs time - THE key plot for this toy: N3 should be seen bleaching on each strong symbol and RECHARGING between them (tau_32 = 5000 t.u.), i.e. actually recovering within the run, which no prior design could show.",
-  "class": "monitor",
-  "type": "population",
-  "on_object": "crystal"
  },
  "source_1": {
   "_comment": "tone 1: f = f0-2*1e-4 = 0.9396496 (lam 1.064226 um), full-height, co-located",
