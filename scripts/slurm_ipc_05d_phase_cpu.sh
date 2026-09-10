@@ -33,7 +33,7 @@
 #   /project/cerneziga/mamba_x86/envs/pmp/bin/python \
 #       data_gen/generate_ipc_data.py \
 #       --path data/signal_modulation/05d_ampsweep --n 1000 --scale 110 \
-#       --encode phase --n_sources 4 --out_sensor monitor_2 \
+#       --encode phase --out_sensor monitor_2 \
 #       --components Ex,Ey,Ez \
 #       --out data/signal_modulation/05d_ampsweep/datasets/ipc_phase110.npz \
 #       --assemble
@@ -62,7 +62,7 @@ cd "$BASE_DIR"
 echo "=== ipc 05d phase-encode batch ${SLURM_ARRAY_TASK_ID:-?} (x$BATCH_SIZE) host $(hostname) tag $SIMPLESIM_SCRATCH_TAG $(date) ==="
 $MPI -np "${SLURM_NTASKS:-64}" $PY -u data_gen/generate_ipc_data.py \
     --path "$DESIGN" \
-    --n 1000 --scale 110 --encode phase --n_sources 4 \
+    --n 1000 --scale 110 --encode phase \
     --out_sensor monitor_2 --components Ex,Ey,Ez \
     --out "$OUT" \
     --skip_existing --batch "${SLURM_ARRAY_TASK_ID}" --batch_size "$BATCH_SIZE"

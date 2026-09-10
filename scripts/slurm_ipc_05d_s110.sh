@@ -27,7 +27,7 @@
 #   /project/cerneziga/mamba_x86/envs/pmp/bin/python \
 #       data_gen/generate_ipc_data.py \
 #       --path data/signal_modulation/05d_ampsweep --n 1000 --scale 110 \
-#       --n_sources 4 --out_sensor monitor_2 --components Ex,Ey,Ez \
+#       --out_sensor monitor_2 --components Ex,Ey,Ez \
 #       --out data/signal_modulation/05d_ampsweep/datasets/ipc_s110.npz \
 #       --assemble
 #
@@ -69,7 +69,7 @@ cd "$BASE_DIR"
 echo "=== ipc 05d scale110 task ${SLURM_ARRAY_TASK_ID:-?} host $(hostname) gpu $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1) tag $SIMPLESIM_SCRATCH_TAG $(date) ==="
 $PY -u data_gen/generate_ipc_data.py \
     --path "$DESIGN" \
-    --n 1000 --scale 110 --n_sources 4 \
+    --n 1000 --scale 110 \
     --out_sensor monitor_2 --components Ex,Ey,Ez \
     --out "$OUT" \
     --skip_existing --index "${SLURM_ARRAY_TASK_ID}"
