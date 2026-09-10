@@ -209,13 +209,24 @@ def open_reservoir(path, components, out_sensor=None, full_sensor=False,
                and str(v.get("type", "")) == "population"}
 
     def forward(E):
+        E = np.asarray(E)
+        # Complex amplitudes = phase-encoded drive. MEEP handles them natively
+        # (Re[A e^{i phi} e^{-i w t}] — verified 2026-09-10: two co-located CW
+        # sources at relative phase pi cancel to 6e-17, pi/2 gives 0.7074).
+        # gpumeep CW sources are sin(wt)*amp with a REAL amp — the phase would
+        # be silently dropped, so refuse rather than corrupt a dataset.
+        is_cplx = np.iscomplexobj(E) and bool(np.any(np.abs(E.imag) > 0))
+        if is_cplx and backend != "meep":
+            raise ValueError("phase-encoded (complex) drive requires the MEEP "
+                             "backend; gpumeep CW sources drop the phase")
+        _amp = (lambda x: complex(x)) if is_cplx else (lambda x: float(np.real(x)))
         if sweep_sources:
-            # one scalar per named source; np.real because the source casts to
-            # real anyway and a complex scalar would silently drop its phase
-            ov = {k: {"amplitude": float(np.real(E[i]))}
+            ov = {k: {"amplitude": _amp(E[i])}
                   for i, k in enumerate(sweep_sources)}
         else:
-            ov = {src_key: {"amplitude": list(E)}}
+            # amplitude-LIST (quadrosource) strips: source.py casts each entry
+            # float() — complex here fails loudly there, which is intended
+            ov = {src_key: {"amplitude": [_amp(x) for x in E]}}
         ov.update(pop_off)
         sim = ReservoirSimulation(path, backend=backend, suffix=suffix,
                                   overrides=ov)

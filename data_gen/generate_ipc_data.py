@@ -34,7 +34,8 @@ def main():
                          "what gets saved as 'inputs' -- lets the device operate at any real "
                          "drive level without breaking the [-1,1] orthonormality the capacity "
                          "decomposition (n6_dambre) assumes.")
-    ap.add_argument("--encode", default="amplitude", choices=["amplitude", "intensity"],
+    ap.add_argument("--encode", default="amplitude",
+                    choices=["amplitude", "intensity", "phase"],
                     help="what u drives. 'amplitude' (default): physical amplitude = "
                          "scale*u. 'intensity': u sets the drive INTENSITY instead, so "
                          "amplitude = scale*sqrt((u+1)/2) and the drive is non-negative. "
@@ -73,7 +74,15 @@ def main():
         # Intensity encoding: u sets |E|^2, so the amplitude is the square root.
         # (u+1)/2 maps [-1,1] -> [0,1], keeping u itself uniform on [-1,1] so the
         # Legendre basis downstream is untouched.
-        drive = np.sqrt((U[m] + 1.0) / 2.0) if args.encode == "intensity" else U[m]
+        # Phase encoding: constant magnitude `scale`, u in the phase over a
+        # half-turn (u -> e^{i pi u / 2}, phase in [-pi/2, +pi/2] so the map is
+        # injective; full +-pi would alias u = -1 and +1). MEEP backend only.
+        if args.encode == "intensity":
+            drive = np.sqrt((U[m] + 1.0) / 2.0)
+        elif args.encode == "phase":
+            drive = np.exp(1j * (np.pi / 2.0) * U[m])
+        else:
+            drive = U[m]
         v = forward((args.scale * drive).astype(complex))
         gc.save_part(out_path, m, is_master, output=v, inp=U[m],
                      **getattr(forward, "extras", {}))
