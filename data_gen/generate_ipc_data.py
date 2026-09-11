@@ -28,6 +28,12 @@ def main():
     ap.add_argument("--readout", default="field", choices=["field", "intensity"],
                     help="applied at ASSEMBLE only: raw complex field (default) or |E|²; "
                          "parts always store the field")
+    ap.add_argument("--offset", type=float, default=0.0,
+                    help="constant drive bias: physical amplitude = offset + scale*u "
+                         "(amplitude encoding only). offset > scale biases the drive "
+                         "positive -> breaks the u -> -u parity symmetry AND parks the "
+                         "operating point wherever the medium's knee is, while keeping "
+                         "the full modulation depth. u stays U[-1,1]; 'inputs' unchanged.")
     ap.add_argument("--scale", type=float, default=1.0,
                     help="physical amplitude = scale*u; u itself (Uniform[-1,1], what the "
                          "Legendre polynomial basis is evaluated on) is unaffected and is "
@@ -51,6 +57,8 @@ def main():
     gc.add_common_args(ap)
     args = ap.parse_args()
 
+    if args.offset and args.encode != "amplitude":
+        raise SystemExit("--offset is defined for amplitude encoding only")
     comps = [c.strip() for c in args.components.split(",") if c.strip()]
     out_path = args.out or os.path.join(args.path, "datasets", "ipc.npz")
     n_items = args.n
@@ -83,7 +91,7 @@ def main():
             drive = np.exp(1j * (np.pi / 2.0) * U[m])
         else:
             drive = U[m]
-        v = forward((args.scale * drive).astype(complex))
+        v = forward((args.offset + args.scale * drive).astype(complex))
         gc.save_part(out_path, m, is_master, output=v, inp=U[m],
                      **getattr(forward, "extras", {}))
 
@@ -95,6 +103,7 @@ def main():
             outputs = np.abs(outputs) ** 2
         extra = gc.collect_extras(parts, reserved=("output", "inp"))
         np.savez(out_path, inputs=inputs, outputs=outputs, scale=args.scale,
+                 offset=args.offset,
                  readout=np.asarray(args.readout), encode=np.asarray(args.encode),
                  components=np.asarray(comps),
                  out_sensor=np.asarray(args.out_sensor or "monitor_2"), **extra)
