@@ -1,0 +1,466 @@
+{
+ "_comment": "prism_reservoir/04_sawtooth3d_z100 (2026-09-11): 3D version of the Ez blazed-grating sawtooth \u2014 the 2D design extruded 100 um along z (mp.Prism), gaussian beam w0=40 um, Ez, 550 nm. Uniform n||z texture is EXACT (theta=0 anchoring everywhere), so the LC grid is coarse (res 2) and relax converges immediately \u2014 the optics only needs the uniform director. res 25 (not 40: 3D cost), subpixel OFF (3D Prism init pathology), NO full-cell dft (a 3D whole-cell DFT would be ~30 GB/component). Cell ~10.5x103x103 um = 1.7e9 cells at res 25 -> F5 CPU node (~350 GB, hours). Expect the same blazed orders in theta_y (m=+1 at 3.15 deg) now with a real 2D far-field: orders resolved in theta_y, gaussian envelope in theta_z.",
+ "resolution": 25,
+ "backend": "meep",
+ "run_until": 300.0,
+ "periodic": false,
+ "pml_size": 1.5,
+ "background_index": 1.0,
+ "object_order": [
+  "guide_1",
+  "lc_1",
+  "guide_2",
+  "source_1",
+  "out_plane",
+  "n2f_map"
+ ],
+ "guide_1": {
+  "class": "guide",
+  "index": 1.0,
+  "sizes": [
+   1.0,
+   100.0,
+   100.0
+  ]
+ },
+ "lc_1": {
+  "class": "lcblock",
+  "sizes": [
+   6.0,
+   100.0,
+   100.0
+  ],
+  "resolution": 2,
+  "lc_param": "Q3D",
+  "relax_solver": "newton",
+  "boundary_conditions": [
+   "free",
+   "periodic",
+   "periodic"
+  ],
+  "face_phi": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "face_theta": [
+   null,
+   null,
+   null,
+   null,
+   null,
+   null
+  ],
+  "elastic_constants": {
+   "K1": 6.4,
+   "K2": 3.0,
+   "K3": 10.0,
+   "q0": 0.0
+  },
+  "n_o": 1.531,
+  "n_e": 1.706,
+  "S": 1.0,
+  "maxeval": 500,
+  "f_tolerance": 1e-06,
+  "optimize_phi_theta": [
+   true,
+   true
+  ],
+  "bulk_seed": [
+   1.5708,
+   0.0
+  ],
+  "boundary_seed": 0,
+  "polygons": [
+   {
+    "_comment": "sawtooth prism 1/10: long edge on left wall y=[0,10], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      2.0,
+      0.0
+     ],
+     [
+      0.0,
+      10.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 2/10: long edge on left wall y=[10,20], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      10.0
+     ],
+     [
+      2.0,
+      10.0
+     ],
+     [
+      0.0,
+      20.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 3/10: long edge on left wall y=[20,30], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      20.0
+     ],
+     [
+      2.0,
+      20.0
+     ],
+     [
+      0.0,
+      30.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 4/10: long edge on left wall y=[30,40], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      30.0
+     ],
+     [
+      2.0,
+      30.0
+     ],
+     [
+      0.0,
+      40.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 5/10: long edge on left wall y=[40,50], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      40.0
+     ],
+     [
+      2.0,
+      40.0
+     ],
+     [
+      0.0,
+      50.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 6/10: long edge on left wall y=[50,60], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      50.0
+     ],
+     [
+      2.0,
+      50.0
+     ],
+     [
+      0.0,
+      60.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 7/10: long edge on left wall y=[60,70], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      60.0
+     ],
+     [
+      2.0,
+      60.0
+     ],
+     [
+      0.0,
+      70.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 8/10: long edge on left wall y=[70,80], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      70.0
+     ],
+     [
+      2.0,
+      70.0
+     ],
+     [
+      0.0,
+      80.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 9/10: long edge on left wall y=[80,90], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      80.0
+     ],
+     [
+      2.0,
+      80.0
+     ],
+     [
+      0.0,
+      90.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   },
+   {
+    "_comment": "sawtooth prism 10/10: long edge on left wall y=[90,100], floor edge 2 um, 11.31 deg",
+    "points": [
+     [
+      0.0,
+      90.0
+     ],
+     [
+      2.0,
+      90.0
+     ],
+     [
+      0.0,
+      100.0
+     ]
+    ],
+    "material": "isotropic",
+    "n": 1.5,
+    "anchoring_phi": [
+     "tangent",
+     "tangent",
+     "tangent"
+    ],
+    "anchoring_theta": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "lc_side": "outside"
+   }
+  ],
+  "_comment": "LC config v2 (user): director ALONG Z everywhere \u2014 code-theta seed 0 (n = z-hat), both phi and theta free in the relax. Expectation: uniform n||z is a zero-torque equilibrium (elastically uniform; the prism's tangent phi-anchoring is moot at theta=0 since the in-plane component vanishes), so the relaxation should NOT move it \u2014 this run verifies that. Note optically (2D TE, Ey): n||z presents the ordinary index n_o=1.531 everywhere, nearly matching the prism's n=1.5."
+ },
+ "guide_2": {
+  "class": "guide",
+  "index": 1.0,
+  "sizes": [
+   0.5,
+   100.0,
+   100.0
+  ]
+ },
+ "source_1": {
+  "_comment": "gaussian beam w0=40 um across the full 100-um aperture, 550 nm POLARISATION Ez (2D TM): with the director along z, Ez sees the EXTRAORDINARY index n_e=1.706 vs prism 1.50 -> dn=0.206, the strong-contrast state.",
+  "class": "source",
+  "position": {
+   "on_object": "guide_1",
+   "position": "center",
+   "size": [
+    0.0,
+    100.0,
+    100.0
+   ]
+  },
+  "amplitude": 1.0,
+  "component": "Ez",
+  "source_type": "gaussianbeam",
+  "w0": 40.0,
+  "focus": [
+   50.0,
+   0.0
+  ],
+  "kdir": [
+   1.0,
+   0.0,
+   0.0
+  ],
+  "lam": 0.55,
+  "dlam": 0.0
+ },
+ "n2f_map": {
+  "class": "monitor",
+  "type": "near2far",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": [
+    100.0,
+    100.0
+   ]
+  },
+  "lam": 0.55,
+  "center": [
+   130.0,
+   0.0
+  ],
+  "size": [
+   0.0,
+   240.0
+  ],
+  "n_points": [
+   160,
+   160
+  ],
+  "_comment": "3D n2f to far yz plane at x=+130 um; by-angle computed offline from the same currents"
+ },
+ "subpixel_smoothing": false,
+ "cell_size_y": 103.0,
+ "cell_size_z": 103.0,
+ "dimention": 3,
+ "out_plane": {
+  "class": "monitor",
+  "type": "2Ddft",
+  "on_object": "guide_2",
+  "position": {
+   "position": "center",
+   "size": [
+    100.0,
+    100.0
+   ]
+  },
+  "lam_range": [
+   0.55,
+   0.55
+  ],
+  "n_lam": 1,
+  "_comment": "yz exit cross-section"
+ }
+}
