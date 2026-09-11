@@ -17,6 +17,7 @@ Total capacity is bounded by the feature rank.
 """
 import argparse
 import itertools
+import os
 import numpy as np
 from numpy.polynomial import legendre as L
 
@@ -26,6 +27,7 @@ ap.add_argument("--max-deg", type=int, default=5)
 ap.add_argument("--test", type=int, default=200)
 ap.add_argument("--seed", type=int, default=0)
 ap.add_argument("--fig", default=None, help="output figure path")
+ap.add_argument("--title", default=None, help="figure title (default: npz filename)")
 args = ap.parse_args()
 
 rng = np.random.default_rng(args.seed)
@@ -127,7 +129,7 @@ if args.fig:
         ax.bar(names, vals, bottom=bottom, color=colors[dd - 1], label=f"degree {dd}")
         bottom += vals
     ax.set_ylabel("capacity (sum of out-of-sample R$^2$)")
-    ax.set_title("Dambre IPC by output interpretation — 05d IPC dataset (amp 70)")
+    ax.set_title(args.title or f"Dambre IPC by output interpretation — {os.path.basename(args.npz)}")
     ax.legend()
     ax.grid(alpha=0.3, axis="y")
     fig.tight_layout(); fig.savefig(args.fig, dpi=140)
